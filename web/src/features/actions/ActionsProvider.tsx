@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { useNavigate } from 'react-router';
 import type { Visit } from '../../lib/types';
 import { ClientFormSheet } from '../clients/ClientFormSheet';
-import { ExpenseSheet } from './ExpenseSheet';
+import { CashEntrySheet } from '../finance/CashEntrySheet';
 import { InvoiceSheet } from './InvoiceSheet';
 import { PaymentSheet } from './PaymentSheet';
 import { CancelVisitSheet, CompleteVisitSheet, RescheduleVisitSheet } from '../agenda/VisitActionSheets';
@@ -13,6 +13,7 @@ export type Action =
   | { type: 'invoice'; clientId?: number }
   | { type: 'visit'; clientId?: number; date?: string }
   | { type: 'expense' }
+  | { type: 'income' }
   | { type: 'client' }
   | { type: 'clientEdit'; clientId: number }
   | { type: 'completeVisit'; visit: Visit }
@@ -69,7 +70,8 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
       ) : null}
       {active?.type === 'invoice' ? <InvoiceSheet clientId={active.clientId} onClose={close} /> : null}
       {active?.type === 'visit' ? <VisitSheet clientId={active.clientId} date={active.date} onClose={close} /> : null}
-      {active?.type === 'expense' ? <ExpenseSheet onClose={close} /> : null}
+      {active?.type === 'expense' ? <CashEntrySheet kind="expense" onClose={close} /> : null}
+      {active?.type === 'income' ? <CashEntrySheet kind="income" onClose={close} /> : null}
       {active?.type === 'client' ? (
         <ClientFormSheet onClose={close} onSaved={(id) => navigate(`/clientes/${id}`)} />
       ) : null}

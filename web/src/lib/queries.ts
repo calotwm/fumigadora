@@ -7,7 +7,13 @@ import type {
   ClientRow,
   CompleteVisitBody,
   CompleteVisitResult,
+  BatchPreview,
   Dashboard,
+  FinanceSummary,
+  InvoiceWithClient,
+  Movement,
+  PaymentWithClient,
+  Receivables,
   ExpenseCategory,
   Invoice,
   PaymentResult,
@@ -34,7 +40,7 @@ export function useDashboard() {
 
 export interface ClientListParams {
   search: string;
-  filter: 'all' | 'debt' | 'overdue';
+  filter: 'all' | 'debt' | 'overdue' | 'archived';
   sort: 'name' | 'balance' | 'overdue';
 }
 
@@ -43,7 +49,12 @@ export function useClients(params: ClientListParams) {
     queryKey: ['clients', params],
     queryFn: () =>
       api<ClientListItem[]>('/clients', {
-        query: { search: params.search.trim(), filter: params.filter, sort: params.sort },
+        query: {
+          search: params.search.trim(),
+          filter: params.filter === 'archived' ? 'all' : params.filter,
+          sort: params.sort,
+          archived: params.filter === 'archived' ? 'true' : undefined,
+        },
       }),
     placeholderData: (previous) => previous,
   });
@@ -169,23 +180,6 @@ export function useArchiveClient() {
   });
 }
 
-export interface ExpenseInput {
-  kind: 'expense';
-  amountCents: number;
-  date: string;
-  categoryId: number;
-  description?: string;
-  method: PaymentMethod;
-}
-
-export function useCreateExpense() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: ExpenseInput) => api('/cash-entries', { body }),
-    onSuccess: () => invalidateData(queryClient),
-  });
-}
-
 export function useAgendaSummary() {
   return useQuery({
     queryKey: ['agenda', 'summary'],
@@ -215,5 +209,169 @@ export function useCancelVisit() {
   return useMutation({
     mutationFn: (id: number) => api<Visit>(`/visits/${id}/cancel`, { method: 'POST', body: {} }),
     onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useReceivables() {
+  return useQuery({ queryKey: ['receivables'], queryFn: () => api<Receivables>('/receivables') });
+}
+
+export function useInvoices(status: string) {
+  return useQuery({
+    queryKey: ['invoices', status],
+    queryFn: () => api<InvoiceWithClient[]>('/invoices', { query: { status } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function usePayments(from: string | undefined) {
+  return useQuery({
+    queryKey: ['payments', from ?? 'all'],
+    queryFn: () => api<PaymentWithClient[]>('/payments', { query: { from } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useVoidInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<Invoice>(`/invoices/${id}/void`, { method: 'POST', body: {} }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/payments/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useBatchPreview(month: string) {
+  return useQuery({
+    queryKey: ['batch-preview', month],
+    queryFn: () => api<BatchPreview>('/invoices/monthly-batch/preview', { method: 'POST', query: { month }, body: {} }),
+    gcTime: 0,
+  });
+}
+
+export function useCreateBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { month: string; clientIds: number[] }) =>
+      api<{ created: Invoice[]; skipped: { clientId: number; reason: string }[]; totalCents: number }>(
+        '/invoices/monthly-batch',
+        { body },
+      ),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useFinanceSummary(month: string) {
+  return useQuery({
+    queryKey: ['finance', 'summary', month],
+    queryFn: () => api<FinanceSummary>('/finance/summary', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useMovements(month: string) {
+  return useQuery({
+    queryKey: ['finance', 'movements', month],
+    queryFn: () => api<{ month: string; movements: Movement[] }>('/finance/movements', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface CashEntryInput {
+  kind: 'expense' | 'income';
+  amountCents: number;
+  date: string;
+  categoryId?: number;
+  description?: string;
+  method: PaymentMethod;
+}
+
+export function useSaveCashEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: CashEntryInput }) =>
+      id === undefined
+        ? api('/cash-entries', { body })
+        : api(`/cash-entries/${id}`, {
+            method: 'PATCH',
+            body: {
+              amountCents: body.amountCents,
+              date: body.date,
+              categoryId: body.categoryId,
+              description: body.description ?? '',
+              method: body.method,
+            },
+          }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteCashEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/cash-entries/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useUnarchiveClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<ClientRow>(`/clients/${id}/unarchive`, { method: 'POST', body: {} }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+// Settings (reference data) -------------------------------------------------
+
+export interface ServiceTypeInput {
+  name: string;
+  defaultPriceCents: number;
+  issuesCertificate: boolean;
+  certificateValidityDays?: number | null;
+}
+
+export function useSaveServiceType() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: ServiceTypeInput }) =>
+      id === undefined
+        ? api<ServiceType>('/service-types', { body })
+        : api<ServiceType>(`/service-types/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+export function useDeleteServiceType() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/service-types/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service-types'] }),
+  });
+}
+
+export function useSaveCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id?: number; name: string }) =>
+      id === undefined
+        ? api<ExpenseCategory>('/expense-categories', { body: { name } })
+        : api<ExpenseCategory>(`/expense-categories/${id}`, { method: 'PATCH', body: { name } }),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/expense-categories/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expense-categories'] }),
   });
 }

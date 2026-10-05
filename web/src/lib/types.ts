@@ -241,3 +241,63 @@ export interface ClientInput {
   taxId: string;
   monthlyFeeCents: number | null;
 }
+
+export interface Debtor extends BalanceFields {
+  clientId: number;
+  name: string;
+  phone: string | null;
+}
+
+export interface Receivables {
+  owedCents: number;
+  overdueCents: number;
+  openInvoicesCents: number;
+  overdueInvoicesCents: number;
+  overdueInvoiceCount: number;
+  debtorCount: number;
+  buckets: { bucket: AgingBucket; totalCents: number; invoiceCount: number; clientCount: number }[];
+  debtors: Debtor[];
+}
+
+export type InvoiceWithClient = Invoice & { clientName: string };
+
+export interface PaymentWithClient extends Payment {
+  clientName: string;
+}
+
+export interface BatchPreview {
+  month: IsoMonth;
+  label: string;
+  clients: { clientId: number; name: string; monthlyFeeCents: number }[];
+  totalCents: number;
+  alreadyInvoicedCount: number;
+}
+
+export interface FinanceFigures {
+  month: IsoMonth;
+  incomeCents: number;
+  paymentsCents: number;
+  otherIncomeCents: number;
+  expensesCents: number;
+  balanceCents: number;
+}
+
+export interface FinanceSummary extends FinanceFigures {
+  byCategory: { categoryId: number; name: string; totalCents: number; share: number }[];
+  previous: FinanceFigures;
+  series: FinanceFigures[];
+}
+
+export interface Movement {
+  type: 'payment' | 'income' | 'expense';
+  id: number;
+  date: IsoDate;
+  direction: 'in' | 'out';
+  amountCents: number;
+  method: PaymentMethod | null;
+  description: string | null;
+  clientId: number | null;
+  clientName: string | null;
+  categoryId: number | null;
+  categoryName: string | null;
+}

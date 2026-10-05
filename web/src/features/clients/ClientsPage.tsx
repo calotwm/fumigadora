@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Plus, Search } from 'lucide-react';
-import { useClients, type ClientListParams } from '../../lib/queries';
+import { useClients, useUnarchiveClient, type ClientListParams } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, dayMonth } from '../../lib/format';
 import { Button } from '../../ui/Button';
 import { Chips } from '../../ui/form';
 import { EmptyState, ErrorNote, Loading, PageHeader, Table, type Column } from '../../ui/display';
+import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { ClientListItem } from '../../lib/types';
 import { BalanceCell } from './balance';
@@ -15,6 +16,7 @@ const FILTERS: { value: ClientListParams['filter']; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: 'debt', label: 'Con deuda' },
   { value: 'overdue', label: 'Vencidos' },
+  { value: 'archived', label: 'Archivados' },
 ];
 
 const SORTS: { value: ClientListParams['sort']; label: string }[] = [
@@ -31,6 +33,8 @@ export function ClientsPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { open } = useActions();
+  const toast = useToast();
+  const unarchive = useUnarchiveClient();
   const filter = parseParam(params.get('f'), FILTERS, 'all');
   const sort = parseParam(params.get('s'), SORTS, 'name');
   const search = params.get('q') ?? '';
@@ -104,7 +108,19 @@ export function ClientsPage() {
       header: '',
       align: 'right',
       cell: (c) =>
-        c.balanceCents > 0 ? (
+        c.archived ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={unarchive.isPending}
+            onClick={(e) => {
+              e.stopPropagation();
+              unarchive.mutate(c.id, { onSuccess: () => toast.success(`Cliente restaurado: ${c.name}`) });
+            }}
+          >
+            Restaurar
+          </Button>
+        ) : c.balanceCents > 0 ? (
           <Button
             size="sm"
             variant="accent"

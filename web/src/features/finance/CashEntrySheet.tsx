@@ -5,32 +5,47 @@ import { Button } from '../../ui/Button';
 import { Chips, DateInput, Input, MoneyInput } from '../../ui/form';
 import { ErrorNote, Loading } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
-import { useCreateExpense, useExpenseCategories } from '../../lib/queries';
+import { useExpenseCategories, useSaveCashEntry } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { METHOD_LABELS, money } from '../../lib/format';
-import type { ExpenseCategory } from '../../lib/types';
+import type { ExpenseCategory, Movement } from '../../lib/types';
 
-export function ExpenseSheet({ onClose }: { onClose: () => void }) {
+interface Props {
+  kind: 'expense' | 'income';
+  /** Existing manual entry (from the movements list) to edit. */
+  entry?: Movement;
+  onClose: () => void;
+}
+
+/** Create or edit a manual cash entry. Expenses need a category; incomes do not. */
+export function CashEntrySheet({ kind, entry, onClose }: Props) {
   const categories = useExpenseCategories();
-  if (!categories.data) {
+  const title = `${entry ? 'Editar' : 'Registrar'} ${kind === 'expense' ? 'gasto' : 'ingreso'}`;
+  if (kind === 'expense' && !categories.data) {
     return (
-      <Sheet title="Registrar gasto" onClose={onClose}>
+      <Sheet title={title} onClose={onClose}>
         {categories.error ? <ErrorNote message={errorMessage(categories.error)} /> : <Loading />}
       </Sheet>
     );
   }
-  return <ExpenseForm categories={categories.data} onClose={onClose} />;
+  return <CashEntryForm kind={kind} entry={entry} title={title} categories={categories.data ?? []} onClose={onClose} />;
 }
 
-function ExpenseForm({ categories, onClose }: { categories: ExpenseCategory[]; onClose: () => void }) {
+function CashEntryForm({
+  kind,
+  entry,
+  title,
+  categories,
+  onClose,
+}: Props & { title: string; categories: ExpenseCategory[] }) {
   const formId = useId();
   const toast = useToast();
-  const mutation = useCreateExpense();
-  const [amount, setAmount] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(categories[0]?.id ?? null);
-  const [date, setDate] = useState(today());
-  const [description, setDescription] = useState('');
-  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const mutation = useSaveCashEntry();
+  const [amount, setAmount] = useState<number | null>(entry?.amountCents ?? null);
+  const [categoryId, setCategoryId] = useState<number | null>(entry?.categoryId ?? categories[0]?.id ?? null);
+  const [date, setDate] = useState(entry?.date ?? today());
+  const [description, setDescription] = useState(entry?.description ?? '');
+  const [method, setMethod] = useState<PaymentMethod>(entry?.method ?? 'cash');
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
@@ -39,16 +54,26 @@ function ExpenseForm({ categories, onClose }: { categories: ExpenseCategory[]; o
       setError('Ingrese un importe mayor a cero.');
       return;
     }
-    if (categoryId === null) {
+    if (kind === 'expense' && categoryId === null) {
       setError('Seleccione una categoría.');
       return;
     }
     setError(null);
     mutation.mutate(
-      { kind: 'expense', amountCents: amount, date, categoryId, description: description.trim() || undefined, method },
+      {
+        id: entry?.id,
+        body: {
+          kind,
+          amountCents: amount,
+          date,
+          categoryId: kind === 'expense' ? (categoryId ?? undefined) : undefined,
+          description: description.trim() || undefined,
+          method,
+        },
+      },
       {
         onSuccess: () => {
-          toast.success(`Gasto registrado: ${money(amount)}`);
+          toast.success(`${kind === 'expense' ? 'Gasto' : 'Ingreso'} ${entry ? 'actualizado' : 'registrado'}: ${money(amount)}`);
           onClose();
         },
         onError: (e) => setError(errorMessage(e)),
@@ -58,7 +83,7 @@ function ExpenseForm({ categories, onClose }: { categories: ExpenseCategory[]; o
 
   return (
     <Sheet
-      title="Registrar gasto"
+      title={title}
       onClose={onClose}
       footer={
         <div className="flex gap-2">
@@ -66,19 +91,21 @@ function ExpenseForm({ categories, onClose }: { categories: ExpenseCategory[]; o
             Cancelar
           </Button>
           <Button type="submit" form={formId} disabled={mutation.isPending} className="flex-[2]">
-            {mutation.isPending ? 'Guardando…' : 'Registrar gasto'}
+            {mutation.isPending ? 'Guardando…' : 'Guardar'}
           </Button>
         </div>
       }
     >
       <form id={formId} onSubmit={submit} className="flex flex-col gap-5">
         <MoneyInput label="Importe" value={amount} onChange={setAmount} autoFocus error={error} />
-        <Chips
-          label="Categoría"
-          value={categoryId}
-          onChange={setCategoryId}
-          options={categories.map((c) => ({ value: c.id, label: c.name }))}
-        />
+        {kind === 'expense' ? (
+          <Chips
+            label="Categoría"
+            value={categoryId}
+            onChange={setCategoryId}
+            options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        ) : null}
         <DateInput label="Fecha" value={date} required onChange={(e) => setDate(e.target.value)} />
         <Input label="Descripción (opcional)" value={description} onChange={(e) => setDescription(e.target.value)} />
         <Chips

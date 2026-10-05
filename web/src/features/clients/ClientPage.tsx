@@ -1,11 +1,12 @@
 import { Link, useParams, useSearchParams } from 'react-router';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
-import { useClient, useStatement } from '../../lib/queries';
+import { useClient, useStatement, useUnarchiveClient } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, money, overdueLabel } from '../../lib/format';
 import { debtReminderText, mapsLink, whatsappLink } from '../../lib/whatsapp';
 import { AnchorButton, Button } from '../../ui/Button';
 import { ErrorNote, Loading, Stat, Tabs } from '../../ui/display';
+import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { ClientDetail, Statement } from '../../lib/types';
 import { BUCKET_LABELS } from './balance';
@@ -51,6 +52,8 @@ function ClientView({
   statementError: unknown;
 }) {
   const { open } = useActions();
+  const toast = useToast();
+  const unarchive = useUnarchiveClient();
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab: TabId = TABS.find((t) => t.id === requested)?.id ?? 'cuenta';
@@ -121,7 +124,16 @@ function ClientView({
 
       <div className="sticky top-14 z-20 -mx-4 mt-6 border-y border-ink bg-paper px-4 py-2 md:-mx-8 md:px-8 lg:top-0 lg:-mx-10 lg:px-10">
         <div className="no-scrollbar flex gap-2 overflow-x-auto">
-          <Button variant="accent" onClick={() => open({ type: 'payment', clientId: client.id })}>
+          {client.archived ? (
+            <Button
+              variant="accent"
+              disabled={unarchive.isPending}
+              onClick={() => unarchive.mutate(client.id, { onSuccess: () => toast.success('Cliente restaurado') })}
+            >
+              Restaurar cliente
+            </Button>
+          ) : null}
+          <Button variant={client.archived ? 'outline' : 'accent'} onClick={() => open({ type: 'payment', clientId: client.id })}>
             Registrar pago
           </Button>
           <Button variant="outline" onClick={() => open({ type: 'invoice', clientId: client.id })}>

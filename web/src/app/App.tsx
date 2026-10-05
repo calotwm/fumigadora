@@ -2,6 +2,9 @@ import { Route, Routes } from 'react-router';
 import { LoginPage, RequireAuth } from '../features/auth/auth';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { AgendaPage } from '../features/agenda/AgendaPage';
+import { CobranzasPage } from '../features/receivables/CobranzasPage';
+import { FinanzasPage } from '../features/finance/FinanzasPage';
+import { AjustesPage } from '../features/settings/AjustesPage';
 import { ClientPage } from '../features/clients/ClientPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
 import { PageHeader, EmptyState } from '../ui/display';
@@ -30,9 +33,9 @@ export function App() {
           <Route path="agenda" element={<AgendaPage />} />
           <Route path="clientes" element={<ClientsPage />} />
           <Route path="clientes/:id" element={<ClientPage />} />
-          <Route path="cobranzas" element={<Placeholder title="Cobranzas" note="Próximamente: antigüedad de deuda, facturas y facturación de abonos." />} />
-          <Route path="finanzas" element={<Placeholder title="Finanzas" note="Próximamente: resumen mensual, comparativo y movimientos." />} />
-          <Route path="ajustes" element={<Placeholder title="Ajustes" note="Próximamente: tipos de servicio y categorías de gasto." />} />
+          <Route path="cobranzas" element={<CobranzasPage />} />
+          <Route path="finanzas" element={<FinanzasPage />} />
+          <Route path="ajustes" element={<AjustesPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>
