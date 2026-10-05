@@ -21,9 +21,9 @@ Strategy: ask-on-risk. No remote configured; work-unit commits on branch `feat/f
 - [x] T2 Server: Drizzle schema + migrations, PGlite/pg switch, auth, REST API for all entities, derived queries (balances, aging, dashboard, monthly summary), seed data. Route: delegated.
 - [x] T3 Web shell: design tokens, layout (rail + bottom bar), login, API client, command palette, Dashboard "Hoy". Route: delegated.
 - [x] T4 Clients: list with balance/aging, client sheet (account statement, visits, invoices, certificates, data) with inline Cobrar/Facturar/Agendar/WhatsApp. Route: delegated.
-- [ ] T5 Agenda: day/route, week, month, upcoming; complete-visit flow (invoice + certificate + next visit). Route: delegated.
-- [ ] T6 Cobranzas (aging board, invoices, batch monthly billing) + Finanzas (summary, compare, categories, movements, quick expense) + Ajustes. Route: delegated.
-- [ ] T7 Railway deploy config, production build serving SPA, README, responsive QA in browser. Route: delegated + parent browser check.
+- [x] T5 Agenda: day/route, week, month, upcoming; complete-visit flow (invoice + certificate + next visit). Route: delegated.
+- [x] T6 Cobranzas (aging board, invoices, batch monthly billing) + Finanzas (summary, compare, categories, movements, quick expense) + Ajustes. Route: delegated.
+- [x] T7 Railway deploy config, production build serving SPA, README, responsive QA in browser. Route: delegated + parent browser check.
 
 ## Acceptance criteria
 - Recording an invoice updates client account, receivables, dashboard without extra input.
@@ -40,7 +40,11 @@ Strategy: ask-on-risk. No remote configured; work-unit commits on branch `feat/f
 - Review: assess risk high (auth, payments) on a9c7ec6..49308c7; user declined and asked to skip always — RDD disabled globally (`gentle-ai review mode disable`).
 - T3+T4 (delegated, one writer): commits ae6fcff, e759920, dcefe33, 863d1c1. typecheck clean; `npm test` 65/65; build ok; built server serves SPA + fallback; browser QA at 375/1280 by writer.
 
+- T5–T7 (same writer, resumed): commits 6116c06, c425fe8, 6ab5985, 6c94a6b. typecheck clean; `npm test` 69/69 (parent spot check re-ran: 69/69); build ok; production refuses boot without ADMIN_PASSWORD/SESSION_SECRET; browser sweep 375/1280 all routes. Not exercised end to end: void, delete, edit, reschedule, cancel, archive, settings CRUD.
+- Postgres path: untested. Parent attempt via Docker failed (Docker daemon not running); `db:migrate` hung instead of failing fast against an unreachable host.
+- `.env.example` first comment line inaccurate (server does not load .env); file blocked by permission rules for agents.
+
 ## Next step
-T5–T7 in progress (same writer, resumed).
+Test against real Postgres (Docker or Railway), fix `.env.example` comment, deploy to Railway.
 
 Engram mirror: pending (Engram tools unavailable this session).
