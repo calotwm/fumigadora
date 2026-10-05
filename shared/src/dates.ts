@@ -105,3 +105,24 @@ export function startOfWeek(date: IsoDate): IsoDate {
 export function endOfWeek(date: IsoDate): IsoDate {
   return addDays(date, 7 - isoWeekday(date));
 }
+
+const MONTH_NAMES_ES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+/** `2025-03` -> `marzo 2025`. */
+export function monthLabelEs(month: IsoMonth): string {
+  const [y, m] = month.split('-');
+  return `${MONTH_NAMES_ES[Number(m) - 1] ?? month} ${y}`;
+}
