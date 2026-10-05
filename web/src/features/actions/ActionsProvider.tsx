@@ -5,7 +5,8 @@ import { ClientFormSheet } from '../clients/ClientFormSheet';
 import { ExpenseSheet } from './ExpenseSheet';
 import { InvoiceSheet } from './InvoiceSheet';
 import { PaymentSheet } from './PaymentSheet';
-import { CompleteVisitSheet, VisitSheet } from './VisitSheets';
+import { CancelVisitSheet, CompleteVisitSheet, RescheduleVisitSheet } from '../agenda/VisitActionSheets';
+import { VisitSheet } from './VisitSheets';
 
 export type Action =
   | { type: 'payment'; clientId?: number; invoiceId?: number }
@@ -14,7 +15,9 @@ export type Action =
   | { type: 'expense' }
   | { type: 'client' }
   | { type: 'clientEdit'; clientId: number }
-  | { type: 'completeVisit'; visit: Visit };
+  | { type: 'completeVisit'; visit: Visit }
+  | { type: 'rescheduleVisit'; visit: Visit }
+  | { type: 'cancelVisit'; visit: Visit };
 
 interface ActionsApi {
   open: (action: Action) => void;
@@ -72,6 +75,8 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
       ) : null}
       {active?.type === 'clientEdit' ? <ClientFormSheet clientId={active.clientId} onClose={close} /> : null}
       {active?.type === 'completeVisit' ? <CompleteVisitSheet visit={active.visit} onClose={close} /> : null}
+      {active?.type === 'rescheduleVisit' ? <RescheduleVisitSheet visit={active.visit} onClose={close} /> : null}
+      {active?.type === 'cancelVisit' ? <CancelVisitSheet visit={active.visit} onClose={close} /> : null}
     </ActionsContext.Provider>
   );
 }

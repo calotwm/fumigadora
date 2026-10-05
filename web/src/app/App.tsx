@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router';
 import { LoginPage, RequireAuth } from '../features/auth/auth';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { AgendaPage } from '../features/agenda/AgendaPage';
 import { ClientPage } from '../features/clients/ClientPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
 import { PageHeader, EmptyState } from '../ui/display';
@@ -26,7 +27,7 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
           <Route index element={<DashboardPage />} />
-          <Route path="agenda" element={<Placeholder title="Agenda" note="Próximamente: día, semana, mes y próximas visitas." />} />
+          <Route path="agenda" element={<AgendaPage />} />
           <Route path="clientes" element={<ClientsPage />} />
           <Route path="clientes/:id" element={<ClientPage />} />
           <Route path="cobranzas" element={<Placeholder title="Cobranzas" note="Próximamente: antigüedad de deuda, facturas y facturación de abonos." />} />

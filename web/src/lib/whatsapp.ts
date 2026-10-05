@@ -27,3 +27,7 @@ export function debtReminderText(clientName: string, balanceCents: number): stri
 export function mapsLink(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
+
+export function visitReminderText(clientName: string, service: string, dateLabel: string, time: string | null): string {
+  return `Hola ${clientName}, le recordamos que el ${dateLabel}${time ? ` a las ${time}` : ""} realizaremos el servicio de ${service}. Ante cualquier consulta, escribanos. ¡Muchas gracias!`;
+}

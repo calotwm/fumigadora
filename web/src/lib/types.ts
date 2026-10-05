@@ -215,7 +215,10 @@ export interface CompleteVisitBody {
   priceCents?: number;
   createInvoice?: boolean;
   issueCertificate?: boolean;
+  certificateNumber?: string;
   scheduleNext?: boolean;
+  nextDate?: IsoDate;
+  nextTime?: string | null;
   notes?: string;
 }
 

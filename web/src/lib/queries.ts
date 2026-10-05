@@ -185,3 +185,35 @@ export function useCreateExpense() {
     onSuccess: () => invalidateData(queryClient),
   });
 }
+
+export function useAgendaSummary() {
+  return useQuery({
+    queryKey: ['agenda', 'summary'],
+    queryFn: () => api<{ today: number; tomorrow: number; thisWeek: number; overdueScheduled: number }>('/agenda/summary'),
+  });
+}
+
+export function useVisits(params: { from?: string; to?: string; status?: string; clientId?: number }) {
+  return useQuery({
+    queryKey: ['visits', params],
+    queryFn: () => api<Visit[]>('/visits', { query: params }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useRescheduleVisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, date, time }: { id: number; date: string; time: string | null }) =>
+      api<Visit>(`/visits/${id}`, { method: 'PATCH', body: { date, time } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useCancelVisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<Visit>(`/visits/${id}/cancel`, { method: 'POST', body: {} }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
