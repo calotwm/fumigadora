@@ -34,7 +34,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     const timer = window.setTimeout(() => setDebounced(text), 180);
     return () => window.clearTimeout(timer);
   }, [text]);
-  useEffect(() => setActive(0), [text, search.data]);
+  useEffect(() => {
+    setActive(0);
+  }, [text, search.data]);
 
   const items = useMemo<Item[]>(() => {
     const q = text.trim().toLowerCase();

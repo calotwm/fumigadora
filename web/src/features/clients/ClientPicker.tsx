@@ -28,7 +28,9 @@ export function ClientPicker({
   const inputId = useId();
   const listId = useId();
 
-  useEffect(() => setActive(0), [query]);
+  useEffect(() => {
+    setActive(0);
+  }, [query]);
 
   return (
     <div className="flex flex-col gap-1">

@@ -34,7 +34,6 @@
   --radius-xl: 2px;
   --radius-2xl: 2px;
 
-  --spacing: 8px;
 }
 
 @layer base {
@@ -101,5 +100,12 @@
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }

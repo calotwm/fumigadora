@@ -77,15 +77,18 @@ interface StatProps {
   size?: 'lg' | 'md';
 }
 
-/** Big numeral with a small caps label, optional sub-note and delta line. */
+/**
+ * Big numeral with a small caps label, optional sub-note and delta line.
+ * The numeral scales with its own container (cqw) so long amounts never overflow; capped at the type scale.
+ */
 export function Stat({ label, value, note, delta, tone = 'default', size = 'lg' }: StatProps) {
+  const cap = size === 'lg' ? 64 : 40;
   return (
-    <div className="min-w-0">
+    <div className="@container min-w-0">
       <p className="label-caps">{label}</p>
       <p
-        className={`num font-extrabold tracking-tight leading-none mt-2 ${
-          size === 'lg' ? 'text-4xl lg:text-6xl' : 'text-2xl md:text-4xl'
-        } ${tone === 'red' ? 'text-red' : ''}`}
+        className={`num font-extrabold tracking-tight leading-none mt-2 ${tone === 'red' ? 'text-red' : ''}`}
+        style={{ fontSize: `clamp(22px, 14cqw, ${cap}px)` }}
       >
         {value}
       </p>
@@ -130,12 +133,22 @@ interface TableProps<T> {
   rowKey: (row: T) => string | number;
   /** Tailwind `grid-template-columns` class for md+ (e.g. `md:grid-cols-[2fr_1fr_1fr]`). */
   gridClass: string;
+  /** Mobile column count of the stacked layout (literal class so Tailwind sees it). */
+  mobileCols?: 'grid-cols-2' | 'grid-cols-3';
   onRowClick?: (row: T) => void;
   caption: string;
 }
 
 /** Grid table on desktop; each row collapses into a stacked block with inline labels on mobile. */
-export function Table<T>({ columns, rows, rowKey, gridClass, onRowClick, caption }: TableProps<T>) {
+export function Table<T>({
+  columns,
+  rows,
+  rowKey,
+  gridClass,
+  mobileCols = 'grid-cols-2',
+  onRowClick,
+  caption,
+}: TableProps<T>) {
   return (
     <div role="table" aria-label={caption} className="border-t border-ink">
       <div role="row" className={`hidden md:grid gap-4 py-2 border-b border-rule ${gridClass}`}>
@@ -154,7 +167,7 @@ export function Table<T>({ columns, rows, rowKey, gridClass, onRowClick, caption
           key={rowKey(row)}
           role="row"
           onClick={onRowClick ? () => onRowClick(row) : undefined}
-          className={`grid grid-cols-2 gap-x-4 gap-y-2 py-3 border-b border-rule md:items-center ${gridClass} ${
+          className={`grid ${mobileCols} gap-x-4 gap-y-2 py-3 border-b border-rule md:items-center ${gridClass} ${
             onRowClick ? 'cursor-pointer hover:bg-paper-2/70' : ''
           }`}
         >
@@ -162,11 +175,13 @@ export function Table<T>({ columns, rows, rowKey, gridClass, onRowClick, caption
             <div
               key={column.key}
               role="cell"
-              className={`min-w-0 text-sm ${column.primary ? 'col-span-2' : ''} ${
+              className={`min-w-0 text-sm ${column.primary ? 'col-span-full md:col-span-1' : ''} ${
                 column.hideOnMobile ? 'hidden md:block' : ''
               } ${column.align === 'right' ? 'md:text-right' : ''}`}
             >
-              {column.primary ? null : <span className="label-caps block md:hidden mb-0.5">{column.header}</span>}
+              {column.primary || !column.header ? null : (
+                <span className="label-caps block md:hidden mb-0.5">{column.header}</span>
+              )}
               {column.cell(row)}
             </div>
           ))}
@@ -188,7 +203,7 @@ export function Tabs<T extends string>({
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex gap-0 overflow-x-auto border-b border-rule -mx-4 px-4 md:mx-0 md:px-0">
+    <div role="tablist" aria-label={label} className="no-scrollbar flex gap-0 overflow-x-auto border-b border-rule -mx-4 px-4 md:mx-0 md:px-0">
       {tabs.map((tab) => {
         const active = tab.id === value;
         return (

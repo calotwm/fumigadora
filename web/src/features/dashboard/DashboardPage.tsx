@@ -52,27 +52,29 @@ function KpiStrip({ data }: { data: Dashboard }) {
   return (
     <section aria-label="Resumen del mes" className="section-head">
       <p className="label-caps mb-4 !text-ink">{monthLabelEs(month.month)}</p>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
-        <Stat label="Ingresó este mes" value={money(month.incomeCents)} delta={deltaLabel(month.incomeCents, prev.incomeCents)} />
-        <Stat label="Gastos" value={money(month.expensesCents)} delta={deltaLabel(month.expensesCents, prev.expensesCents)} />
-        <Stat
-          label="Balance"
-          value={money(month.balanceCents)}
-          delta={deltaLabel(month.balanceCents, prev.balanceCents)}
-        />
-        <Stat
-          label="Te deben"
-          tone={receivables.owedCents > 0 ? 'red' : 'default'}
-          value={money(receivables.owedCents)}
-          note={
-            receivables.overdueCents > 0 ? (
-              <span className="font-semibold text-red">{money(receivables.overdueCents)} vencido</span>
-            ) : (
-              'Sin vencidos'
-            )
-          }
-          delta={`${receivables.debtorCount} ${receivables.debtorCount === 1 ? 'cliente' : 'clientes'}`}
-        />
+      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <Stat
+            label="Te deben"
+            tone={receivables.owedCents > 0 ? 'red' : 'default'}
+            value={money(receivables.owedCents)}
+            note={
+              receivables.overdueCents > 0 ? (
+                <span className="font-semibold text-red">{money(receivables.overdueCents)} vencido</span>
+              ) : (
+                'Sin vencidos'
+              )
+            }
+            delta={`${receivables.debtorCount} ${receivables.debtorCount === 1 ? 'cliente' : 'clientes'}`}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:col-span-7">
+          <Stat size="md" label="Ingresó este mes" value={money(month.incomeCents)} delta={deltaLabel(month.incomeCents, prev.incomeCents)} />
+          <Stat size="md" label="Gastos" value={money(month.expensesCents)} delta={deltaLabel(month.expensesCents, prev.expensesCents)} />
+          <div className="col-span-2 sm:col-span-1">
+            <Stat size="md" label="Balance" value={money(month.balanceCents)} delta={deltaLabel(month.balanceCents, prev.balanceCents)} />
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -80,7 +82,7 @@ function KpiStrip({ data }: { data: Dashboard }) {
 
 function Counter({ label, value, tone }: { label: string; value: number; tone?: 'red' }) {
   return (
-    <div className="flex-1 border-l border-rule pl-4 first:border-l-0 first:pl-0">
+    <div className="flex-1 sm:border-l sm:border-rule sm:pl-4 sm:first:border-l-0 sm:first:pl-0">
       <p className="label-caps">{label}</p>
       <p className={`num text-4xl font-extrabold leading-none tracking-tight ${tone === 'red' ? 'text-red' : ''}`}>{value}</p>
     </div>
@@ -102,7 +104,7 @@ function AgendaBlock({ data }: { data: Dashboard }) {
           }
         />
       </div>
-      <div className="mb-6 flex gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-4 sm:flex">
         <Counter label="Hoy" value={agenda.today} />
         <Counter label="Mañana" value={agenda.tomorrow} />
         <Counter label="Esta semana" value={agenda.thisWeek} />
@@ -171,15 +173,15 @@ function DebtorsBlock({ data }: { data: Dashboard }) {
             const wa = whatsappLink(debtor.phone, debtReminderText(debtor.name, debtor.balanceCents));
             return (
               <li key={debtor.clientId} className="border-b border-rule py-3">
+                <Link to={`/clientes/${debtor.clientId}`} className="block truncate text-base font-bold hover:underline">
+                  {debtor.name}
+                </Link>
                 <div className="flex items-baseline justify-between gap-3">
-                  <Link to={`/clientes/${debtor.clientId}`} className="min-w-0 truncate text-base font-bold hover:underline">
-                    {debtor.name}
-                  </Link>
-                  <span className="num text-base font-extrabold">{money(debtor.balanceCents)}</span>
+                  <span className="num whitespace-nowrap text-xl font-extrabold">{money(debtor.balanceCents)}</span>
+                  <span className={`text-xs ${debtor.daysOverdue > 0 ? 'font-semibold text-red' : 'text-muted'}`}>
+                    {debtor.daysOverdue > 0 ? overdueLabel(debtor.daysOverdue) : 'Al día'}
+                  </span>
                 </div>
-                <p className={`text-xs ${debtor.daysOverdue > 0 ? 'font-semibold text-red' : 'text-muted'}`}>
-                  {debtor.daysOverdue > 0 ? overdueLabel(debtor.daysOverdue) : 'Al día'}
-                </p>
                 <div className="mt-2 flex gap-2">
                   <Button size="sm" variant="accent" onClick={() => open({ type: 'payment', clientId: debtor.clientId })}>
                     Cobrar
