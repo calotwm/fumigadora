@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #0a0a0a;
+  --color-paper: #ffffff;
+  --color-paper-2: #f4f4f2;
+  --color-rule: #d9d9d6;
+  --color-muted: #6b6b68;
+  --color-red: #e10600;
+
+  /* Type scale 12 / 14 / 16 / 20 / 28 / 40 / 64 */
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 32px;
+  --text-4xl: 40px;
+  --text-4xl--line-height: 44px;
+  --text-6xl: 64px;
+  --text-6xl--line-height: 64px;
+
+  --radius-xs: 0px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+
+  --spacing: 8px;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    background-image: radial-gradient(rgb(10 10 10 / 0.07) 1px, transparent 1px);
+    background-size: 16px 16px;
+    min-height: 100dvh;
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-red);
+    outline-offset: 2px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+}
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+@utility label-caps {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+@utility section-head {
+  border-top: 4px solid var(--color-ink);
+  padding-top: 8px;
+}
+
+@utility texture {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(10 10 10 / 0.05) 0,
+    rgb(10 10 10 / 0.05) 1px,
+    transparent 1px,
+    transparent 8px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

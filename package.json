@@ -3,20 +3,27 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["shared", "server"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "npm run dev -w @fumigadora/server",
-    "build": "npm run build -w @fumigadora/server",
+    "dev": "concurrently -k -n api,web -c gray,red \"npm run dev -w @fumigadora/server\" \"npm run dev -w @fumigadora/web\"",
+    "build": "npm run build -w @fumigadora/web && npm run build -w @fumigadora/server",
     "start": "npm run start -w @fumigadora/server",
     "test": "vitest run",
-    "typecheck": "npm run typecheck -w @fumigadora/shared && npm run typecheck -w @fumigadora/server",
+    "typecheck": "npm run typecheck -w @fumigadora/shared && npm run typecheck -w @fumigadora/server && npm run typecheck -w @fumigadora/web",
     "db:generate": "npm run db:generate -w @fumigadora/server",
     "db:migrate": "npm run db:migrate -w @fumigadora/server",
     "db:seed": "npm run db:seed -w @fumigadora/server"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "concurrently": "^9.2.0"
   }
 }

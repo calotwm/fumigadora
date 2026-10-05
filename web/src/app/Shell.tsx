@@ -1,0 +1,220 @@
+import { useEffect } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
+import { LogOut, Plus, Search, Settings } from 'lucide-react';
+import { ActionsProvider, QUICK_ACTIONS, useActions } from '../features/actions/ActionsProvider';
+import { useLogout } from '../features/auth/auth';
+import { Sheet } from '../ui/Sheet';
+import { CommandPalette } from './CommandPalette';
+import { NAV_ITEMS } from './nav';
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+}
+
+function GlobalShortcuts() {
+  const { paletteOpen, setPaletteOpen, setQuickMenuOpen } = useActions();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(!paletteOpen);
+        return;
+      }
+      if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (isTyping(event.target) || document.querySelector('[role="dialog"]')) return;
+        event.preventDefault();
+        setQuickMenuOpen(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [paletteOpen, setPaletteOpen, setQuickMenuOpen]);
+  return null;
+}
+
+function QuickMenu() {
+  const { open, quickMenuOpen, setQuickMenuOpen } = useActions();
+  if (!quickMenuOpen) return null;
+  return (
+    <Sheet title="Acción rápida" onClose={() => setQuickMenuOpen(false)} variant="modal">
+      <ul className="-my-2">
+        {QUICK_ACTIONS.map((quick) => (
+          <li key={quick.id}>
+            <button
+              type="button"
+              onClick={() => open(quick.action)}
+              className="flex min-h-14 w-full items-center justify-between border-b border-rule text-left text-base font-semibold hover:bg-paper-2"
+            >
+              <span>{quick.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Sheet>
+  );
+}
+
+const railLink =
+  'relative flex min-h-11 items-center gap-3 px-6 text-sm font-semibold hover:bg-paper-2 aria-[current=page]:bg-paper-2';
+
+function Marker() {
+  return <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-red" />;
+}
+
+function Rail() {
+  const { setQuickMenuOpen, setPaletteOpen } = useActions();
+  const logout = useLogout();
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-rule bg-paper lg:flex">
+      <div className="border-t-4 border-ink px-6 pb-4 pt-5">
+        <p className="text-xl font-extrabold uppercase leading-none tracking-[0.08em]">Fumi&shy;gadora</p>
+        <p className="label-caps mt-1">Gestión</p>
+      </div>
+      <div className="flex flex-col gap-2 px-6 pb-4">
+        <button
+          type="button"
+          onClick={() => setQuickMenuOpen(true)}
+          className="flex min-h-11 items-center justify-between rounded-sm bg-red px-4 text-sm font-semibold uppercase tracking-wider text-paper hover:bg-red/85"
+        >
+          <span className="flex items-center gap-2">
+            <Plus size={16} aria-hidden /> Nuevo
+          </span>
+          <kbd className="text-xs opacity-80">N</kbd>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="flex min-h-11 items-center justify-between rounded-sm border border-rule px-4 text-sm text-muted hover:border-ink"
+        >
+          <span className="flex items-center gap-2">
+            <Search size={16} aria-hidden /> Buscar
+          </span>
+          <kbd className="text-xs">Ctrl K</kbd>
+        </button>
+      </div>
+      <nav aria-label="Principal" className="flex-1 border-t border-rule py-2">
+        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={railLink}>
+            {({ isActive }) => (
+              <>
+                {isActive ? <Marker /> : null}
+                <Icon size={18} aria-hidden />
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="border-t border-rule py-2">
+        <NavLink to="/ajustes" className={railLink}>
+          {({ isActive }) => (
+            <>
+              {isActive ? <Marker /> : null}
+              <Settings size={18} aria-hidden />
+              Ajustes
+            </>
+          )}
+        </NavLink>
+        <button type="button" onClick={() => logout.mutate()} className={`${railLink} w-full text-left`}>
+          <LogOut size={18} aria-hidden />
+          Salir
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function TopBar() {
+  const { setPaletteOpen } = useActions();
+  const logout = useLogout();
+  const iconButton = 'grid size-11 place-items-center hover:bg-paper-2';
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-rule border-t-4 border-t-ink bg-paper pl-4 pr-1 lg:hidden">
+      <p className="text-base font-extrabold uppercase tracking-[0.08em]">Fumigadora</p>
+      <div className="flex">
+        <button type="button" aria-label="Buscar" onClick={() => setPaletteOpen(true)} className={iconButton}>
+          <Search size={20} aria-hidden />
+        </button>
+        <NavLink to="/ajustes" aria-label="Ajustes" className={iconButton}>
+          <Settings size={20} aria-hidden />
+        </NavLink>
+        <button type="button" aria-label="Salir" onClick={() => logout.mutate()} className={iconButton}>
+          <LogOut size={20} aria-hidden />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function BottomBar() {
+  const { setQuickMenuOpen } = useActions();
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Acción rápida"
+        onClick={() => setQuickMenuOpen(true)}
+        className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-sm bg-red text-paper lg:hidden"
+      >
+        <Plus size={28} aria-hidden />
+      </button>
+      <nav
+        aria-label="Principal"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-ink bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
+        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            className="relative flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted aria-[current=page]:text-ink"
+          >
+            {({ isActive }) => (
+              <>
+                {isActive ? <span aria-hidden className="absolute inset-x-3 top-0 h-1 bg-red" /> : null}
+                <Icon size={20} aria-hidden />
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+    </>
+  );
+}
+
+function ScrollReset() {
+  const { pathname } = useLocation();
+  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  return null;
+}
+
+function Frame() {
+  const { paletteOpen, setPaletteOpen } = useActions();
+  return (
+    <>
+      <GlobalShortcuts />
+      <ScrollReset />
+      <Rail />
+      <TopBar />
+      <main className="min-h-dvh px-4 pb-32 pt-6 md:px-8 lg:ml-60 lg:px-10 lg:pb-16 lg:pt-8">
+        <div className="mx-auto max-w-[1200px]">
+          <Outlet />
+        </div>
+      </main>
+      <BottomBar />
+      <QuickMenu />
+      {paletteOpen ? <CommandPalette onClose={() => setPaletteOpen(false)} /> : null}
+    </>
+  );
+}
+
+export function Shell() {
+  return (
+    <ActionsProvider>
+      <Frame />
+    </ActionsProvider>
+  );
+}
