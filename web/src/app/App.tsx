@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
 import { LoginPage, RequireAuth } from '../features/auth/auth';
+import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { PageHeader, EmptyState } from '../ui/display';
 import { Shell } from './Shell';
 
@@ -22,7 +23,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Shell />}>
-          <Route index element={<Placeholder title="Hoy" note="Cargando panel…" />} />
+          <Route index element={<DashboardPage />} />
           <Route path="agenda" element={<Placeholder title="Agenda" note="Próximamente: día, semana, mes y próximas visitas." />} />
           <Route path="cobranzas" element={<Placeholder title="Cobranzas" note="Próximamente: antigüedad de deuda, facturas y facturación de abonos." />} />
           <Route path="finanzas" element={<Placeholder title="Finanzas" note="Próximamente: resumen mensual, comparativo y movimientos." />} />
