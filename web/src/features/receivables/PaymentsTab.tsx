@@ -53,6 +53,7 @@ export function PaymentsTab() {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (p) => (
         <Button size="sm" variant="ghost" onClick={() => setDeleting(p)}>
           Eliminar

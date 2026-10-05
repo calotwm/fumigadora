@@ -181,21 +181,19 @@ function Movements({ month }: { month: string }) {
                     {m.description ? ` · ${m.description}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className={`num whitespace-nowrap font-extrabold ${m.direction === 'out' ? 'text-red' : ''}`}>
-                    {m.direction === 'out' ? '−' : '+'} {money(m.amountCents)}
-                  </span>
-                  {manual ? (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(m)} aria-label="Editar movimiento">
-                        Editar
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDeleting(m)} aria-label="Eliminar movimiento">
-                        Eliminar
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
+                <span className={`num whitespace-nowrap font-extrabold ${m.direction === 'out' ? 'text-red' : ''}`}>
+                  {m.direction === 'out' ? '−' : '+'} {money(m.amountCents)}
+                </span>
+                {manual ? (
+                  <div className="col-start-2 col-span-2 flex gap-1">
+                    <Button size="sm" variant="ghost" className="-ml-3" onClick={() => setEditing(m)} aria-label="Editar movimiento">
+                      Editar
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleting(m)} aria-label="Eliminar movimiento">
+                      Eliminar
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             );
           })}

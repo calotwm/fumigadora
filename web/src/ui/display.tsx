@@ -123,6 +123,8 @@ export interface Column<T> {
   align?: 'left' | 'right';
   /** On mobile the cell is shown without its label (useful for the primary column). */
   primary?: boolean;
+  /** Span the full row on mobile (for action buttons). */
+  wide?: boolean;
   /** Hide the cell on mobile entirely. */
   hideOnMobile?: boolean;
 }
@@ -175,7 +177,7 @@ export function Table<T>({
             <div
               key={column.key}
               role="cell"
-              className={`min-w-0 text-sm ${column.primary ? 'col-span-full md:col-span-1' : ''} ${
+              className={`min-w-0 text-sm ${column.primary || column.wide ? 'col-span-full md:col-span-1' : ''} ${
                 column.hideOnMobile ? 'hidden md:block' : ''
               } ${column.align === 'right' ? 'md:text-right' : ''}`}
             >

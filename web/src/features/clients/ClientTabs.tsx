@@ -120,6 +120,7 @@ export function VisitsTab({ statement }: { statement: Statement }) {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (v) =>
         withAction && v.status === 'scheduled' ? (
           <Button size="sm" onClick={() => open({ type: 'completeVisit', visit: v })}>
@@ -194,6 +195,7 @@ export function InvoicesTab({ statement }: { statement: Statement }) {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (i) =>
         !i.voided && i.balanceCents > 0 ? (
           <Button size="sm" variant="accent" onClick={() => open({ type: 'payment', clientId: i.clientId, invoiceId: i.id })}>

@@ -107,6 +107,7 @@ export function ClientsPage() {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (c) =>
         c.archived ? (
           <Button

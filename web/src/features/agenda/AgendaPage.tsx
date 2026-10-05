@@ -79,7 +79,7 @@ export function AgendaPage() {
       : view === 'semana'
         ? `${dayMonth(startOfWeek(date))} al ${dayMonth(endOfWeek(date))}`
         : view === 'mes'
-          ? monthLabelEs(monthOf(date))
+          ? monthLabelEs(monthOf(date)).replace(/^./, (c) => c.toUpperCase())
           : 'Próximas visitas';
 
   const counters = summary.data;

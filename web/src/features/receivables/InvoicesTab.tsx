@@ -60,6 +60,7 @@ export function InvoicesTab() {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (i) => (
         <span className="flex gap-1 md:justify-end">
           {!i.voided && i.balanceCents > 0 ? (

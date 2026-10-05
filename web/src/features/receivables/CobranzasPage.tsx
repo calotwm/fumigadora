@@ -136,6 +136,7 @@ function DebtorsList({ debtors }: { debtors: Debtor[] }) {
       key: 'actions',
       header: '',
       align: 'right',
+      wide: true,
       cell: (d) => {
         const wa = whatsappLink(d.phone, debtReminderText(d.name, d.balanceCents));
         return (
