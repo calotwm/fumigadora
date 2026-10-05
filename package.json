@@ -1,0 +1,22 @@
+{
+  "name": "fumigadora",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["shared", "server"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "npm run dev -w @fumigadora/server",
+    "build": "npm run build -w @fumigadora/server",
+    "start": "npm run start -w @fumigadora/server",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck -w @fumigadora/shared && npm run typecheck -w @fumigadora/server",
+    "db:generate": "npm run db:generate -w @fumigadora/server",
+    "db:migrate": "npm run db:migrate -w @fumigadora/server",
+    "db:seed": "npm run db:seed -w @fumigadora/server"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
