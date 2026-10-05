@@ -8,7 +8,7 @@ const handle = createDb({ databaseUrl: config.databaseUrl, pgliteDir: config.pgl
 await handle.migrate();
 
 const app = createApp({ db: handle.db, config });
-const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
+const server = serve({ fetch: app.fetch, port: config.port, hostname: '0.0.0.0' }, (info) => {
   console.log(`Fumigadora listening on http://localhost:${info.port} (db: ${handle.driver})`);
 });
 
