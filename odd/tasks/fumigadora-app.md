@@ -17,10 +17,10 @@ Mode: off (no project config, no explicit user choice). Source: default. Runner:
 Strategy: ask-on-risk. No remote configured; work-unit commits on branch `feat/fumigadora-app`. Forecast: well over 400 lines (greenfield) — PR slicing decision deferred until a remote exists.
 
 ## Tasks
-- [ ] T1 Scaffold workspace + shared domain module (money, dates, invoice status, allocation FIFO, aging, recurrence) with unit tests. Route: delegated (writer trigger).
-- [ ] T2 Server: Drizzle schema + migrations, PGlite/pg switch, auth, REST API for all entities, derived queries (balances, aging, dashboard, monthly summary), seed data. Route: delegated.
-- [ ] T3 Web shell: design tokens, layout (rail + bottom bar), login, API client, command palette, Dashboard "Hoy". Route: delegated.
-- [ ] T4 Clients: list with balance/aging, client sheet (account statement, visits, invoices, certificates, data) with inline Cobrar/Facturar/Agendar/WhatsApp. Route: delegated.
+- [x] T1 Scaffold workspace + shared domain module (money, dates, invoice status, allocation FIFO, aging, recurrence) with unit tests. Route: delegated (writer trigger).
+- [x] T2 Server: Drizzle schema + migrations, PGlite/pg switch, auth, REST API for all entities, derived queries (balances, aging, dashboard, monthly summary), seed data. Route: delegated.
+- [x] T3 Web shell: design tokens, layout (rail + bottom bar), login, API client, command palette, Dashboard "Hoy". Route: delegated.
+- [x] T4 Clients: list with balance/aging, client sheet (account statement, visits, invoices, certificates, data) with inline Cobrar/Facturar/Agendar/WhatsApp. Route: delegated.
 - [ ] T5 Agenda: day/route, week, month, upcoming; complete-visit flow (invoice + certificate + next visit). Route: delegated.
 - [ ] T6 Cobranzas (aging board, invoices, batch monthly billing) + Finanzas (summary, compare, categories, movements, quick expense) + Ajustes. Route: delegated.
 - [ ] T7 Railway deploy config, production build serving SPA, README, responsive QA in browser. Route: delegated + parent browser check.
@@ -36,9 +36,11 @@ Strategy: ask-on-risk. No remote configured; work-unit commits on branch `feat/f
 `npm run typecheck`, `npm test`, `npm run build`, manual browser QA.
 
 ## Progress / evidence
-(empty)
+- T1+T2 (delegated, one writer): commits 39a6c37..49308c7. typecheck clean; `npm test` 59/59 pass (parent spot check re-ran: 59/59); build ok; migrate+seed ok; built server curl: login 200, dashboard JSON sane, 401 without cookie. Postgres path untested (PGlite only). API documented in docs/api.md.
+- Review: assess risk high (auth, payments) on a9c7ec6..49308c7; user declined and asked to skip always — RDD disabled globally (`gentle-ai review mode disable`).
+- T3+T4 (delegated, one writer): commits ae6fcff, e759920, dcefe33, 863d1c1. typecheck clean; `npm test` 65/65; build ok; built server serves SPA + fallback; browser QA at 375/1280 by writer.
 
 ## Next step
-T1.
+T5–T7 in progress (same writer, resumed).
 
 Engram mirror: pending (Engram tools unavailable this session).
