@@ -50,7 +50,7 @@ See `.env.example`.
 
 ## Deploy on Railway
 
-One service builds and serves both the API and the SPA. `railway.json` sets the build to `npm ci && npm run build`,
+One service builds and serves both the API and the SPA. `railway.json` sets the build to `npm run build` (Railpack installs dependencies first),
 the start command to `npm start` and the health check to `/api/health`.
 
 1. Create a Railway project from this repository (a single service at the repo root).
