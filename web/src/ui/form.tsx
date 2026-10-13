@@ -207,7 +207,7 @@ export function Chips<T extends string | number>({ label, value, options, onChan
               aria-checked={active}
               onClick={() => onChange(option.value)}
               className={`min-h-11 px-3 text-sm font-medium border rounded-sm transition-colors ${
-                active ? 'bg-ink text-paper border-ink' : 'bg-paper text-ink border-rule hover:border-ink'
+                active ? 'bg-yellow text-ink border-ink font-semibold' : 'bg-paper text-ink border-rule hover:border-ink'
               }`}
             >
               {option.label}

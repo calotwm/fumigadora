@@ -130,7 +130,7 @@ function SummaryView({ data }: { data: FinanceSummary }) {
                     </span>
                   </div>
                   <div className="mt-1 h-2 bg-paper-2" role="presentation">
-                    <div className="h-full bg-ink" style={{ width: `${Math.max(cat.share, 1)}%` }} />
+                    <div className="h-full bg-yellow" style={{ width: `${Math.max(cat.share, 1)}%` }} />
                   </div>
                 </li>
               ))}
