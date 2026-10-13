@@ -250,7 +250,7 @@ export function CertificatesTab({ statement }: { statement: Statement }) {
         c.superseded ? (
           <span className="label-caps">Reemplazada</span>
         ) : (
-          <span className={`text-sm ${c.daysLeft <= 15 ? 'font-semibold text-red' : ''}`}>{daysLeftLabel(c.daysLeft)}</span>
+          <span className={`text-sm ${c.daysLeft <= 15 ? 'font-bold underline decoration-yellow decoration-4 underline-offset-4' : ''}`}>{daysLeftLabel(c.daysLeft)}</span>
         ),
     },
   ];

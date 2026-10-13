@@ -50,7 +50,7 @@ function KpiStrip({ data }: { data: Dashboard }) {
   const { month, receivables } = data;
   const prev = month.previous;
   return (
-    <section aria-label="Resumen del mes" className="section-head">
+    <section aria-label="Resumen del mes" className="section-head !border-yellow">
       <p className="label-caps mb-4 !text-ink">{monthLabelEs(month.month)}</p>
       <div className="grid gap-x-10 gap-y-8 lg:grid-cols-12">
         <div className="lg:col-span-5">
@@ -231,7 +231,7 @@ function AlertsRow({ data }: { data: Dashboard }) {
         </div>
         <div>
           <p className="label-caps">Obleas por vencer</p>
-          <p className={`num text-2xl font-extrabold ${expiringCertificates.length > 0 ? 'text-red' : ''}`}>
+          <p className="num text-2xl font-extrabold">
             {expiringCertificates.length}
           </p>
           {expiringCertificates.length === 0 ? (

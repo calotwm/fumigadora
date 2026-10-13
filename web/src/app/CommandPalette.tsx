@@ -129,7 +129,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                   onMouseEnter={() => setActive(index)}
                   onClick={item.run}
                   className={`flex min-h-11 cursor-pointer flex-col justify-center border-l-4 px-4 py-1 ${
-                    index === active ? 'border-red bg-paper-2' : 'border-transparent'
+                    index === active ? 'border-yellow bg-paper-2' : 'border-transparent'
                   }`}
                 >
                   <span className="text-sm font-semibold">{item.label}</span>

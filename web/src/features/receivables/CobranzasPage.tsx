@@ -22,7 +22,7 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
-const BUCKET_STYLES = ['bg-paper', 'bg-red/10', 'bg-red/25', 'bg-red/55', 'bg-red text-paper'];
+const BUCKET_STYLES = ['bg-paper', 'bg-yellow/20', 'bg-yellow/50', 'bg-yellow', 'bg-red text-paper'];
 
 export function CobranzasPage() {
   const [params, setParams] = useSearchParams();
@@ -43,7 +43,7 @@ export function CobranzasPage() {
         <ErrorNote message={errorMessage(error)} onRetry={() => refetch()} />
       ) : (
         <>
-          <div className="mb-8 grid grid-cols-1 gap-6 border-t-4 border-ink pt-4 sm:grid-cols-3">
+          <div className="mb-8 grid grid-cols-1 gap-6 border-t-4 border-yellow pt-4 sm:grid-cols-3">
             <Stat size="md" label="Te deben" tone={data.owedCents > 0 ? 'red' : 'default'} value={money(data.owedCents)} delta={`${data.debtorCount} clientes`} />
             <Stat size="md" label="Vencido" tone={data.overdueCents > 0 ? 'red' : 'default'} value={money(data.overdueCents)} />
             <Stat size="md" label="Facturas vencidas" value={data.overdueInvoiceCount} delta={money(data.overdueInvoicesCents)} />

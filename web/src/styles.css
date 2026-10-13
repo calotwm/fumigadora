@@ -10,6 +10,9 @@
   --color-rule: #d9d9d6;
   --color-muted: #6b6b68;
   --color-red: #e10600;
+  /* Plagamix brand yellow. Never used as text on white. */
+  --color-yellow: #f5c400;
+  --color-yellow-dark: #e0b300;
 
   /* Type scale 12 / 14 / 16 / 20 / 28 / 40 / 64 */
   --text-xs: 12px;
@@ -52,8 +55,12 @@
     font-variant-numeric: tabular-nums;
   }
   :focus-visible {
-    outline: 2px solid var(--color-red);
+    outline: 2px solid var(--color-ink);
     outline-offset: 2px;
+  }
+  /* On black surfaces (rail, top bar) the ring flips to yellow. */
+  .on-ink :focus-visible {
+    outline-color: var(--color-yellow);
   }
   button {
     cursor: pointer;

@@ -181,7 +181,7 @@ function Movements({ month }: { month: string }) {
                     {m.description ? ` · ${m.description}` : ''}
                   </p>
                 </div>
-                <span className={`num whitespace-nowrap font-extrabold ${m.direction === 'out' ? 'text-red' : ''}`}>
+                <span className="num whitespace-nowrap font-extrabold">
                   {m.direction === 'out' ? '−' : '+'} {money(m.amountCents)}
                 </span>
                 {manual ? (

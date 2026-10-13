@@ -21,7 +21,7 @@ export function whatsappLink(phone: string | null | undefined, text?: string): s
 }
 
 export function debtReminderText(clientName: string, balanceCents: number): string {
-  return `Hola ${clientName}, le escribimos de Fumigadora. Le recordamos que registra un saldo pendiente de ${money(balanceCents)}. Si ya realizó el pago, por favor desestime este mensaje. ¡Muchas gracias!`;
+  return `Hola ${clientName}, le escribimos de Plagamix. Le recordamos que registra un saldo pendiente de ${money(balanceCents)}. Si ya realizó el pago, por favor desestime este mensaje. ¡Muchas gracias!`;
 }
 
 export function mapsLink(address: string): string {

@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, errorMessage } from '../../lib/api';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/form';
+import plagamixBlack from '../../assets/plagamix-black.png';
+import urqBlack from '../../assets/urq-black.png';
 
 const AUTH_KEY = ['auth'] as const;
 
@@ -72,25 +74,39 @@ export function LoginPage() {
   }
 
   return (
-    <main className="texture grid min-h-dvh place-items-center px-4">
-      <div className="w-full max-w-sm border-t-4 border-ink bg-paper px-6 pb-6 pt-5 border-x border-b border-rule">
-        <p className="label-caps">Acceso</p>
-        <h1 className="mt-1 mb-6 text-4xl font-extrabold tracking-tight">Fumigadora</h1>
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <Input
-            label="Contraseña"
-            type="password"
-            autoComplete="current-password"
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={login.error ? (login.error instanceof ApiError && login.error.status === 401 ? 'Contraseña incorrecta.' : errorMessage(login.error)) : null}
-          />
-          <Button type="submit" variant="accent" disabled={login.isPending || !password}>
-            {login.isPending ? 'Ingresando…' : 'Ingresar'}
-          </Button>
-        </form>
-      </div>
+    <main className="grid min-h-dvh grid-rows-[auto_1fr] bg-paper lg:grid-cols-2 lg:grid-rows-1">
+      <section className="flex items-center justify-center bg-yellow px-6 py-10 lg:justify-start lg:px-16 lg:py-0">
+        <div>
+          <img src={plagamixBlack} alt="Plagamix" width={374} height={100} className="h-auto w-56 lg:w-96" />
+          <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink lg:mt-5 lg:text-sm">
+            Gestión de clientes, visitas y cobranzas
+          </p>
+        </div>
+      </section>
+      <section className="flex flex-col justify-between px-6 py-8 lg:px-16 lg:py-10">
+        <div className="mx-auto my-auto w-full max-w-sm border-t-4 border-ink pt-5">
+          <p className="label-caps">Acceso</p>
+          <h1 className="mb-6 mt-1 text-4xl font-extrabold tracking-tight">Ingresar</h1>
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            <Input
+              label="Contraseña"
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={login.error ? (login.error instanceof ApiError && login.error.status === 401 ? 'Contraseña incorrecta.' : errorMessage(login.error)) : null}
+            />
+            <Button type="submit" variant="accent" disabled={login.isPending || !password}>
+              {login.isPending ? 'Ingresando…' : 'Ingresar'}
+            </Button>
+          </form>
+        </div>
+        <footer className="mt-10 flex items-center justify-center gap-2 lg:justify-start">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Desarrollado por</span>
+          <img src={urqBlack} alt="Urquisoft" width={1244} height={878} className="h-5 w-auto" />
+        </footer>
+      </section>
     </main>
   );
 }

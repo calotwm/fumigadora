@@ -6,6 +6,8 @@ import { useLogout } from '../features/auth/auth';
 import { Sheet } from '../ui/Sheet';
 import { CommandPalette } from './CommandPalette';
 import { NAV_ITEMS } from './nav';
+import plagamixWhite from '../assets/plagamix-white.png';
+import urqWhite from '../assets/urq-white.png';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -57,26 +59,26 @@ function QuickMenu() {
 }
 
 const railLink =
-  'relative flex min-h-11 items-center gap-3 px-6 text-sm font-semibold hover:bg-paper-2 aria-[current=page]:bg-paper-2';
+  'relative flex min-h-11 items-center gap-3 px-6 text-sm font-semibold text-paper/75 hover:bg-paper/10 hover:text-paper aria-[current=page]:bg-paper/10 aria-[current=page]:text-paper';
 
 function Marker() {
-  return <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-red" />;
+  return <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-yellow" />;
 }
 
 function Rail() {
   const { setQuickMenuOpen, setPaletteOpen } = useActions();
   const logout = useLogout();
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-rule bg-paper lg:flex">
-      <div className="border-t-4 border-ink px-6 pb-4 pt-5">
-        <p className="text-xl font-extrabold uppercase leading-none tracking-[0.08em]">Fumi&shy;gadora</p>
-        <p className="label-caps mt-1">Gestión</p>
+    <aside className="on-ink fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-ink text-paper lg:flex">
+      <div className="border-t-4 border-yellow px-6 pb-5 pt-5">
+        <img src={plagamixWhite} alt="Plagamix" width={374} height={100} className="h-auto w-40" />
+        <p className="mt-2 text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-paper/60">Gestión</p>
       </div>
       <div className="flex flex-col gap-2 px-6 pb-4">
         <button
           type="button"
           onClick={() => setQuickMenuOpen(true)}
-          className="flex min-h-11 items-center justify-between rounded-sm bg-red px-4 text-sm font-semibold uppercase tracking-wider text-paper hover:bg-red/85"
+          className="flex min-h-11 items-center justify-between rounded-sm bg-yellow px-4 text-sm font-semibold uppercase tracking-wider text-ink hover:bg-yellow-dark"
         >
           <span className="flex items-center gap-2">
             <Plus size={16} aria-hidden /> Nuevo
@@ -86,7 +88,7 @@ function Rail() {
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="flex min-h-11 items-center justify-between rounded-sm border border-rule px-4 text-sm text-muted hover:border-ink"
+          className="flex min-h-11 items-center justify-between rounded-sm border border-paper/30 px-4 text-sm text-paper/70 hover:border-paper hover:text-paper"
         >
           <span className="flex items-center gap-2">
             <Search size={16} aria-hidden /> Buscar
@@ -94,7 +96,7 @@ function Rail() {
           <kbd className="text-xs">Ctrl K</kbd>
         </button>
       </div>
-      <nav aria-label="Principal" className="flex-1 border-t border-rule py-2">
+      <nav aria-label="Principal" className="flex-1 border-t border-paper/15 py-2">
         {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={railLink}>
             {({ isActive }) => (
@@ -107,7 +109,7 @@ function Rail() {
           </NavLink>
         ))}
       </nav>
-      <div className="border-t border-rule py-2">
+      <div className="border-t border-paper/15 py-2">
         <NavLink to="/ajustes" className={railLink}>
           {({ isActive }) => (
             <>
@@ -122,6 +124,10 @@ function Rail() {
           Salir
         </button>
       </div>
+      <div className="flex items-center gap-2 border-t border-paper/15 px-6 py-4">
+        <span className="text-[10px] font-semibold uppercase leading-3 tracking-[0.12em] text-paper/50">Desarrollado por</span>
+        <img src={urqWhite} alt="Urquisoft" width={1244} height={878} className="h-5 w-auto opacity-80" />
+      </div>
     </aside>
   );
 }
@@ -129,10 +135,10 @@ function Rail() {
 function TopBar() {
   const { setPaletteOpen } = useActions();
   const logout = useLogout();
-  const iconButton = 'grid size-11 place-items-center hover:bg-paper-2';
+  const iconButton = 'grid size-11 place-items-center hover:bg-paper/10';
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-rule border-t-4 border-t-ink bg-paper pl-4 pr-1 lg:hidden">
-      <p className="text-base font-extrabold uppercase tracking-[0.08em]">Fumigadora</p>
+    <header className="on-ink sticky top-0 z-30 flex h-14 items-center justify-between border-t-4 border-t-yellow bg-ink pl-4 pr-1 text-paper lg:hidden">
+      <img src={plagamixWhite} alt="Plagamix" width={374} height={100} className="h-6 w-auto" />
       <div className="flex">
         <button type="button" aria-label="Buscar" onClick={() => setPaletteOpen(true)} className={iconButton}>
           <Search size={20} aria-hidden />
@@ -156,7 +162,7 @@ function BottomBar() {
         type="button"
         aria-label="Acción rápida"
         onClick={() => setQuickMenuOpen(true)}
-        className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-sm bg-red text-paper lg:hidden"
+        className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-30 grid size-14 place-items-center rounded-sm border border-ink bg-yellow text-ink lg:hidden"
       >
         <Plus size={28} aria-hidden />
       </button>
@@ -173,7 +179,7 @@ function BottomBar() {
           >
             {({ isActive }) => (
               <>
-                {isActive ? <span aria-hidden className="absolute inset-x-3 top-0 h-1 bg-red" /> : null}
+                {isActive ? <span aria-hidden className="absolute inset-x-3 top-0 h-1 bg-yellow" /> : null}
                 <Icon size={20} aria-hidden />
                 {label}
               </>

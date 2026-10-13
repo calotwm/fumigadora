@@ -222,7 +222,7 @@ export function Tabs<T extends string>({
             }`}
           >
             {tab.label}
-            {active ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-red" /> : null}
+            {active ? <span aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-yellow" /> : null}
           </button>
         );
       })}

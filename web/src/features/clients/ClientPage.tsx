@@ -61,7 +61,7 @@ function ClientView({
   const owes = summary.balanceCents > 0;
   const overdue = summary.overdueCents > 0 && summary.daysOverdue > 0;
 
-  const greeting = `Hola ${client.contactName || client.name}, le escribimos de Fumigadora.`;
+  const greeting = `Hola ${client.contactName || client.name}, le escribimos de Plagamix.`;
   const wa = whatsappLink(client.phone, owes ? debtReminderText(client.name, summary.balanceCents) : greeting);
 
   return (

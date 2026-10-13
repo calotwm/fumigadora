@@ -19,7 +19,7 @@ function niceMax(value: number): number {
   return Math.ceil(pesos / step) * step * 100;
 }
 
-/** Hand-rolled SVG grouped bars: income (black) vs expenses (red) for the last months. */
+/** Hand-rolled SVG grouped bars: income (black) vs expenses (yellow) for the last months. */
 export function MonthChart({ series }: { series: FinanceFigures[] }) {
   const W = 640;
   const H = 260;
@@ -54,7 +54,7 @@ export function MonthChart({ series }: { series: FinanceFigures[] }) {
               <rect x={x - bar - 1} y={y(item.incomeCents)} width={bar} height={Math.max(plotH - (y(item.incomeCents) - top), 0)} fill="var(--color-ink)">
                 <title>{`${label}: ingresos ${money(item.incomeCents)}`}</title>
               </rect>
-              <rect x={x + 1} y={y(item.expensesCents)} width={bar} height={Math.max(plotH - (y(item.expensesCents) - top), 0)} fill="var(--color-red)">
+              <rect x={x + 1} y={y(item.expensesCents)} width={bar} height={Math.max(plotH - (y(item.expensesCents) - top), 0)} fill="var(--color-yellow)" stroke="var(--color-ink)" strokeWidth={1}>
                 <title>{`${label}: gastos ${money(item.expensesCents)}`}</title>
               </rect>
               <text x={x} y={H - 8} textAnchor="middle" fontSize={12} fontWeight={index === series.length - 1 ? 700 : 400} fill="var(--color-ink)">
@@ -69,7 +69,7 @@ export function MonthChart({ series }: { series: FinanceFigures[] }) {
           <span aria-hidden className="size-3 bg-ink" /> Ingresos
         </span>
         <span className="flex items-center gap-2">
-          <span aria-hidden className="size-3 bg-red" /> Gastos
+          <span aria-hidden className="size-3 border border-ink bg-yellow" /> Gastos
         </span>
       </figcaption>
       <table className="sr-only">
