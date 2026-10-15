@@ -1,4 +1,4 @@
-import { addMonths, daysInMonth, diffDays, endOfMonth, isoWeekday, monthRange } from './dates.js';
+import { addDays, addMonths, daysInMonth, diffDays, endOfMonth, isoWeekday, monthRange } from './dates.js';
 import type { Frequency, IsoDate, IsoMonth } from './types.js';
 
 const MONTH_INTERVALS: Partial<Record<Frequency, number>> = {
@@ -99,4 +99,21 @@ export function monthlyTrackingStatus(input: MonthlyTrackingInput): MonthlyTrack
     lastDoneOn,
     daysSinceLast: lastDoneOn ? Math.max(0, diffDays(input.today, lastDoneOn)) : null,
   };
+}
+
+/**
+ * Default date to propose when scheduling a pending service of `month`: the next weekday after `today`
+ * for the current month (clamped to the last weekday of the month), the first weekday of a future month,
+ * and null for a month that is already over.
+ */
+export function suggestServiceDate(month: IsoMonth, today: IsoDate): IsoDate | null {
+  const { from, to } = monthRange(month);
+  if (to < today) return null;
+  let date = from > today ? from : addDays(today, 1);
+  while (isoWeekday(date) > 5) date = addDays(date, 1);
+  if (date > to) {
+    date = to;
+    while (isoWeekday(date) > 5) date = addDays(date, -1);
+  }
+  return date;
 }

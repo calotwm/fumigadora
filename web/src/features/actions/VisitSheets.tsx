@@ -12,10 +12,10 @@ import type { ClientDetail, ServiceType } from '../../lib/types';
 import { SelectedClient } from '../clients/ClientPicker';
 import { WithClient } from './WithClient';
 
-export function VisitSheet({ clientId, date, onClose }: { clientId?: number; date?: string; onClose: () => void }) {
+export function VisitSheet({ clientId, date, serviceTypeId, onClose }: { clientId?: number; date?: string; serviceTypeId?: number; onClose: () => void }) {
   return (
     <WithClient presetClientId={clientId} title="Nueva visita" onClose={onClose}>
-      {(id, change) => <VisitLoader clientId={id} date={date} onClose={onClose} onChangeClient={change} />}
+      {(id, change) => <VisitLoader clientId={id} date={date} serviceTypeId={serviceTypeId} onClose={onClose} onChangeClient={change} />}
     </WithClient>
   );
 }
@@ -23,11 +23,13 @@ export function VisitSheet({ clientId, date, onClose }: { clientId?: number; dat
 function VisitLoader({
   clientId,
   date,
+  serviceTypeId,
   onClose,
   onChangeClient,
 }: {
   clientId: number;
   date?: string;
+  serviceTypeId?: number;
   onClose: () => void;
   onChangeClient?: () => void;
 }) {
@@ -42,7 +44,7 @@ function VisitLoader({
     );
   }
   return (
-    <VisitForm client={client.data} services={services.data} date={date} onClose={onClose} onChangeClient={onChangeClient} />
+    <VisitForm client={client.data} services={services.data} date={date} serviceTypeId={serviceTypeId} onClose={onClose} onChangeClient={onChangeClient} />
   );
 }
 
@@ -50,22 +52,28 @@ function VisitForm({
   client,
   services,
   date,
+  serviceTypeId: presetServiceTypeId,
   onClose,
   onChangeClient,
 }: {
   client: ClientDetail;
   services: ServiceType[];
   date?: string;
+  serviceTypeId?: number;
   onClose: () => void;
   onChangeClient?: () => void;
 }) {
   const formId = useId();
   const toast = useToast();
   const mutation = useCreateVisit();
-  const [serviceTypeId, setServiceTypeId] = useState<number | ''>(services[0]?.id ?? '');
+  const [serviceTypeId, setServiceTypeId] = useState<number | ''>(
+    presetServiceTypeId ?? client.defaultServiceTypeId ?? services[0]?.id ?? '',
+  );
   const [visitDate, setVisitDate] = useState(date ?? today());
   const [time, setTime] = useState('');
-  const [frequency, setFrequency] = useState<Frequency>(client.summary.lastFrequency ?? 'none');
+  const [frequency, setFrequency] = useState<Frequency>(
+    client.serviceFrequency !== 'none' ? client.serviceFrequency : (client.summary.lastFrequency ?? 'none'),
+  );
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -133,7 +141,13 @@ function VisitForm({
           label="Frecuencia"
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as Frequency)}
-          hint={client.summary.lastFrequency ? 'Se sugiere la frecuencia de la última visita.' : undefined}
+          hint={
+            client.serviceFrequency !== 'none'
+              ? 'Se sugiere la frecuencia del plan del cliente.'
+              : client.summary.lastFrequency
+                ? 'Se sugiere la frecuencia de la última visita.'
+                : undefined
+          }
         >
           {FREQUENCIES.map((value) => (
             <option key={value} value={value}>

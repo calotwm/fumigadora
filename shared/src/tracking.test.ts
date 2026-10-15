@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expectedServicesInMonth, monthlyTrackingStatus, mondaysInMonth } from './tracking.js';
+import { expectedServicesInMonth, monthlyTrackingStatus, mondaysInMonth, suggestServiceDate } from './tracking.js';
 
 describe('mondaysInMonth', () => {
   it('counts 4 or 5 Mondays', () => {
@@ -156,5 +156,23 @@ describe('monthlyTrackingStatus', () => {
       scheduledDates: [],
     });
     expect(s).toMatchObject({ expected: 1, done: 1, isDue: false, daysSinceLast: 15 });
+  });
+});
+
+describe('suggestServiceDate', () => {
+  it('proposes the next weekday in the current month', () => {
+    expect(suggestServiceDate('2025-06', '2025-06-12')).toBe('2025-06-13'); // Thu -> Fri
+    expect(suggestServiceDate('2025-06', '2025-06-13')).toBe('2025-06-16'); // Fri -> Mon
+  });
+
+  it('clamps to the last weekday of the month', () => {
+    expect(suggestServiceDate('2025-06', '2025-06-30')).toBe('2025-06-30'); // Mon: month over after today -> last weekday
+    expect(suggestServiceDate('2025-05', '2025-05-30')).toBe('2025-05-30'); // Fri 30, next weekdays are in June
+  });
+
+  it('uses the first weekday of a future month and nothing for a past month', () => {
+    expect(suggestServiceDate('2025-07', '2025-06-15')).toBe('2025-07-01');
+    expect(suggestServiceDate('2025-11', '2025-06-15')).toBe('2025-11-03'); // Nov 1 is a Saturday
+    expect(suggestServiceDate('2025-05', '2025-06-15')).toBeNull();
   });
 });

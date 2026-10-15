@@ -98,6 +98,23 @@ export function Stat({ label, value, note, delta, tone = 'default', size = 'lg' 
   );
 }
 
+/** Horizontal progress bar: ink outline, brand-yellow fill. */
+export function ProgressBar({ value, max, label }: { value: number; max: number; label: string }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      className="h-3 w-full border border-ink bg-paper"
+    >
+      <div className="h-full bg-yellow" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 const TAGS: Record<string, { label: string; className: string }> = {
   paid: { label: 'Pagada', className: '!text-ink' },
   partial: { label: 'Parcial', className: '!text-ink' },

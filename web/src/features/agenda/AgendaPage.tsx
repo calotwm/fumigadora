@@ -21,6 +21,7 @@ import { EmptyState, ErrorNote, Loading, PageHeader, Tabs } from '../../ui/displ
 import { useActions } from '../actions/ActionsProvider';
 import { DayView } from './DayView';
 import { MonthView } from './MonthView';
+import { TrackingView } from './TrackingView';
 import { UpcomingView } from './UpcomingView';
 import { WeekView } from './WeekView';
 
@@ -29,6 +30,7 @@ const VIEWS = [
   { id: 'semana', label: 'Semana' },
   { id: 'mes', label: 'Mes' },
   { id: 'proximas', label: 'Próximas' },
+  { id: 'seguimiento', label: 'Seguimiento' },
 ] as const;
 type ViewId = (typeof VIEWS)[number]['id'];
 
@@ -51,6 +53,10 @@ export function AgendaPage() {
         else copy.set('view', nextView);
         if (nextDate === today) copy.delete('d');
         else copy.set('d', nextDate);
+        if (nextView !== 'seguimiento') {
+          copy.delete('zona');
+          copy.delete('estado');
+        }
         return copy;
       },
       { replace: true },
@@ -64,13 +70,16 @@ export function AgendaPage() {
     return { from: undefined, to: undefined };
   }, [view, date]);
 
-  const visitsQuery = useVisits(view === 'proximas' ? { status: 'scheduled' } : { from: range.from, to: range.to });
+  const visitsQuery = useVisits(
+    view === 'proximas' ? { status: 'scheduled' } : { from: range.from, to: range.to },
+    view !== 'seguimiento',
+  );
   const visits = (visitsQuery.data ?? []).filter((v) => v.status !== 'cancelled');
 
   function step(direction: -1 | 1) {
     if (view === 'dia') update({ d: addDays(date, direction) });
     else if (view === 'semana') update({ d: addDays(date, 7 * direction) });
-    else if (view === 'mes') update({ d: addMonths(startOfMonth(date), direction) });
+    else if (view === 'mes' || view === 'seguimiento') update({ d: addMonths(startOfMonth(date), direction) });
   }
 
   const title =
@@ -78,7 +87,7 @@ export function AgendaPage() {
       ? longDate(date)
       : view === 'semana'
         ? `${dayMonth(startOfWeek(date))} al ${dayMonth(endOfWeek(date))}`
-        : view === 'mes'
+        : view === 'mes' || view === 'seguimiento'
           ? monthLabelEs(monthOf(date)).replace(/^./, (c) => c.toUpperCase())
           : 'Próximas visitas';
 
@@ -144,7 +153,9 @@ export function AgendaPage() {
       </div>
 
       <div className="mt-5">
-        {visitsQuery.isLoading ? (
+        {view === 'seguimiento' ? (
+          <TrackingView month={monthOf(date)} />
+        ) : visitsQuery.isLoading ? (
           <Loading />
         ) : visitsQuery.error ? (
           <ErrorNote message={errorMessage(visitsQuery.error)} onRetry={() => visitsQuery.refetch()} />

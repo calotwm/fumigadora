@@ -13,7 +13,7 @@ import {
 import { debtReminderText, whatsappLink } from '../../lib/whatsapp';
 import { monthLabelEs } from '@fumigadora/shared';
 import { AnchorButton, Button, LinkButton } from '../../ui/Button';
-import { EmptyState, ErrorNote, Loading, SectionHead, Stat } from '../../ui/display';
+import { EmptyState, ErrorNote, Loading, ProgressBar, SectionHead, Stat } from '../../ui/display';
 import { useActions } from '../actions/ActionsProvider';
 import type { Dashboard } from '../../lib/types';
 
@@ -40,6 +40,7 @@ function DashboardView({ data }: { data: Dashboard }) {
           <DebtorsBlock data={data} />
         </section>
       </div>
+      <TrackingBlock data={data} />
       <AlertsRow data={data} />
       <ServicesBlock data={data} />
     </div>
@@ -206,6 +207,42 @@ function DebtorsBlock({ data }: { data: Dashboard }) {
         </ul>
       )}
     </>
+  );
+}
+
+function TrackingBlock({ data }: { data: Dashboard }) {
+  const { expected, done, scheduled, pendingUnscheduled, clientsTracked } = data.tracking;
+  if (clientsTracked === 0) return null;
+  return (
+    <section aria-label="Servicios del mes">
+      <SectionHead
+        title="Servicios del mes"
+        action={
+          <Link to="/agenda?view=seguimiento" className="text-xs font-semibold uppercase tracking-wider underline">
+            Ver seguimiento
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+        <p className="num text-4xl font-extrabold leading-none tracking-tight">
+          {done} <span className="text-2xl font-bold text-muted">de {expected}</span>
+        </p>
+        <p className="num text-sm">
+          <strong>{pendingUnscheduled}</strong> {pendingUnscheduled === 1 ? 'pendiente' : 'pendientes'} sin agendar
+          <span className="text-muted"> · {scheduled} agendados</span>
+        </p>
+      </div>
+      <div className="mt-3 max-w-3xl">
+        <ProgressBar value={done} max={expected} label="Servicios realizados del mes" />
+      </div>
+      {pendingUnscheduled > 0 ? (
+        <div className="mt-3">
+          <LinkButton to="/agenda?view=seguimiento&estado=pending" variant="outline" size="sm">
+            Agendar pendientes
+          </LinkButton>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

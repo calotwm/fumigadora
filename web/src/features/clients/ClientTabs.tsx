@@ -1,6 +1,7 @@
 import { daysLeftLabel, dayMonth, fullDate, FREQUENCY_LABELS, KIND_LABELS, METHOD_LABELS, money, overdueLabel } from '../../lib/format';
 import type { PaymentMethod } from '@fumigadora/shared';
 import { Button } from '../../ui/Button';
+import { useServiceTypes } from '../../lib/queries';
 import { EmptyState, Table, Tag, type Column } from '../../ui/display';
 import { useActions } from '../actions/ActionsProvider';
 import type { Certificate, ClientDetail, Invoice, LedgerEntry, Statement, Visit } from '../../lib/types';
@@ -268,6 +269,8 @@ export function CertificatesTab({ statement }: { statement: Statement }) {
 
 export function DataTab({ client }: { client: ClientDetail }) {
   const { open } = useActions();
+  const services = useServiceTypes();
+  const habitual = services.data?.find((s) => s.id === client.defaultServiceTypeId)?.name ?? null;
   const fields: [string, string | null][] = [
     ['Tipo', KIND_LABELS[client.kind] ?? client.kind],
     ['Contacto', client.contactName],
@@ -275,6 +278,8 @@ export function DataTab({ client }: { client: ClientDetail }) {
     ['Correo electrónico', client.email],
     ['Dirección', client.address],
     ['Zona', client.area],
+    ['Frecuencia del servicio', client.serviceFrequency === 'none' ? 'Sin plan' : FREQUENCY_LABELS[client.serviceFrequency]],
+    ['Servicio habitual', habitual],
     ['CUIT', client.taxId],
     ['Abono mensual', client.monthlyFeeCents ? money(client.monthlyFeeCents) : null],
     ['Notas', client.notes],

@@ -31,6 +31,8 @@ export interface ClientRow {
   notes: string | null;
   taxId: string | null;
   monthlyFeeCents: number | null;
+  serviceFrequency: Frequency;
+  defaultServiceTypeId: number | null;
   archivedAt: string | null;
   createdAt: string;
   archived: boolean;
@@ -201,6 +203,7 @@ export interface Dashboard {
   expiringCertificates: Certificate[];
   services: { doneThisMonth: number; doneLastMonth: number };
   clientsWithoutNextVisit: number;
+  tracking: TrackingSummary;
 }
 
 export interface PaymentResult {
@@ -240,6 +243,8 @@ export interface ClientInput {
   notes: string;
   taxId: string;
   monthlyFeeCents: number | null;
+  serviceFrequency: Frequency;
+  defaultServiceTypeId: number | null;
 }
 
 export interface Debtor extends BalanceFields {
@@ -300,4 +305,47 @@ export interface Movement {
   clientName: string | null;
   categoryId: number | null;
   categoryName: string | null;
+}
+
+export type TrackingStatus = 'pending' | 'scheduled' | 'complete';
+
+export interface TrackingTotals {
+  expected: number;
+  done: number;
+  scheduled: number;
+  pendingUnscheduled: number;
+  clientsTracked: number;
+}
+
+export interface TrackingSummary extends TrackingTotals {
+  month: IsoMonth;
+}
+
+export interface TrackingRow {
+  clientId: number;
+  name: string;
+  zone: string | null;
+  frequency: Frequency;
+  serviceTypeId: number | null;
+  serviceTypeName: string | null;
+  expected: number;
+  done: number;
+  scheduled: number;
+  pendingUnscheduled: number;
+  status: TrackingStatus;
+  lastDoneOn: IsoDate | null;
+  daysSinceLast: number | null;
+  nextScheduled: { id: number; date: IsoDate; time: string | null } | null;
+}
+
+export interface TrackingBoard {
+  month: IsoMonth;
+  zones: string[];
+  totals: TrackingTotals;
+  rows: TrackingRow[];
+}
+
+export interface ScheduleTrackingBody {
+  month: IsoMonth;
+  items: { clientId: number; date: IsoDate; time?: string; serviceTypeId?: number }[];
 }

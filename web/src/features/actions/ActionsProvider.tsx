@@ -11,7 +11,7 @@ import { VisitSheet } from './VisitSheets';
 export type Action =
   | { type: 'payment'; clientId?: number; invoiceId?: number }
   | { type: 'invoice'; clientId?: number }
-  | { type: 'visit'; clientId?: number; date?: string }
+  | { type: 'visit'; clientId?: number; date?: string; serviceTypeId?: number }
   | { type: 'expense' }
   | { type: 'income' }
   | { type: 'client' }
@@ -69,7 +69,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
         <PaymentSheet clientId={active.clientId} invoiceId={active.invoiceId} onClose={close} />
       ) : null}
       {active?.type === 'invoice' ? <InvoiceSheet clientId={active.clientId} onClose={close} /> : null}
-      {active?.type === 'visit' ? <VisitSheet clientId={active.clientId} date={active.date} onClose={close} /> : null}
+      {active?.type === 'visit' ? <VisitSheet clientId={active.clientId} date={active.date} serviceTypeId={active.serviceTypeId} onClose={close} /> : null}
       {active?.type === 'expense' ? <CashEntrySheet kind="expense" onClose={close} /> : null}
       {active?.type === 'income' ? <CashEntrySheet kind="income" onClose={close} /> : null}
       {active?.type === 'client' ? (

@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   allocatePayment,
+  endOfMonth,
   endOfWeek,
   monthLabelEs,
   nextVisitDate,
@@ -304,6 +305,16 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
       generate(i, SVC.insects, freq, rand(15, 150), true);
     }
   });
+  // Leave every third planned client without its remaining visit of the month: "pending, not scheduled yet".
+  const monthEnd = endOfMonth(today);
+  let planNumber = 0;
+  for (const [idx, plan] of servicePlans) {
+    if (planNumber++ % 3 !== 1) continue;
+    const at = visitPlans.findIndex(
+      (v) => v.clientIdx === idx && v.serviceTypeIdx === plan.serviceTypeIdx && v.status === 'scheduled' && v.date >= today && v.date <= monthEnd,
+    );
+    if (at >= 0) visitPlans.splice(at, 1);
+  }
   for (const [idx, plan] of servicePlans) {
     await db
       .update(clients)

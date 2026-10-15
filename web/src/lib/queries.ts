@@ -13,6 +13,9 @@ import type {
   InvoiceWithClient,
   Movement,
   PaymentWithClient,
+  ScheduleTrackingBody,
+  TrackingBoard,
+  TrackingStatus,
   Receivables,
   ExpenseCategory,
   Invoice,
@@ -187,11 +190,28 @@ export function useAgendaSummary() {
   });
 }
 
-export function useVisits(params: { from?: string; to?: string; status?: string; clientId?: number }) {
+export function useVisits(params: { from?: string; to?: string; status?: string; clientId?: number }, enabled = true) {
   return useQuery({
     queryKey: ['visits', params],
     queryFn: () => api<Visit[]>('/visits', { query: params }),
     placeholderData: (previous) => previous,
+    enabled,
+  });
+}
+
+export function useTracking(params: { month: string; zone?: string; status?: TrackingStatus }) {
+  return useQuery({
+    queryKey: ['tracking', params],
+    queryFn: () => api<TrackingBoard>('/tracking', { query: params }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useScheduleTracking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ScheduleTrackingBody) => api<{ created: Visit[] }>('/tracking/schedule', { body }),
+    onSuccess: () => invalidateData(queryClient),
   });
 }
 

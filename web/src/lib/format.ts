@@ -51,6 +51,12 @@ export function overdueLabel(days: number): string {
   return days === 1 ? 'vencido hace 1 día' : `vencido hace ${days} días`;
 }
 
+/** `0` -> `hoy`, `1` -> `hace 1 día`, `12` -> `hace 12 días`. */
+export function daysAgoLabel(days: number): string {
+  if (days <= 0) return 'hoy';
+  return days === 1 ? 'hace 1 día' : `hace ${days} días`;
+}
+
 export function daysLeftLabel(days: number): string {
   if (days < 0) return Math.abs(days) === 1 ? 'vencida hace 1 día' : `vencida hace ${Math.abs(days)} días`;
   if (days === 0) return 'vence hoy';

@@ -1,14 +1,14 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { CLIENT_KINDS, type ClientKind } from '@fumigadora/shared';
+import { CLIENT_KINDS, FREQUENCIES, type ClientKind, type Frequency } from '@fumigadora/shared';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { Input, MoneyInput, Select, Textarea } from '../../ui/form';
 import { ErrorNote, Loading } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
-import { useArchiveClient, useClient, useSaveClient } from '../../lib/queries';
+import { useArchiveClient, useClient, useSaveClient, useServiceTypes } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
-import { KIND_LABELS } from '../../lib/format';
+import { FREQUENCY_LABELS, KIND_LABELS } from '../../lib/format';
 import type { ClientDetail, ClientInput } from '../../lib/types';
 
 const EMPTY: ClientInput = {
@@ -22,6 +22,8 @@ const EMPTY: ClientInput = {
   notes: '',
   taxId: '',
   monthlyFeeCents: null,
+  serviceFrequency: 'none',
+  defaultServiceTypeId: null,
 };
 
 /** Create (no `clientId`) or edit a client. Edit also offers archiving. */
@@ -57,6 +59,8 @@ function toInput(client: ClientDetail): ClientInput {
     notes: client.notes ?? '',
     taxId: client.taxId ?? '',
     monthlyFeeCents: client.monthlyFeeCents,
+    serviceFrequency: client.serviceFrequency,
+    defaultServiceTypeId: client.defaultServiceTypeId,
   };
 }
 
@@ -73,6 +77,7 @@ function ClientForm({
   const toast = useToast();
   const navigate = useNavigate();
   const save = useSaveClient();
+  const services = useServiceTypes();
   const archive = useArchiveClient();
   const [form, setForm] = useState<ClientInput>(client ? toInput(client) : EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +185,32 @@ function ClientForm({
         <div className="grid gap-4 md:grid-cols-2">
           <Input label="Dirección" value={form.address} onChange={(e) => set('address', e.target.value)} />
           <Input label="Zona" value={form.area} onChange={(e) => set('area', e.target.value)} />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Select
+            label="Frecuencia del servicio"
+            value={form.serviceFrequency}
+            onChange={(e) => set('serviceFrequency', e.target.value as Frequency)}
+            hint="Con un plan, el cliente aparece en el seguimiento mensual."
+          >
+            {FREQUENCIES.map((value) => (
+              <option key={value} value={value}>
+                {value === 'none' ? 'Sin plan' : FREQUENCY_LABELS[value]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Servicio habitual"
+            value={form.defaultServiceTypeId ?? ''}
+            onChange={(e) => set('defaultServiceTypeId', e.target.value === '' ? null : Number(e.target.value))}
+          >
+            <option value="">Sin servicio habitual</option>
+            {(services.data ?? []).map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </Select>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <Input label="CUIT" value={form.taxId} onChange={(e) => set('taxId', e.target.value)} />
