@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { AuthEnv, Session } from '../auth.js';
+import { queueAutoEmit } from '../arca/service.js';
 import { badRequest, idParam, v, type Deps } from '../http.js';
 import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
 
@@ -7,7 +8,8 @@ import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../servic
  * Employee-facing routes. An employee always acts as themselves; an admin may pass `?userId=` to act
  * as an employee (testing). The owner login has no user id of its own.
  */
-export function meRoutes({ db, today }: Deps) {
+export function meRoutes(deps: Deps) {
+  const { db, today } = deps;
   const actingUser = (session: Session, requested?: number): number => {
     const id = session.role === 'employee' ? session.userId : (requested ?? session.userId);
     if (id === undefined) throw badRequest('Indicá el empleado (userId)');
@@ -21,6 +23,8 @@ export function meRoutes({ db, today }: Deps) {
     })
     .post('/visits/:id/done', v('param', idParam), v('json', myDoneInput), v('query', myVisitsQuery), async (c) => {
       const userId = actingUser(c.get('session'), c.req.valid('query').userId);
-      return c.json(await markMyVisitDone(db, today(), userId, c.req.valid('param').id, c.req.valid('json')));
+      const result = await markMyVisitDone(db, today(), userId, c.req.valid('param').id, c.req.valid('json'));
+      if (result.invoice) queueAutoEmit(deps, [result.invoice.id]);
+      return c.json(result);
     });
 }

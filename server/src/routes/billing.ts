@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { emitInvoice, queueAutoEmit } from '../arca/service.js';
 import { idParam, v, zMonth, type Deps } from '../http.js';
 import {
   createInvoice,
@@ -15,17 +16,28 @@ import {
 import { createPayment, deletePayment, listPayments, paymentInput, paymentListQuery } from '../services/payments.js';
 import { receivables } from '../services/receivables.js';
 
-export function invoiceRoutes({ db, today }: Deps) {
+export function invoiceRoutes(deps: Deps) {
+  const { db, today } = deps;
   return new Hono()
     .get('/', v('query', invoiceListQuery), async (c) => c.json(await listInvoices(db, today(), c.req.valid('query'))))
-    .post('/', v('json', invoiceInput), async (c) => c.json(await createInvoice(db, today(), c.req.valid('json')), 201))
+    .post('/', v('json', invoiceInput), async (c) => {
+      const invoice = await createInvoice(db, today(), c.req.valid('json'));
+      queueAutoEmit(deps, [invoice.id]);
+      return c.json(invoice, 201);
+    })
     .post('/monthly-batch/preview', v('query', z.object({ month: zMonth })), async (c) =>
       c.json(await monthlyBatchPreview(db, c.req.valid('query').month)),
     )
-    .post('/monthly-batch', v('json', monthlyBatchInput), async (c) =>
-      c.json(await monthlyBatchCreate(db, today(), c.req.valid('json')), 201),
-    )
+    .post('/monthly-batch', v('json', monthlyBatchInput), async (c) => {
+      const result = await monthlyBatchCreate(db, today(), c.req.valid('json'));
+      queueAutoEmit(
+        deps,
+        result.created.map((i) => i.id),
+      );
+      return c.json(result, 201);
+    })
     .get('/:id', v('param', idParam), async (c) => c.json(await getInvoice(db, today(), c.req.valid('param').id)))
+    .post('/:id/arca', v('param', idParam), async (c) => c.json(await emitInvoice(deps, c.req.valid('param').id)))
     .post('/:id/void', v('param', idParam), async (c) => c.json(await voidInvoice(db, today(), c.req.valid('param').id)));
 }
 

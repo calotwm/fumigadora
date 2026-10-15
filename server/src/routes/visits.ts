@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { queueAutoEmit } from '../arca/service.js';
 import { idParam, v, type Deps } from '../http.js';
 import {
   agendaSummary,
@@ -14,7 +15,8 @@ import {
   visitPatch,
 } from '../services/visits.js';
 
-export function visitRoutes({ db, today }: Deps) {
+export function visitRoutes(deps: Deps) {
+  const { db, today } = deps;
   return new Hono()
     .get('/', v('query', visitListQuery), async (c) => c.json(await listVisits(db, c.req.valid('query'))))
     .post('/', v('json', visitInput), async (c) => c.json(await createVisit(db, c.req.valid('json')), 201))
@@ -23,9 +25,11 @@ export function visitRoutes({ db, today }: Deps) {
       c.json(await updateVisit(db, c.req.valid('param').id, c.req.valid('json'))),
     )
     .post('/:id/cancel', v('param', idParam), async (c) => c.json(await cancelVisit(db, c.req.valid('param').id)))
-    .post('/:id/complete', v('param', idParam), v('json', completeInput), async (c) =>
-      c.json(await completeVisit(db, today(), c.req.valid('param').id, c.req.valid('json'))),
-    );
+    .post('/:id/complete', v('param', idParam), v('json', completeInput), async (c) => {
+      const result = await completeVisit(db, today(), c.req.valid('param').id, c.req.valid('json'));
+      if (result.invoice) queueAutoEmit(deps, [result.invoice.id]);
+      return c.json(result);
+    });
 }
 
 export function agendaRoutes({ db, today }: Deps) {

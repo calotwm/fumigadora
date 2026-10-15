@@ -6,6 +6,7 @@ import type { Config } from './config.js';
 import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
 import { createMailProvider, type MailProvider } from './mail/provider.js';
+import { arcaRoutes } from './routes/arca.js';
 import { emailRoutes } from './routes/email.js';
 import { jobRoutes, reminderRoutes } from './routes/automation.js';
 import { routePlanRoutes } from './routes/routePlans.js';
@@ -31,6 +32,8 @@ export interface AppOptions {
   mail?: MailProvider;
   /** Serve the built SPA. Defaults to true; pass false in tests. */
   serveWeb?: boolean;
+  /** HTTP client for ARCA calls (tests inject a mock). */
+  fetch?: typeof fetch;
 }
 
 export function createApp(options: AppOptions) {
@@ -39,6 +42,7 @@ export function createApp(options: AppOptions) {
     config: options.config,
     mail: options.mail ?? createMailProvider(options.config.mail),
     today: options.today ?? (() => businessToday()),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
   };
 
   const api = new Hono<AuthEnv>();
@@ -61,6 +65,7 @@ export function createApp(options: AppOptions) {
   api.route('/routes', routePlanRoutes(deps));
   api.route('/reminders', reminderRoutes(deps));
   api.route('/jobs', jobRoutes(deps));
+  api.route('/arca', arcaRoutes(deps));
   api.route('/invoices', invoiceRoutes(deps));
   api.route('/payments', paymentRoutes(deps));
   api.route('/cash-entries', cashRoutes(deps));

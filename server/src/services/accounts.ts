@@ -1,6 +1,7 @@
 import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   clientBalance,
+  type ArcaStatus,
   invoiceState,
   type ClientBalance,
   type InvoiceStatus,
@@ -21,7 +22,33 @@ export interface InvoiceRow {
   description: string;
   periodMonth: string | null;
   voidedAt: Date | null;
+  arcaStatus: ArcaStatus;
+  cbteType: number | null;
+  ptoVta: number | null;
+  cbteNumber: number | null;
+  cae: string | null;
+  caeDueOn: string | null;
+  arcaObservations: string | null;
+  arcaAttemptedAt: Date | null;
+  arcaAttemptedNumber: number | null;
   paidCents: number;
+}
+
+/** What ARCA said about the invoice (stored as JSON text). */
+export interface ArcaDetails {
+  observations: { code: number; msg: string }[];
+  errors: { code: number; msg: string }[];
+  /** Local failure message (network, mapping...). */
+  message?: string;
+}
+
+function parseArcaDetails(raw: string | null): ArcaDetails | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ArcaDetails;
+  } catch {
+    return { observations: [], errors: [], message: raw };
+  }
 }
 
 export interface InvoiceView {
@@ -40,6 +67,14 @@ export interface InvoiceView {
   balanceCents: number;
   isPartial: boolean;
   daysOverdue: number;
+  arcaStatus: ArcaStatus;
+  cbteType: number | null;
+  ptoVta: number | null;
+  cbteNumber: number | null;
+  cae: string | null;
+  caeDueOn: string | null;
+  arcaObservations: ArcaDetails | null;
+  arcaAttemptedAt: Date | null;
 }
 
 const paidSum = sql<number>`coalesce(sum(${allocations.amountCents}), 0)`.mapWith(Number);
@@ -60,9 +95,10 @@ export async function selectInvoices(db: Db, where?: SQL, onlyOpen = false): Pro
 
 export function toInvoiceView(row: InvoiceRow, today: IsoDate): InvoiceView {
   const state = invoiceState(row, row.paidCents, today);
-  const { voidedAt, ...rest } = row;
+  const { voidedAt, arcaAttemptedNumber: _attempted, arcaObservations, ...rest } = row;
   return {
     ...rest,
+    arcaObservations: parseArcaDetails(arcaObservations),
     voided: voidedAt !== null,
     status: state.status,
     balanceCents: state.balanceCents,

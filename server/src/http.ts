@@ -13,6 +13,8 @@ export interface Deps {
   config: Config;
   mail: MailProvider;
   today: () => IsoDate;
+  /** HTTP client used for ARCA (tests inject a mock). Defaults to the global `fetch`. */
+  fetch?: typeof fetch;
 }
 
 /** Business error rendered as `{ error: { code, message } }`. Messages are user-facing Spanish. */

@@ -1,10 +1,10 @@
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql, ilike } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ClientBalance, IsoDate } from '@fumigadora/shared';
-import { CLIENT_KINDS, FREQUENCIES } from '@fumigadora/shared';
+import { CLIENT_KINDS, FREQUENCIES, IVA_CONDITIONS, TAX_DOC_TYPES, digitsOnly, isValidCuit, isValidDni } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { certificates, clients, invoices, payments, serviceTypes, visits, type Client } from '../db/schema.js';
-import { definedOnly, hhmm, likePattern, notFound, zCents, zId, zOptText } from '../http.js';
+import { badRequest, definedOnly, hhmm, likePattern, notFound, zCents, zId, zOptText } from '../http.js';
 import { clientFinancial, clientFinancials, emptyBalance } from './accounts.js';
 
 export const clientInput = z.object({
@@ -21,6 +21,11 @@ export const clientInput = z.object({
   /** Service plan; `none` (default) = not tracked in the monthly follow-up. */
   serviceFrequency: z.enum(FREQUENCIES).optional(),
   defaultServiceTypeId: zId.nullish(),
+  /** Fiscal data ("Datos fiscales") used for electronic invoicing. */
+  taxDocType: z.enum(TAX_DOC_TYPES).optional(),
+  taxDocNumber: zOptText(20),
+  ivaCondition: z.enum(IVA_CONDITIONS).optional(),
+  legalName: zOptText(200),
 });
 export const clientPatch = clientInput.partial();
 export type ClientInput = z.infer<typeof clientInput>;
@@ -199,16 +204,37 @@ async function requirePlanServiceType(db: Db, id: number | null | undefined) {
   if (!row) throw notFound('Tipo de servicio');
 }
 
+/** Validates the document and keeps only its digits. `none` clears the number. */
+function normalizeFiscal(type: string, number: string | null | undefined): string | null {
+  if (type === 'none') return null;
+  const raw = number?.trim() ?? '';
+  if (type === 'cuit') {
+    if (!isValidCuit(raw)) throw badRequest('El CUIT no es válido (revisá los 11 dígitos)', 'invalid_cuit');
+    return digitsOnly(raw);
+  }
+  if (!isValidDni(raw)) throw badRequest('El DNI no es válido', 'invalid_dni');
+  return digitsOnly(raw);
+}
+
 export async function createClient(db: Db, input: ClientInput) {
   await requirePlanServiceType(db, input.defaultServiceTypeId);
-  const [row] = await db.insert(clients).values(definedOnly(input) as typeof clients.$inferInsert).returning();
+  const fiscal = { taxDocType: input.taxDocType ?? 'none', taxDocNumber: normalizeFiscal(input.taxDocType ?? 'none', input.taxDocNumber) };
+  const [row] = await db
+    .insert(clients)
+    .values({ ...(definedOnly(input) as typeof clients.$inferInsert), ...fiscal })
+    .returning();
   return row!;
 }
 
 export async function updateClient(db: Db, id: number, patch: Partial<ClientInput>) {
-  await requireClient(db, id);
+  const current = await requireClient(db, id);
   await requirePlanServiceType(db, patch.defaultServiceTypeId);
-  const values = definedOnly(patch);
+  const values: Record<string, unknown> = definedOnly(patch);
+  if (patch.taxDocType !== undefined || patch.taxDocNumber !== undefined) {
+    const type = patch.taxDocType ?? current.taxDocType;
+    values.taxDocType = type;
+    values.taxDocNumber = normalizeFiscal(type, patch.taxDocNumber !== undefined ? patch.taxDocNumber : current.taxDocNumber);
+  }
   if (Object.keys(values).length === 0) return requireClient(db, id);
   const [row] = await db.update(clients).set(values).where(eq(clients.id, id)).returning();
   return row!;

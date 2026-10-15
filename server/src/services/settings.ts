@@ -9,6 +9,8 @@ export interface AppSettings {
   debtReminderMinDaysOverdue: number;
   noticeMode: NoticeMode;
   noticeDaysBefore: number;
+  /** Emit new invoices in ARCA automatically (only when ARCA is configured). */
+  arcaAutoEmit: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -17,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   debtReminderMinDaysOverdue: DEFAULT_REMINDER_RULES.minDaysOverdue,
   noticeMode: 'on_approve',
   noticeDaysBefore: 7,
+  arcaAutoEmit: false,
 };
 
 export const settingsPatch = z
@@ -26,6 +29,7 @@ export const settingsPatch = z
     debtReminderMinDaysOverdue: z.number().int().min(0, 'No puede ser negativo').max(365),
     noticeMode: z.enum(NOTICE_MODES),
     noticeDaysBefore: z.number().int().min(1, 'Debe ser al menos 1 día').max(60),
+    arcaAutoEmit: z.boolean(),
   })
   .partial();
 

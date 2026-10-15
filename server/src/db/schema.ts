@@ -14,7 +14,17 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { CASH_KINDS, CLIENT_KINDS, FREQUENCIES, PAYMENT_METHODS, USER_ROLES, VISIT_STATUSES } from '@fumigadora/shared';
+import {
+  ARCA_STATUSES,
+  CASH_KINDS,
+  CLIENT_KINDS,
+  FREQUENCIES,
+  IVA_CONDITIONS,
+  PAYMENT_METHODS,
+  TAX_DOC_TYPES,
+  USER_ROLES,
+  VISIT_STATUSES,
+} from '@fumigadora/shared';
 
 const cents = (name: string) => bigint(name, { mode: 'number' });
 const isoDate = (name: string) => date(name, { mode: 'string' });
@@ -26,6 +36,9 @@ export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
+export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
+export const ivaConditionEnum = pgEnum('iva_condition', IVA_CONDITIONS);
+export const arcaStatusEnum = pgEnum('arca_status', ARCA_STATUSES);
 export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test'] as const;
 export const EMAIL_STATUSES = ['sent', 'simulated', 'failed'] as const;
 export const ROUTE_PLAN_STATUSES = ['draft', 'approved'] as const;
@@ -68,6 +81,12 @@ export const clients = pgTable(
     serviceFrequency: frequencyEnum('service_frequency').notNull().default('none'),
     /** Service type the plan refers to; null = any service counts. */
     defaultServiceTypeId: integer('default_service_type_id').references((): AnyPgColumn => serviceTypes.id),
+    /** Fiscal data for electronic invoicing ("Datos fiscales"). */
+    taxDocType: taxDocTypeEnum('tax_doc_type').notNull().default('none'),
+    taxDocNumber: text('tax_doc_number'),
+    ivaCondition: ivaConditionEnum('iva_condition').notNull().default('consumidor_final'),
+    /** Razón social. */
+    legalName: text('legal_name'),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -148,6 +167,18 @@ export const invoices = pgTable(
     /** `YYYY-MM` when the invoice is a monthly-fee ("abono") invoice. */
     periodMonth: text('period_month'),
     voidedAt: timestamp('voided_at', { withTimezone: true }),
+    /** ARCA electronic invoicing state; `not_sent` until the invoice is emitted. */
+    arcaStatus: arcaStatusEnum('arca_status').notNull().default('not_sent'),
+    cbteType: integer('cbte_type'),
+    ptoVta: integer('pto_vta'),
+    cbteNumber: integer('cbte_number'),
+    cae: text('cae'),
+    caeDueOn: isoDate('cae_due_on'),
+    /** JSON text: `{ observations: [{code,msg}], errors: [{code,msg}], message? }`. */
+    arcaObservations: text('arca_observations'),
+    arcaAttemptedAt: timestamp('arca_attempted_at', { withTimezone: true }),
+    /** Number requested in the last attempt; lets a retry reconcile a lost answer. */
+    arcaAttemptedNumber: integer('arca_attempted_number'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -285,6 +316,21 @@ export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
 });
+
+/** Cached WSAA access ticket (token + sign) per environment and service; reused until it expires. */
+export const arcaTokens = pgTable(
+  'arca_tokens',
+  {
+    id: serial('id').primaryKey(),
+    env: text('env').notNull(),
+    service: text('service').notNull(),
+    token: text('token').notNull(),
+    sign: text('sign').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('arca_tokens_env_service_uq').on(t.env, t.service)],
+);
 
 /** One row per job and business day: the guard that stops a restart from running the daily job twice. */
 export const jobRuns = pgTable(

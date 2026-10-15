@@ -92,6 +92,7 @@ describe('email and settings API', () => {
       debtReminderMinDaysOverdue: 10,
       noticeMode: 'on_approve',
       noticeDaysBefore: 7,
+      arcaAutoEmit: false,
     });
     const put = await t.call('PUT', '/api/settings', { debtRemindersEnabled: true, debtReminderEveryDays: 20, noticeMode: 'days_before' });
     expect(put.status).toBe(200);

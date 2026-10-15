@@ -1,5 +1,5 @@
 import { createApp } from '../app.js';
-import type { Config } from '../config.js';
+import { loadArcaConfig, type Config } from '../config.js';
 import { createDb } from '../db/client.js';
 import { createSimulatedProvider, type MailProvider } from '../mail/provider.js';
 
@@ -14,6 +14,7 @@ export const testConfig: Config = {
   sessionSecret: 'test-secret-test-secret-test-secret-1234',
   sessionTtlSeconds: 3600,
   mail: { resendApiKey: undefined, from: undefined, replyTo: undefined },
+  arca: loadArcaConfig({}),
 };
 
 export interface ApiResult {
@@ -23,11 +24,23 @@ export interface ApiResult {
 }
 
 /** In-memory PGlite + migrations + app with a fixed, changeable "today". */
-export async function makeTestApp(initialToday = '2025-06-15', mail: MailProvider = createSimulatedProvider()) {
+export async function makeTestApp(
+  initialToday = '2025-06-15',
+  mail: MailProvider = createSimulatedProvider(),
+  opts: { config?: Partial<Config>; fetch?: typeof fetch } = {},
+) {
+  const config: Config = { ...testConfig, ...opts.config };
   const handle = createDb(); // memory://
   await handle.migrate();
   const state = { today: initialToday };
-  const app = createApp({ db: handle.db, config: testConfig, today: () => state.today, serveWeb: false, mail });
+  const app = createApp({
+    db: handle.db,
+    config,
+    today: () => state.today,
+    serveWeb: false,
+    mail,
+    ...(opts.fetch ? { fetch: opts.fetch } : {}),
+  });
 
   const login = await app.request('/api/auth/login', {
     method: 'POST',
@@ -48,7 +61,7 @@ export async function makeTestApp(initialToday = '2025-06-15', mail: MailProvide
   return {
     app,
     mail,
-    config: testConfig,
+    config,
     db: handle.db,
     today: () => state.today,
     cookie,
