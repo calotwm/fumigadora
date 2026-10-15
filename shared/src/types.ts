@@ -16,6 +16,9 @@ export const FREQUENCIES = [
 ] as const;
 export type Frequency = (typeof FREQUENCIES)[number];
 
+export const USER_ROLES = ['admin', 'employee'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const PAYMENT_METHODS = ['cash', 'transfer', 'mercadopago', 'check', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 

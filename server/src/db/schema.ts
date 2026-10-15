@@ -13,7 +13,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { CASH_KINDS, CLIENT_KINDS, FREQUENCIES, PAYMENT_METHODS, VISIT_STATUSES } from '@fumigadora/shared';
+import { CASH_KINDS, CLIENT_KINDS, FREQUENCIES, PAYMENT_METHODS, USER_ROLES, VISIT_STATUSES } from '@fumigadora/shared';
 
 const cents = (name: string) => bigint(name, { mode: 'number' });
 const isoDate = (name: string) => date(name, { mode: 'string' });
@@ -24,6 +24,24 @@ export const visitStatusEnum = pgEnum('visit_status', VISIT_STATUSES);
 export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
+export const userRoleEnum = pgEnum('user_role', USER_ROLES);
+
+export const users = pgTable(
+  'users',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    phone: text('phone'),
+    /** Lowercase login name. */
+    username: text('username').notNull(),
+    /** `scrypt$<salt b64>$<hash b64>`; never leaves the server. */
+    passwordHash: text('password_hash').notNull(),
+    role: userRoleEnum('role').notNull().default('employee'),
+    active: boolean('active').notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('users_username_uq').on(t.username)],
+);
 
 export const clients = pgTable(
   'clients',
@@ -74,9 +92,12 @@ export const visits = pgTable(
     notes: text('notes'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     priceCents: cents('price_cents'),
+    /** Employee who has to perform the visit (null = unassigned). */
+    assignedUserId: integer('assigned_user_id').references(() => users.id),
     createdAt: createdAt(),
   },
   (t) => [
+    index('visits_assigned_idx').on(t.assignedUserId, t.date),
     index('visits_date_idx').on(t.date),
     index('visits_client_idx').on(t.clientId, t.date),
     index('visits_status_date_idx').on(t.status, t.date),
@@ -141,9 +162,15 @@ export const payments = pgTable(
     amountCents: cents('amount_cents').notNull(),
     method: paymentMethodEnum('method').notNull().default('cash'),
     notes: text('notes'),
+    /** Employee who collected this cash in the field (null = registered by the owner). */
+    collectedByUserId: integer('collected_by_user_id').references(() => users.id),
+    /** Visit the cash was collected at, when known. */
+    visitId: integer('visit_id').references(() => visits.id),
+    /** When the owner confirmed receiving the cash; null while it is still "a rendir". */
+    handedOverAt: timestamp('handed_over_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('payments_client_idx').on(t.clientId), index('payments_paid_on_idx').on(t.paidOn)],
+  (t) => [index('payments_collected_idx').on(t.collectedByUserId, t.handedOverAt), index('payments_client_idx').on(t.clientId), index('payments_paid_on_idx').on(t.paidOn)],
 );
 
 export const allocations = pgTable(
@@ -181,6 +208,7 @@ export const cashEntries = pgTable(
   (t) => [index('cash_entries_date_idx').on(t.date)],
 );
 
+export type User = typeof users.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;
 export type Visit = typeof visits.$inferSelect;
