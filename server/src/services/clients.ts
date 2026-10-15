@@ -1,10 +1,10 @@
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql, ilike } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ClientBalance, IsoDate } from '@fumigadora/shared';
-import { CLIENT_KINDS } from '@fumigadora/shared';
+import { CLIENT_KINDS, FREQUENCIES } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { certificates, clients, invoices, payments, serviceTypes, visits, type Client } from '../db/schema.js';
-import { definedOnly, hhmm, likePattern, notFound, zCents, zOptText } from '../http.js';
+import { definedOnly, hhmm, likePattern, notFound, zCents, zId, zOptText } from '../http.js';
 import { clientFinancial, clientFinancials, emptyBalance } from './accounts.js';
 
 export const clientInput = z.object({
@@ -18,6 +18,9 @@ export const clientInput = z.object({
   notes: zOptText(2000),
   taxId: zOptText(40),
   monthlyFeeCents: zCents.nullish(),
+  /** Service plan; `none` (default) = not tracked in the monthly follow-up. */
+  serviceFrequency: z.enum(FREQUENCIES).optional(),
+  defaultServiceTypeId: zId.nullish(),
 });
 export const clientPatch = clientInput.partial();
 export type ClientInput = z.infer<typeof clientInput>;
@@ -190,13 +193,21 @@ export async function getClient(db: Db, today: IsoDate, id: number) {
   return { ...client, archived: client.archivedAt !== null, summary: await clientSummary(db, today, id) };
 }
 
+async function requirePlanServiceType(db: Db, id: number | null | undefined) {
+  if (id === null || id === undefined) return;
+  const [row] = await db.select({ id: serviceTypes.id }).from(serviceTypes).where(eq(serviceTypes.id, id));
+  if (!row) throw notFound('Tipo de servicio');
+}
+
 export async function createClient(db: Db, input: ClientInput) {
+  await requirePlanServiceType(db, input.defaultServiceTypeId);
   const [row] = await db.insert(clients).values(definedOnly(input) as typeof clients.$inferInsert).returning();
   return row!;
 }
 
 export async function updateClient(db: Db, id: number, patch: Partial<ClientInput>) {
   await requireClient(db, id);
+  await requirePlanServiceType(db, patch.defaultServiceTypeId);
   const values = definedOnly(patch);
   if (Object.keys(values).length === 0) return requireClient(db, id);
   const [row] = await db.update(clients).set(values).where(eq(clients.id, id)).returning();

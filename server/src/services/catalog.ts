@@ -1,7 +1,7 @@
 import { asc, count, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Db } from '../db/client.js';
-import { cashEntries, expenseCategories, serviceTypes, visits } from '../db/schema.js';
+import { cashEntries, clients, expenseCategories, serviceTypes, visits } from '../db/schema.js';
 import { conflict, definedOnly, notFound, zCents } from '../http.js';
 
 // ---------- service types ----------
@@ -63,6 +63,8 @@ export async function deleteServiceType(db: Db, id: number) {
   if (!current) throw notFound('Tipo de servicio');
   const [used] = await db.select({ n: count() }).from(visits).where(eq(visits.serviceTypeId, id));
   if ((used?.n ?? 0) > 0) throw conflict('No se puede eliminar: el servicio tiene visitas registradas');
+  const [planned] = await db.select({ n: count() }).from(clients).where(eq(clients.defaultServiceTypeId, id));
+  if ((planned?.n ?? 0) > 0) throw conflict('No se puede eliminar: hay clientes con este servicio habitual');
   await db.delete(serviceTypes).where(eq(serviceTypes.id, id));
   return { ok: true as const };
 }

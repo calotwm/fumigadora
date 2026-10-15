@@ -370,6 +370,7 @@ describe('finance, receivables and dashboard', () => {
         'today',
         'todayVisits',
         'topDebtors',
+        'tracking',
       ].sort(),
     );
     expect(d.month).toMatchObject({ incomeCents: 12_000_00, expensesCents: 6_000_00, balanceCents: 6_000_00 });

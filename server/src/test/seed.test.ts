@@ -32,6 +32,12 @@ describe('seed', () => {
     expect(dash.body.receivables.owedCents).toBeGreaterThan(0);
     expect(dash.body.expiringCertificates.length).toBeGreaterThan(0);
 
+    // ~70% of clients have a service plan and the follow-up is non-trivial.
+    const planned = clients.body.filter((c: { serviceFrequency: string }) => c.serviceFrequency !== 'none').length;
+    expect(planned).toBeGreaterThan(15);
+    expect(dash.body.tracking.expected).toBeGreaterThan(5);
+    expect(dash.body.tracking.done + dash.body.tracking.scheduled + dash.body.tracking.pendingUnscheduled).toBe(dash.body.tracking.expected);
+
     // Allocations never exceed invoice amounts or payment amounts.
     const invoices = await t.get('/api/invoices');
     for (const inv of invoices.body) {

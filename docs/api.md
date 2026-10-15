@@ -60,8 +60,8 @@ Allocation = { invoiceId, invoiceNumber, amountCents }
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
-| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents? }` (empty strings become null) | `201` client row |
+| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
+| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId? }` (empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
@@ -104,6 +104,19 @@ Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servi
 `{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate, certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes? }`.
 One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
 Errors (`400`): price <= 0 when invoicing, service does not issue certificates, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
+
+## Monthly service tracking
+
+A client has a **service plan**: `serviceFrequency` (`none` = no plan, not tracked) and `defaultServiceTypeId` (null = any service counts). Archived clients are never tracked.
+
+Expected services per month: `weekly` = number of Mondays in the month (4 or 5); `biweekly` = 2; `monthly` = 1; `bimonthly`/`quarterly`/`semiannual`/`yearly` = 1 only when due (never done, or last done before the month + interval <= last day of the month), else 0. Done = visits with status `done` dated in the month (capped at expected); scheduled = `scheduled` visits dated in the month that cover what is still pending. When the plan has a `defaultServiceTypeId`, only visits of that service count.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/tracking` | query `month?=YYYY-MM` (default current), `zone?` (exact `area`), `status?=pending\|scheduled\|complete` | `{ month, zones: string[] (zones of all tracked clients), totals: { expected, done, scheduled, pendingUnscheduled, clientsTracked }, rows: TrackingRow[] }` |
+| POST | `/api/tracking/schedule` | `{ month, items: [{ clientId, date (inside month), time?, serviceTypeId? (default: the plan's) }] }` (1-300 items) | `201 { created: Visit[] }`; one transaction, visit `frequency` = client plan. `400` if a date is outside the month, the client is archived or has no service to use; `404` unknown client / service |
+
+`TrackingRow = { clientId, name, zone: string|null, frequency, serviceTypeId, serviceTypeName, expected, done, scheduled, pendingUnscheduled, status: 'pending'|'scheduled'|'complete', lastDoneOn: IsoDate|null, daysSinceLast: number|null, nextScheduled: { id, date, time }|null }`. `status`: `pending` = something still to do and not yet scheduled; `scheduled` = everything pending is already scheduled; `complete` = all expected done. Rows are ordered by zone (no zone last) then name; clients not due this month (expected 0) are omitted. `totals` ignores the `status` filter but respects `zone`; `done + scheduled + pendingUnscheduled = expected`. `clientsTracked` counts every client with a plan in the zone filter.
 
 ## Invoices and monthly billing
 
@@ -161,7 +174,8 @@ Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
   topDebtors: { clientId, name, phone, balanceCents, overdueCents, daysOverdue, agingBucket }[],  // max 8
   expiringCertificates: Certificate[],        // <= 15 days (or expired), not superseded
   services: { doneThisMonth, doneLastMonth }, // done visits by visit date
-  clientsWithoutNextVisit: number             // active clients with a visit in the last 120 days and nothing scheduled from today on
+  clientsWithoutNextVisit: number,            // active clients with a visit in the last 120 days and nothing scheduled from today on
+  tracking: { month, expected, done, scheduled, pendingUnscheduled, clientsTracked }  // current month, same rules as GET /api/tracking
 }
 ```
 

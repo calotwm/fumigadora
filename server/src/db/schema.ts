@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   date,
@@ -38,6 +39,10 @@ export const clients = pgTable(
     notes: text('notes'),
     taxId: text('tax_id'),
     monthlyFeeCents: cents('monthly_fee_cents'),
+    /** Service plan: how often the client should be serviced (`none` = no plan, not tracked). */
+    serviceFrequency: frequencyEnum('service_frequency').notNull().default('none'),
+    /** Service type the plan refers to; null = any service counts. */
+    defaultServiceTypeId: integer('default_service_type_id').references((): AnyPgColumn => serviceTypes.id),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },

@@ -10,6 +10,7 @@ import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
 import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
+import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
 import { mountStatic } from './static.js';
 
@@ -38,6 +39,7 @@ export function createApp(options: AppOptions) {
   api.route('/expense-categories', expenseCategoryRoutes(deps));
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
+  api.route('/tracking', trackingRoutes(deps));
   api.route('/invoices', invoiceRoutes(deps));
   api.route('/payments', paymentRoutes(deps));
   api.route('/cash-entries', cashRoutes(deps));

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   addDays,
   addMonths,
@@ -275,20 +275,41 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
     }
   };
 
+  // ~70% of clients get a service plan (tracked in the monthly follow-up); the plan drives their visit history.
+  const servicePlans = new Map<number, { serviceTypeIdx: number; frequency: Frequency }>();
+  const planned = (idx: number, serviceTypeIdx: number, options: readonly Frequency[]): Frequency | null => {
+    if (!chance(0.7)) return null;
+    const frequency = pick(options);
+    servicePlans.set(idx, { serviceTypeIdx, frequency });
+    return frequency;
+  };
+
   clientPlans.forEach((c, i) => {
     const hasFee = c.monthlyFeeCents !== null;
     if (c.kind === 'business') {
       const svc = chance(0.5) ? SVC.insects : SVC.rodents;
-      generate(i, svc, pick(['monthly', 'monthly', 'bimonthly'] as const), rand(120, 150), !hasFee);
+      const freq =
+        planned(i, svc, ['weekly', 'biweekly', 'biweekly', 'monthly', 'monthly', 'monthly']) ??
+        pick(['monthly', 'monthly', 'bimonthly'] as const);
+      generate(i, svc, freq, rand(120, 150), !hasFee);
       if (chance(0.25)) generate(i, SVC.disinfection, 'monthly', rand(40, 100), true);
     } else if (c.kind === 'building') {
-      generate(i, chance(0.5) ? SVC.rodents : SVC.insects, pick(['bimonthly', 'quarterly', 'monthly'] as const), rand(110, 150), !hasFee);
+      const svc = chance(0.5) ? SVC.rodents : SVC.insects;
+      const freq = planned(i, svc, ['monthly', 'monthly', 'monthly', 'bimonthly']) ?? pick(['bimonthly', 'quarterly', 'monthly'] as const);
+      generate(i, svc, freq, rand(110, 150), !hasFee);
       if (chance(0.7)) generate(i, SVC.tank, 'semiannual', rand(20, 150), true);
       if (chance(0.2)) generate(i, SVC.pigeons, 'monthly', rand(60, 140), true);
     } else {
-      generate(i, SVC.insects, pick(['quarterly', 'semiannual', 'none'] as const), rand(15, 150), true);
+      const freq = planned(i, SVC.insects, ['bimonthly', 'quarterly', 'quarterly']) ?? pick(['quarterly', 'semiannual', 'none'] as const);
+      generate(i, SVC.insects, freq, rand(15, 150), true);
     }
   });
+  for (const [idx, plan] of servicePlans) {
+    await db
+      .update(clients)
+      .set({ serviceFrequency: plan.frequency, defaultServiceTypeId: serviceRows[plan.serviceTypeIdx]!.id })
+      .where(eq(clients.id, clientPlans[idx]!.id));
+  }
 
   // Deterministic agenda variety: visits today, tomorrow, rest of the week and two late ones.
   const agendaClients = [...clientPlans.keys()];
