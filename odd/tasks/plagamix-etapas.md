@@ -29,7 +29,7 @@ Mode: off (no project config, no explicit choice). Runner: Vitest (`npm test`). 
 Branch `feat/plagamix-etapas` (from main cc5ce9f). Strategy: ask-on-risk; forecast well above 400 lines. Work-unit commits per task; PR slicing decided with the user before opening PRs. RDD disabled globally by user.
 
 ## Tasks
-- [ ] E1 Monthly tracking: client service plan fields, domain rule "due this month", API, Agenda "Seguimiento" view + dashboard block, one-click schedule. Route: delegated (writer trigger).
+- [x] E1 Monthly tracking: client service plan fields, domain rule "due this month", API, Agenda "Seguimiento" view + dashboard block, one-click schedule. Route: delegated (writer trigger).
 - [ ] E2 Employees: users/roles/auth, visit assignment, employee mobile app (`/app`), cash to hand over + owner confirmation. Route: delegated.
 - [ ] E3 Emails: provider adapter + email log, zone route planner with approval and service notices, debt reminders job + settings. Route: delegated.
 - [ ] E4 ARCA: client fiscal data, WSAA/WSFEv1 client, emit flow + invoice CAE fields, config status UI; mocked tests. Route: delegated.
@@ -45,9 +45,9 @@ Branch `feat/plagamix-etapas` (from main cc5ce9f). Strategy: ask-on-risk; foreca
 `npm run typecheck`, `npm test`, `npm run build`, browser QA.
 
 ## Progress / evidence
-(empty)
+- E1 (delegated, one writer): 244c37d, 243996c, 5e5b8d4. typecheck clean; `npm test` 99/99 (parent spot check re-ran); build ok; /api/tracking on reseeded DB: expected 27 = done 11 + scheduled 10 + pending 6. Weekly expected = Mondays in month; long frequencies only when due. Screens checked at 1440 and 390 by writer.
 
 ## Next step
-E1.
+E2.
 
 Engram mirror: pending (Engram tools unavailable).
