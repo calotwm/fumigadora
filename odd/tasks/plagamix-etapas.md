@@ -31,7 +31,7 @@ Branch `feat/plagamix-etapas` (from main cc5ce9f). Strategy: ask-on-risk; foreca
 ## Tasks
 - [x] E1 Monthly tracking: client service plan fields, domain rule "due this month", API, Agenda "Seguimiento" view + dashboard block, one-click schedule. Route: delegated (writer trigger).
 - [x] E2 Employees: users/roles/auth, visit assignment, employee mobile app (`/app`), cash to hand over + owner confirmation. Route: delegated.
-- [ ] E3 Emails: provider adapter + email log, zone route planner with approval and service notices, debt reminders job + settings. Route: delegated.
+- [x] E3 Emails: provider adapter + email log, zone route planner with approval and service notices, debt reminders job + settings. Route: delegated.
 - [ ] E4 ARCA: client fiscal data, WSAA/WSFEv1 client, emit flow + invoice CAE fields, config status UI; mocked tests. Route: delegated.
 
 ## Acceptance criteria
@@ -47,8 +47,9 @@ Branch `feat/plagamix-etapas` (from main cc5ce9f). Strategy: ask-on-risk; foreca
 ## Progress / evidence
 - E1 (delegated, one writer): 244c37d, 243996c, 5e5b8d4. typecheck clean; `npm test` 99/99 (parent spot check re-ran); build ok; /api/tracking on reseeded DB: expected 27 = done 11 + scheduled 10 + pending 6. Weekly expected = Mondays in month; long frequencies only when due. Screens checked at 1440 and 390 by writer.
 - E2 (delegated, one writer): 5663adb, 7a97326, f04de9c and the web admin commit. typecheck clean; `npm test` 124/124; build ok; curl on reseeded DB: owner login, employee login, /api/me/visits ok, employee on /api/clients and /api/users 403. Screens checked: employee app 390x844 (list, done sheet), Finanzas efectivo 1440, Ajustes empleados, Agenda day filter. Deviation: payments also got nullable `visitId` (links cash to its visit).
+- E3 (delegated, one writer): see commits `feat(shared): route planning...`, `feat(server): email adapter...`, `feat(server): route plans, settings, debt reminders and daily job`, `feat(web): route planner`, `feat(web): mail and reminder settings`, `docs`. typecheck clean; `npm test` 155/155; build ok; curl on reseeded DB: generate 2026-11 (25 visits, 13 clients, 10 with email) -> approve -> 22 simulated notices, regenerate = 409; reminders enabled -> 5 simulated, second run 0. Screens checked at 1440 and 390 (Recorrido draft/approve dialog/approved, Ajustes Mails and Recordatorios, mail preview). Decisions: zones get one weekday each (heaviest first to least-loaded weekday), cap 12/day; `email_log.sentOn` stores the business date for the reminder interval; settings are key/value JSON; failed notices retried by the daily job; rescheduling after a notice is not re-notified. Gap: no per-zone bulk assignee; .env.example appended blindly (not readable by tooling).
 
 ## Next step
-E3.
+E4 (ARCA).
 
 Engram mirror: pending (Engram tools unavailable).
