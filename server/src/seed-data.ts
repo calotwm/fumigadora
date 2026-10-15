@@ -147,7 +147,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
+      'truncate table route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
 
@@ -262,6 +262,15 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
   });
   const clientRows = await db.insert(clients).values(clientDefs).returning({ id: clients.id });
   const clientPlans: ClientPlan[] = plans.map((p, i) => ({ ...p, id: clientRows[i]!.id }));
+
+  // ~70% of the clients have an email (example.com addresses, so a demo never mails a real person).
+  for (const [i, def] of clientDefs.entries()) {
+    const slug = def.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+    await db
+      .update(clients)
+      .set({ email: i % 10 < 7 ? `${slug}@example.com` : null })
+      .where(eq(clients.id, clientRows[i]!.id));
+  }
 
   // ---------- visits ----------
   const visitPlans: VisitPlan[] = [];

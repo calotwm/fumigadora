@@ -58,7 +58,7 @@ export interface TrackingTotals {
 }
 
 /** Every active client with a service plan, with its status for `month`. Rows not due this month are omitted. */
-async function computeRows(db: Db, today: IsoDate, month: IsoMonth) {
+export async function computeRows(db: Db, today: IsoDate, month: IsoMonth) {
   const planned = await db
     .select({
       id: clients.id,

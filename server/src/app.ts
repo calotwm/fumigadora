@@ -7,6 +7,8 @@ import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
 import { createMailProvider, type MailProvider } from './mail/provider.js';
 import { emailRoutes } from './routes/email.js';
+import { jobRoutes, reminderRoutes } from './routes/automation.js';
+import { routePlanRoutes } from './routes/routePlans.js';
 import { settingsRoutes } from './routes/settings.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
 import { handoverRoutes } from './routes/handover.js';
@@ -56,6 +58,9 @@ export function createApp(options: AppOptions) {
   api.route('/tracking', trackingRoutes(deps));
   api.route('/email', emailRoutes(deps));
   api.route('/settings', settingsRoutes(deps));
+  api.route('/routes', routePlanRoutes(deps));
+  api.route('/reminders', reminderRoutes(deps));
+  api.route('/jobs', jobRoutes(deps));
   api.route('/invoices', invoiceRoutes(deps));
   api.route('/payments', paymentRoutes(deps));
   api.route('/cash-entries', cashRoutes(deps));

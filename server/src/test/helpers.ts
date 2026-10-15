@@ -1,6 +1,7 @@
 import { createApp } from '../app.js';
 import type { Config } from '../config.js';
 import { createDb } from '../db/client.js';
+import { createSimulatedProvider, type MailProvider } from '../mail/provider.js';
 
 export const TEST_PASSWORD = 'test-password';
 
@@ -22,11 +23,11 @@ export interface ApiResult {
 }
 
 /** In-memory PGlite + migrations + app with a fixed, changeable "today". */
-export async function makeTestApp(initialToday = '2025-06-15') {
+export async function makeTestApp(initialToday = '2025-06-15', mail: MailProvider = createSimulatedProvider()) {
   const handle = createDb(); // memory://
   await handle.migrate();
   const state = { today: initialToday };
-  const app = createApp({ db: handle.db, config: testConfig, today: () => state.today, serveWeb: false });
+  const app = createApp({ db: handle.db, config: testConfig, today: () => state.today, serveWeb: false, mail });
 
   const login = await app.request('/api/auth/login', {
     method: 'POST',
@@ -46,7 +47,10 @@ export async function makeTestApp(initialToday = '2025-06-15') {
 
   return {
     app,
+    mail,
+    config: testConfig,
     db: handle.db,
+    today: () => state.today,
     cookie,
     call,
     get: (path: string) => call('GET', path),
