@@ -1,6 +1,18 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { CLIENT_KINDS, FREQUENCIES, type ClientKind, type Frequency } from '@fumigadora/shared';
+import {
+  CLIENT_KINDS,
+  FREQUENCIES,
+  IVA_CONDITIONS,
+  IVA_CONDITION_LABELS,
+  TAX_DOC_TYPES,
+  isValidCuit,
+  isValidDni,
+  type ClientKind,
+  type Frequency,
+  type IvaCondition,
+  type TaxDocType,
+} from '@fumigadora/shared';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { Input, MoneyInput, Select, Textarea } from '../../ui/form';
@@ -8,7 +20,7 @@ import { ErrorNote, Loading } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useArchiveClient, useClient, useSaveClient, useServiceTypes } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
-import { FREQUENCY_LABELS, KIND_LABELS } from '../../lib/format';
+import { FREQUENCY_LABELS, KIND_LABELS, TAX_DOC_LABELS } from '../../lib/format';
 import type { ClientDetail, ClientInput } from '../../lib/types';
 
 const EMPTY: ClientInput = {
@@ -24,6 +36,10 @@ const EMPTY: ClientInput = {
   monthlyFeeCents: null,
   serviceFrequency: 'none',
   defaultServiceTypeId: null,
+  taxDocType: 'none',
+  taxDocNumber: '',
+  ivaCondition: 'consumidor_final',
+  legalName: '',
 };
 
 /** Create (no `clientId`) or edit a client. Edit also offers archiving. */
@@ -61,6 +77,10 @@ function toInput(client: ClientDetail): ClientInput {
     monthlyFeeCents: client.monthlyFeeCents,
     serviceFrequency: client.serviceFrequency,
     defaultServiceTypeId: client.defaultServiceTypeId,
+    taxDocType: client.taxDocType,
+    taxDocNumber: client.taxDocNumber ?? '',
+    ivaCondition: client.ivaCondition,
+    legalName: client.legalName ?? '',
   };
 }
 
@@ -88,6 +108,14 @@ function ClientForm({
     event.preventDefault();
     if (form.name.trim() === '') {
       setError('El nombre es obligatorio.');
+      return;
+    }
+    if (form.taxDocType === 'cuit' && !isValidCuit(form.taxDocNumber)) {
+      setError('El CUIT no es válido: revisá los 11 dígitos.');
+      return;
+    }
+    if (form.taxDocType === 'dni' && !isValidDni(form.taxDocNumber)) {
+      setError('El DNI no es válido.');
       return;
     }
     setError(null);
@@ -213,7 +241,6 @@ function ClientForm({
           </Select>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <Input label="CUIT" value={form.taxId} onChange={(e) => set('taxId', e.target.value)} />
           <MoneyInput
             label="Abono mensual"
             value={form.monthlyFeeCents}
@@ -221,6 +248,46 @@ function ClientForm({
             hint="Opcional. Se usa para la facturación mensual."
           />
         </div>
+        <fieldset className="flex flex-col gap-4 border-t border-rule pt-4">
+          <legend className="label-caps !text-ink">Datos fiscales</legend>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Select
+              label="Condición frente al IVA"
+              value={form.ivaCondition}
+              onChange={(e) => set('ivaCondition', e.target.value as IvaCondition)}
+            >
+              {IVA_CONDITIONS.map((value) => (
+                <option key={value} value={value}>
+                  {IVA_CONDITION_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+            <Input label="Razón social" value={form.legalName} onChange={(e) => set('legalName', e.target.value)} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Select
+              label="Documento"
+              value={form.taxDocType}
+              onChange={(e) => set('taxDocType', e.target.value as TaxDocType)}
+              hint="Se usa para la factura electrónica."
+            >
+              {TAX_DOC_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {TAX_DOC_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+            {form.taxDocType !== 'none' ? (
+              <Input
+                label={form.taxDocType === 'cuit' ? 'CUIT' : 'DNI'}
+                inputMode="numeric"
+                value={form.taxDocNumber}
+                onChange={(e) => set('taxDocNumber', e.target.value)}
+                placeholder={form.taxDocType === 'cuit' ? '20-12345678-6' : '30123456'}
+              />
+            ) : null}
+          </div>
+        </fieldset>
         <Textarea label="Notas" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
       </form>
     </Sheet>

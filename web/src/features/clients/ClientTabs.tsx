@@ -1,9 +1,11 @@
-import { daysLeftLabel, dayMonth, fullDate, FREQUENCY_LABELS, KIND_LABELS, METHOD_LABELS, money, overdueLabel } from '../../lib/format';
+import { IVA_CONDITION_LABELS, formatCuit } from '@fumigadora/shared';
+import { daysLeftLabel, dayMonth, fullDate, FREQUENCY_LABELS, KIND_LABELS, METHOD_LABELS, TAX_DOC_LABELS, money, overdueLabel } from '../../lib/format';
 import type { PaymentMethod } from '@fumigadora/shared';
 import { Button } from '../../ui/Button';
 import { useServiceTypes } from '../../lib/queries';
 import { EmptyState, Table, Tag, type Column } from '../../ui/display';
 import { useActions } from '../actions/ActionsProvider';
+import { ArcaState, EmitButton } from '../receivables/Arca';
 import type { Certificate, ClientDetail, Invoice, LedgerEntry, Statement, Visit } from '../../lib/types';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -192,17 +194,22 @@ export function InvoicesTab({ statement }: { statement: Statement }) {
       cell: (i) => <span className="num font-bold">{i.voided ? '—' : money(i.balanceCents)}</span>,
     },
     { key: 'status', header: 'Estado', cell: (i) => <Tag status={i.status} /> },
+    { key: 'arca', header: 'ARCA', cell: (i) => <ArcaState invoice={i} /> },
     {
       key: 'actions',
       header: '',
       align: 'right',
       wide: true,
-      cell: (i) =>
-        !i.voided && i.balanceCents > 0 ? (
-          <Button size="sm" variant="accent" onClick={() => open({ type: 'payment', clientId: i.clientId, invoiceId: i.id })}>
-            Cobrar
-          </Button>
-        ) : null,
+      cell: (i) => (
+        <span className="flex flex-wrap gap-1 md:justify-end">
+          <EmitButton invoice={i} />
+          {!i.voided && i.balanceCents > 0 ? (
+            <Button size="sm" variant="accent" onClick={() => open({ type: 'payment', clientId: i.clientId, invoiceId: i.id })}>
+              Cobrar
+            </Button>
+          ) : null}
+        </span>
+      ),
     },
   ];
   if (statement.invoices.length === 0) {
@@ -224,7 +231,7 @@ export function InvoicesTab({ statement }: { statement: Statement }) {
       rows={statement.invoices}
       rowKey={(i) => i.id}
       mobileCols="grid-cols-3"
-      gridClass="md:grid-cols-[minmax(0,1.8fr)_72px_minmax(0,1fr)_1fr_1fr_100px_96px]"
+      gridClass="md:grid-cols-[minmax(0,1.3fr)_52px_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_84px_minmax(0,1.8fr)_minmax(0,2fr)]"
     />
   );
 }
@@ -280,9 +287,15 @@ export function DataTab({ client }: { client: ClientDetail }) {
     ['Zona', client.area],
     ['Frecuencia del servicio', client.serviceFrequency === 'none' ? 'Sin plan' : FREQUENCY_LABELS[client.serviceFrequency]],
     ['Servicio habitual', habitual],
-    ['CUIT', client.taxId],
+    ...(client.taxDocType === 'none' && client.taxId ? ([['CUIT (dato anterior)', client.taxId]] as [string, string | null][]) : []),
     ['Abono mensual', client.monthlyFeeCents ? money(client.monthlyFeeCents) : null],
     ['Notas', client.notes],
+  ];
+  const docValue = client.taxDocNumber ? (client.taxDocType === 'cuit' ? formatCuit(client.taxDocNumber) : client.taxDocNumber) : null;
+  const fiscal: [string, string | null][] = [
+    ['Condición frente al IVA', IVA_CONDITION_LABELS[client.ivaCondition]],
+    ['Documento', client.taxDocType === 'none' ? null : `${TAX_DOC_LABELS[client.taxDocType]} ${docValue ?? ''}`.trim()],
+    ['Razón social', client.legalName],
   ];
   return (
     <div>
@@ -291,6 +304,15 @@ export function DataTab({ client }: { client: ClientDetail }) {
           <div key={label} className="border-t border-rule pt-2">
             <dt className="label-caps">{label}</dt>
             <dd className="mt-1 whitespace-pre-line text-base">{value || <span className="text-muted">—</span>}</dd>
+          </div>
+        ))}
+      </dl>
+      <h3 className="label-caps mb-2 mt-8 !text-ink">Datos fiscales</h3>
+      <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+        {fiscal.map(([label, value]) => (
+          <div key={label} className="border-t border-rule pt-2">
+            <dt className="label-caps">{label}</dt>
+            <dd className="num mt-1 text-base">{value || <span className="text-muted">—</span>}</dd>
           </div>
         ))}
       </dl>

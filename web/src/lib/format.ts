@@ -1,4 +1,4 @@
-import { formatMoney, isoWeekday, type Frequency, type PaymentMethod } from '@fumigadora/shared';
+import { formatMoney, isoWeekday, type Frequency, type PaymentMethod, type TaxDocType } from '@fumigadora/shared';
 
 /** es-AR money without trailing ",00": `$ 1.234.567`. Cents are shown only when present. */
 export function money(cents: number): string {
@@ -100,3 +100,15 @@ export function deltaLabel(current: number, previous: number): string {
   if (pct === 0) return 'Igual que el mes anterior';
   return `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)} % vs. mes anterior`;
 }
+
+export const TAX_DOC_LABELS: Record<TaxDocType, string> = {
+  none: 'Sin documento',
+  cuit: 'CUIT',
+  dni: 'DNI',
+};
+
+export const TAX_CONDITION_LABELS: Record<string, string> = {
+  monotributo: 'Monotributo',
+  responsable_inscripto: 'Responsable Inscripto',
+};
+

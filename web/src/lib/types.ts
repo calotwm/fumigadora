@@ -1,6 +1,10 @@
 import type {
   AgingBucket,
+  ArcaStatus,
   ClientKind,
+  IssuerTaxCondition,
+  IvaCondition,
+  TaxDocType,
   Frequency,
   InvoiceStatus,
   IsoDate,
@@ -33,6 +37,10 @@ export interface ClientRow {
   monthlyFeeCents: number | null;
   serviceFrequency: Frequency;
   defaultServiceTypeId: number | null;
+  taxDocType: TaxDocType;
+  taxDocNumber: string | null;
+  ivaCondition: IvaCondition;
+  legalName: string | null;
   archivedAt: string | null;
   createdAt: string;
   archived: boolean;
@@ -78,6 +86,14 @@ export interface Invoice {
   balanceCents: number;
   isPartial: boolean;
   daysOverdue: number;
+  arcaStatus: ArcaStatus;
+  cbteType: number | null;
+  ptoVta: number | null;
+  cbteNumber: number | null;
+  cae: string | null;
+  caeDueOn: IsoDate | null;
+  arcaObservations: { observations: { code: number; msg: string }[]; errors: { code: number; msg: string }[]; message?: string } | null;
+  arcaAttemptedAt: string | null;
 }
 
 export interface Visit {
@@ -249,6 +265,10 @@ export interface ClientInput {
   monthlyFeeCents: number | null;
   serviceFrequency: Frequency;
   defaultServiceTypeId: number | null;
+  taxDocType: TaxDocType;
+  taxDocNumber: string;
+  ivaCondition: IvaCondition;
+  legalName: string;
 }
 
 export interface Debtor extends BalanceFields {
@@ -449,6 +469,21 @@ export interface AppSettings {
   debtReminderMinDaysOverdue: number;
   noticeMode: NoticeMode;
   noticeDaysBefore: number;
+  arcaAutoEmit: boolean;
+}
+
+export interface ArcaStatusInfo {
+  configured: boolean;
+  env: 'homologacion' | 'produccion' | null;
+  cuit: string | null;
+  ptoVta: number | null;
+  taxCondition: IssuerTaxCondition | null;
+  missing: string[];
+}
+
+export interface ArcaCheckResult {
+  ok: boolean;
+  steps: { name: 'dummy' | 'login' | 'last_authorized'; ok: boolean; detail: string }[];
 }
 
 export type NoticeState = 'no_email' | 'pending' | 'scheduled' | 'sent' | 'simulated' | 'failed';

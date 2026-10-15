@@ -16,6 +16,7 @@ import {
 import { errorMessage } from '../../lib/api';
 import { money } from '../../lib/format';
 import type { ExpenseCategory, ServiceType } from '../../lib/types';
+import { ArcaSection } from './ArcaSection';
 import { EmployeesSection } from './EmployeesSection';
 import { MailSection } from './MailSection';
 import { RemindersSection } from './RemindersSection';
@@ -30,6 +31,7 @@ export function AjustesPage() {
         <EmployeesSection />
         <MailSection />
         <RemindersSection />
+        <ArcaSection />
       </div>
     </>
   );

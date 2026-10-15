@@ -90,8 +90,8 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
-| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId? }` (empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
+| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, taxDocType, taxDocNumber, ivaCondition, legalName, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
+| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName? }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
@@ -158,7 +158,7 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
-| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7` |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false` |
 
 **Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
 Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.
@@ -192,6 +192,20 @@ An in-process scheduler checks hourly and runs the daily job once per Buenos Air
 | POST | `/api/invoices/:id/void` | - | voided invoice; payments allocated to it are released as client credit |
 | POST | `/api/invoices/monthly-batch/preview?month=YYYY-MM` | - | `{ month, label, clients: { clientId, name, monthlyFeeCents }[], totalCents, alreadyInvoicedCount }`: active clients with a fee and no non-voided invoice with `periodMonth = month` |
 | POST | `/api/invoices/monthly-batch` | `{ month, clientIds[] }` | `201 { month, created: Invoice[], skipped: { clientId, reason }[], totalCents }` in one transaction (issued today, due +10, `periodMonth` set, description `Abono mensual <mes> <año>`); clients already invoiced / without fee / archived are skipped, not errors |
+
+Every invoice also carries its ARCA state (see "ARCA" below): `arcaStatus: 'not_sent'\|'authorized'\|'rejected'\|'error'`, `cbteType` (1 A, 6 B, 11 C), `ptoVta`, `cbteNumber`, `cae`, `caeDueOn`, `arcaObservations: { observations, errors, message? } \| null`, `arcaAttemptedAt`. The internal `number` is never changed.
+
+## ARCA electronic invoicing (owner only)
+
+Inactive until `ARCA_ENV`, `ARCA_CUIT`, `ARCA_CERT`, `ARCA_KEY`, `ARCA_PTO_VTA` and `ARCA_TAX_CONDITION` are all set and valid; nothing in the invoicing flow changes before that. Details, sources and unverified points in [arca.md](arca.md).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/arca/status` | - | `{ configured, env: 'homologacion'\|'produccion'\|null, cuit (masked, `20-****5678-6`), ptoVta, taxCondition, missing: string[] (variable names) }`. Never returns certificate, key or tokens |
+| POST | `/api/arca/check` | - | `{ ok, steps: { name: 'dummy'\|'login'\|'last_authorized', ok, detail }[] }`: FEDummy, WSAA login, FECompUltimoAutorizado. `409 arca_not_configured` when inactive |
+| POST | `/api/invoices/:id/arca` | - | `200` invoice (`authorized` with CAE, or `rejected`/`error` with `arcaObservations`; the failure is stored, retry with the same call). `409 arca_not_configured`, `409 already_authorized`, `409` voided, `400 arca_invalid_data` (e.g. Factura A without a valid client CUIT; nothing is sent) |
+
+Emissions are serialized in-process (numbering is sequential per point of sale and type). A retry after an unknown outcome reconciles with `FECompUltimoAutorizado`/`FECompConsultar` before asking for a new number. With setting `arcaAutoEmit` on, invoices created by `POST /api/invoices`, visit completion (owner and employee) and the monthly batch are emitted in the background after they are saved; failures leave the invoice in `error`/`rejected` and never fail the creation.
 
 ## Payments
 

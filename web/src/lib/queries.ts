@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { api } from './api';
 import type {
   AppSettings,
+  ArcaCheckResult,
+  ArcaStatusInfo,
   CashHandover,
   EmailKind,
   EmailLogItem,
@@ -271,6 +273,22 @@ export function useVoidInvoice() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<Invoice>(`/invoices/${id}/void`, { method: 'POST', body: {} }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useArcaStatus() {
+  return useQuery({ queryKey: ['arca', 'status'], queryFn: () => api<ArcaStatusInfo>('/arca/status') });
+}
+
+export function useArcaCheck() {
+  return useMutation({ mutationFn: () => api<ArcaCheckResult>('/arca/check', { method: 'POST', body: {} }) });
+}
+
+export function useEmitInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<Invoice>(`/invoices/${id}/arca`, { method: 'POST', body: {} }),
     onSuccess: () => invalidateData(queryClient),
   });
 }

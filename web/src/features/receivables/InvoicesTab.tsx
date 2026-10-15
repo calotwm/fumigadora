@@ -9,6 +9,7 @@ import { Chips } from '../../ui/form';
 import { EmptyState, ErrorNote, Loading, Table, Tag, type Column } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
+import { ArcaState, EmitButton } from './Arca';
 import type { InvoiceWithClient } from '../../lib/types';
 
 const FILTERS = [
@@ -56,13 +57,15 @@ export function InvoicesTab() {
     { key: 'amount', header: 'Importe', align: 'right', cell: (i) => <span className="num">{money(i.amountCents)}</span> },
     { key: 'balance', header: 'Saldo', align: 'right', cell: (i) => <span className="num font-bold">{i.voided ? '—' : money(i.balanceCents)}</span> },
     { key: 'status', header: 'Estado', cell: (i) => <Tag status={i.status} /> },
+    { key: 'arca', header: 'ARCA', cell: (i) => <ArcaState invoice={i} /> },
     {
       key: 'actions',
       header: '',
       align: 'right',
       wide: true,
       cell: (i) => (
-        <span className="flex gap-1 md:justify-end">
+        <span className="flex flex-wrap gap-1 md:justify-end">
+          <EmitButton invoice={i} />
           {!i.voided && i.balanceCents > 0 ? (
             <Button size="sm" variant="accent" onClick={() => open({ type: 'payment', clientId: i.clientId, invoiceId: i.id })}>
               Cobrar
@@ -94,7 +97,7 @@ export function InvoicesTab() {
           rows={data}
           rowKey={(i) => i.id}
           mobileCols="grid-cols-3"
-          gridClass="md:grid-cols-[minmax(0,2fr)_64px_1fr_1fr_1fr_100px_150px]"
+          gridClass="md:grid-cols-[minmax(0,1.3fr)_52px_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_84px_minmax(0,1.8fr)_minmax(0,2.2fr)]"
         />
       ) : (
         <EmptyState title="No hay facturas con este estado." />
