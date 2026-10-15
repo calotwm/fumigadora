@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import type {
+  CashHandover,
+  MyVisits,
+  UserInput,
+  UserRow,
   ClientDetail,
   ClientInput,
   ClientListItem,
@@ -145,6 +149,7 @@ export interface VisitInput {
   time?: string;
   frequency: Frequency;
   notes?: string;
+  assignedUserId?: number | null;
 }
 
 export function useCreateVisit() {
@@ -190,7 +195,10 @@ export function useAgendaSummary() {
   });
 }
 
-export function useVisits(params: { from?: string; to?: string; status?: string; clientId?: number }, enabled = true) {
+export function useVisits(
+  params: { from?: string; to?: string; status?: string; clientId?: number; assignedUserId?: number },
+  enabled = true,
+) {
   return useQuery({
     queryKey: ['visits', params],
     queryFn: () => api<Visit[]>('/visits', { query: params }),
@@ -218,8 +226,8 @@ export function useScheduleTracking() {
 export function useRescheduleVisit() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, date, time }: { id: number; date: string; time: string | null }) =>
-      api<Visit>(`/visits/${id}`, { method: 'PATCH', body: { date, time } }),
+    mutationFn: ({ id, date, time, assignedUserId }: { id: number; date: string; time: string | null; assignedUserId?: number | null }) =>
+      api<Visit>(`/visits/${id}`, { method: 'PATCH', body: { date, time, ...(assignedUserId === undefined ? {} : { assignedUserId }) } }),
     onSuccess: () => invalidateData(queryClient),
   });
 }
@@ -393,5 +401,68 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: (id: number) => api(`/expense-categories/${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expense-categories'] }),
+  });
+}
+
+// Employees ------------------------------------------------------------------
+
+export function useUsers() {
+  return useQuery({ queryKey: ['users'], queryFn: () => api<UserRow[]>('/users'), staleTime: 60_000 });
+}
+
+export interface UserPatch {
+  name?: string;
+  phone?: string;
+  username?: string;
+  active?: boolean;
+}
+
+export function useSaveUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: UserInput | UserPatch }) =>
+      id === undefined ? api<UserRow>('/users', { body }) : api<UserRow>(`/users/${id}`, { method: 'PATCH', body }),
+    // Assignee names appear on visits, so refresh everything that is not static.
+    onSuccess: () => Promise.all([queryClient.invalidateQueries({ queryKey: ['users'] }), invalidateData(queryClient)]),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      api<{ ok: true }>(`/users/${id}/password`, { body: { password } }),
+  });
+}
+
+export function useCashHandover() {
+  return useQuery({ queryKey: ['cash-handover'], queryFn: () => api<CashHandover>('/cash-handover') });
+}
+
+export function useConfirmHandover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentIds: number[]) =>
+      api<{ confirmed: number; handedOverAt: string }>('/cash-handover/confirm', { body: { paymentIds } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+// Employee app (/api/me) -----------------------------------------------------
+
+export function useMyVisits(date: string) {
+  return useQuery({
+    queryKey: ['me', 'visits', date],
+    queryFn: () => api<MyVisits>('/me/visits', { query: { date } }),
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkMyVisitDone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, cashCollectedCents }: { id: number; cashCollectedCents?: number }) =>
+      api<CompleteVisitResult>(`/me/visits/${id}/done`, { body: { cashCollectedCents } }),
+    onSuccess: () => invalidateData(queryClient),
   });
 }

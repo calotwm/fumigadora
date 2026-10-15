@@ -96,6 +96,8 @@ export interface Visit {
   clientPhone: string | null;
   serviceTypeName: string;
   issuesCertificate: boolean;
+  assignedUserId: number | null;
+  assigneeName: string | null;
 }
 
 export interface Certificate {
@@ -204,6 +206,8 @@ export interface Dashboard {
   services: { doneThisMonth: number; doneLastMonth: number };
   clientsWithoutNextVisit: number;
   tracking: TrackingSummary;
+  cashPendingCents: number;
+  cashPendingCount: number;
 }
 
 export interface PaymentResult {
@@ -347,5 +351,58 @@ export interface TrackingBoard {
 
 export interface ScheduleTrackingBody {
   month: IsoMonth;
-  items: { clientId: number; date: IsoDate; time?: string; serviceTypeId?: number }[];
+  items: { clientId: number; date: IsoDate; time?: string; serviceTypeId?: number; assignedUserId?: number | null }[];
+}
+
+// Employees and cash to hand over -------------------------------------------
+
+export interface AuthUser {
+  authenticated: true;
+  role: 'admin' | 'employee';
+  userId?: number;
+  name: string;
+}
+
+export interface UserRow {
+  id: number;
+  name: string;
+  phone: string | null;
+  username: string;
+  role: 'admin' | 'employee';
+  active: boolean;
+  createdAt: string;
+}
+
+export interface UserInput {
+  name: string;
+  phone?: string;
+  username: string;
+  password: string;
+}
+
+export interface MyVisit extends Visit {
+  clientBalanceCents: number;
+  cashCollectedCents: number;
+}
+
+export interface MyVisits {
+  date: IsoDate;
+  visits: MyVisit[];
+  cashPending: { cents: number; count: number };
+}
+
+export interface HandoverItem {
+  paymentId: number;
+  date: IsoDate;
+  clientId: number;
+  clientName: string;
+  amountCents: number;
+  visitId: number | null;
+}
+
+export interface CashHandover {
+  pendingCents: number;
+  pendingCount: number;
+  employees: { userId: number; name: string; pendingCents: number; count: number; items: HandoverItem[] }[];
+  recent: (HandoverItem & { userId: number; userName: string; handedOverAt: string })[];
 }

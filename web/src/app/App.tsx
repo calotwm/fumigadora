@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router';
-import { LoginPage, RequireAuth } from '../features/auth/auth';
+import { LoginPage, RequireAdmin, RequireAuth } from '../features/auth/auth';
+import { EmployeeApp } from '../features/employee/EmployeeApp';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { AgendaPage } from '../features/agenda/AgendaPage';
 import { CobranzasPage } from '../features/receivables/CobranzasPage';
@@ -28,6 +29,9 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
+        <Route path="app" element={<EmployeeApp />} />
+      </Route>
+      <Route element={<RequireAdmin />}>
         <Route element={<Shell />}>
           <Route index element={<DashboardPage />} />
           <Route path="agenda" element={<AgendaPage />} />
