@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { MapPin, MessageCircle, Phone } from 'lucide-react';
+import { MapPin, MessageCircle, Phone, User } from 'lucide-react';
 import { Button, AnchorButton } from '../../ui/Button';
 import { FREQUENCY_LABELS, dayMonth, longDate } from '../../lib/format';
 import { mapsLink, visitReminderText, whatsappLink } from '../../lib/whatsapp';
@@ -32,6 +32,10 @@ export function VisitCard({ visit, showDate = false }: { visit: Visit; showDate?
         <p className="text-sm text-muted">
           {visit.serviceTypeName}
           {visit.frequency !== 'none' ? ` · ${FREQUENCY_LABELS[visit.frequency]}` : ''}
+        </p>
+        <p className="flex items-center gap-1 text-xs font-semibold">
+          <User size={12} aria-hidden />
+          {visit.assigneeName ?? <span className="font-normal text-muted">Sin asignar</span>}
         </p>
         {visit.notes ? <p className="mt-1 text-sm">{visit.notes}</p> : null}
         <div className="mt-1 flex flex-wrap gap-x-4 text-sm">

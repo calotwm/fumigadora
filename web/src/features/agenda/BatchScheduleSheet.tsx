@@ -8,11 +8,13 @@ import { useScheduleTracking, useServiceTypes } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { FREQUENCY_LABELS } from '../../lib/format';
 import type { TrackingRow } from '../../lib/types';
+import { AssigneeSelect } from '../employees/AssigneeSelect';
 
 interface Draft {
   date: string;
   time: string;
   serviceTypeId: number | '';
+  assignee: number | '';
 }
 
 /** Confirms the dates of several pending clients and schedules them all in one request. */
@@ -37,8 +39,9 @@ export function BatchScheduleSheet({
   const initialDate = suggestedDate ?? to;
   const [allDate, setAllDate] = useState(initialDate);
   const [allTime, setAllTime] = useState('');
+  const [allAssignee, setAllAssignee] = useState<number | ''>('');
   const [drafts, setDrafts] = useState<Record<number, Draft>>(() =>
-    Object.fromEntries(rows.map((r) => [r.clientId, { date: initialDate, time: '', serviceTypeId: r.serviceTypeId ?? '' }])),
+    Object.fromEntries(rows.map((r) => [r.clientId, { date: initialDate, time: '', serviceTypeId: r.serviceTypeId ?? '', assignee: '' as const }])),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +70,7 @@ export function BatchScheduleSheet({
             date: d.date,
             time: d.time || undefined,
             serviceTypeId: r.serviceTypeId === null ? Number(d.serviceTypeId) : undefined,
+            assignedUserId: d.assignee === '' ? undefined : d.assignee,
           };
         }),
       },
@@ -121,6 +125,14 @@ export function BatchScheduleSheet({
             }}
           />
         </div>
+        <AssigneeSelect
+          label="Asignar a todos"
+          value={allAssignee}
+          onChange={(value) => {
+            setAllAssignee(value);
+            applyAll({ assignee: value });
+          }}
+        />
         <ul className="flex flex-col gap-4">
           {rows.map((r) => {
             const d = drafts[r.clientId]!;
@@ -157,6 +169,11 @@ export function BatchScheduleSheet({
                   />
                   <Input label="Hora" type="time" value={d.time} onChange={(e) => patch(r.clientId, { time: e.target.value })} />
                 </div>
+                <AssigneeSelect
+                  wrapperClassName="mt-3"
+                  value={d.assignee}
+                  onChange={(value) => patch(r.clientId, { assignee: value })}
+                />
               </li>
             );
           })}

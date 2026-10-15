@@ -10,6 +10,7 @@ import { errorMessage } from '../../lib/api';
 import { FREQUENCY_LABELS, dayMonth } from '../../lib/format';
 import type { ClientDetail, ServiceType } from '../../lib/types';
 import { SelectedClient } from '../clients/ClientPicker';
+import { AssigneeSelect } from '../employees/AssigneeSelect';
 import { WithClient } from './WithClient';
 
 export function VisitSheet({ clientId, date, serviceTypeId, onClose }: { clientId?: number; date?: string; serviceTypeId?: number; onClose: () => void }) {
@@ -75,6 +76,7 @@ function VisitForm({
     client.serviceFrequency !== 'none' ? client.serviceFrequency : (client.summary.lastFrequency ?? 'none'),
   );
   const [notes, setNotes] = useState('');
+  const [assignee, setAssignee] = useState<number | ''>('');
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
@@ -92,6 +94,7 @@ function VisitForm({
         time: time || undefined,
         frequency,
         notes: notes.trim() || undefined,
+        assignedUserId: assignee === '' ? undefined : assignee,
       },
       {
         onSuccess: (visit) => {
@@ -155,6 +158,7 @@ function VisitForm({
             </option>
           ))}
         </Select>
+        <AssigneeSelect value={assignee} onChange={setAssignee} />
         <Textarea label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </form>
     </Sheet>

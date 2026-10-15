@@ -2,16 +2,17 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { addMonthsToMonth, isIsoMonth, monthLabelEs, today } from '@fumigadora/shared';
-import { useDeleteCashEntry, useFinanceSummary, useMovements } from '../../lib/queries';
+import { useCashHandover, useDeleteCashEntry, useFinanceSummary, useMovements } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { METHOD_LABELS, deltaLabel, fullDate, money } from '../../lib/format';
 import { Button } from '../../ui/Button';
 import { Confirm } from '../../ui/Confirm';
-import { EmptyState, ErrorNote, Loading, PageHeader, SectionHead, Stat } from '../../ui/display';
+import { EmptyState, ErrorNote, Loading, PageHeader, SectionHead, Stat, Tabs } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { FinanceSummary, Movement } from '../../lib/types';
 import { CashEntrySheet } from './CashEntrySheet';
+import { CashHandoverPanel } from './CashHandoverPanel';
 import { MonthChart } from './MonthChart';
 
 function cap(text: string): string {
@@ -25,6 +26,21 @@ export function FinanzasPage() {
   const month = raw && isIsoMonth(raw) && raw <= current ? raw : current;
   const { open } = useActions();
   const summary = useFinanceSummary(month);
+  const handover = useCashHandover();
+  const tab = params.get('tab') === 'efectivo' ? 'efectivo' : 'resumen';
+  const pendingCount = handover.data?.pendingCount ?? 0;
+
+  function goTab(next: 'resumen' | 'efectivo') {
+    setParams(
+      (cur) => {
+        const copy = new URLSearchParams(cur);
+        if (next === 'resumen') copy.delete('tab');
+        else copy.set('tab', next);
+        return copy;
+      },
+      { replace: true },
+    );
+  }
 
   function go(next: string) {
     setParams(
@@ -42,7 +58,7 @@ export function FinanzasPage() {
     <>
       <PageHeader
         eyebrow="Finanzas"
-        title={cap(monthLabelEs(month))}
+        title={tab === 'efectivo' ? 'Efectivo a rendir' : cap(monthLabelEs(month))}
         actions={
           <>
             <Button variant="outline" onClick={() => open({ type: 'income' })}>
@@ -52,6 +68,21 @@ export function FinanzasPage() {
           </>
         }
       />
+      <div className="mb-6">
+        <Tabs
+          label="Secciones de finanzas"
+          tabs={[
+            { id: 'resumen', label: 'Resumen' },
+            { id: 'efectivo', label: pendingCount > 0 ? `Efectivo a rendir (${pendingCount})` : 'Efectivo a rendir' },
+          ]}
+          value={tab}
+          onChange={goTab}
+        />
+      </div>
+      {tab === 'efectivo' ? (
+        <CashHandoverPanel />
+      ) : (
+        <>
       <div className="mb-6 flex items-center gap-1">
         <button
           type="button"
@@ -83,6 +114,8 @@ export function FinanzasPage() {
         <SummaryView data={summary.data} />
       )}
       <Movements month={month} />
+        </>
+      )}
     </>
   );
 }

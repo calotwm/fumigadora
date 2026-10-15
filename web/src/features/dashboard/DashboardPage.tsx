@@ -247,11 +247,11 @@ function TrackingBlock({ data }: { data: Dashboard }) {
 }
 
 function AlertsRow({ data }: { data: Dashboard }) {
-  const { receivables, expiringCertificates, clientsWithoutNextVisit } = data;
+  const { receivables, expiringCertificates, clientsWithoutNextVisit, cashPendingCents, cashPendingCount } = data;
   return (
     <section aria-label="Alertas">
       <SectionHead title="Alertas" />
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="label-caps">Facturas vencidas</p>
           <p className={`num text-2xl font-extrabold ${receivables.overdueInvoiceCount > 0 ? 'text-red' : ''}`}>
@@ -288,6 +288,20 @@ function AlertsRow({ data }: { data: Dashboard }) {
               ) : null}
             </ul>
           )}
+        </div>
+        <div>
+          <p className="label-caps">Efectivo a rendir</p>
+          <p className="num text-2xl font-extrabold">{money(cashPendingCents)}</p>
+          <p className="text-sm text-muted">
+            {cashPendingCount > 0
+              ? `${cashPendingCount} ${cashPendingCount === 1 ? 'cobro' : 'cobros'} de empleados sin confirmar`
+              : 'Nada pendiente de los empleados'}
+          </p>
+          {cashPendingCount > 0 ? (
+            <Link to="/finanzas?tab=efectivo" className="text-xs font-semibold uppercase tracking-wider underline">
+              Confirmar recibido
+            </Link>
+          ) : null}
         </div>
         <div>
           <p className="label-caps">Clientes sin visita programada</p>

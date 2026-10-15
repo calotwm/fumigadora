@@ -9,6 +9,7 @@ import { useCancelVisit, useCompleteVisit, useRescheduleVisit, useServiceTypes }
 import { errorMessage } from '../../lib/api';
 import { FREQUENCY_LABELS, dayMonth, fullDate, money } from '../../lib/format';
 import type { ServiceType, Visit } from '../../lib/types';
+import { AssigneeSelect } from '../employees/AssigneeSelect';
 
 function VisitSummary({ visit }: { visit: Visit }) {
   return (
@@ -186,12 +187,13 @@ export function RescheduleVisitSheet({ visit, onClose }: { visit: Visit; onClose
   const mutation = useRescheduleVisit();
   const [date, setDate] = useState(visit.date);
   const [time, setTime] = useState(visit.time ?? '');
+  const [assignee, setAssignee] = useState<number | ''>(visit.assignedUserId ?? '');
   const [error, setError] = useState<string | null>(null);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     mutation.mutate(
-      { id: visit.id, date, time: time || null },
+      { id: visit.id, date, time: time || null, assignedUserId: assignee === '' ? null : assignee },
       {
         onSuccess: (updated) => {
           toast.success(`Visita reprogramada para el ${dayMonth(updated.date)}${updated.time ? ` a las ${updated.time}` : ''}`);
@@ -204,7 +206,7 @@ export function RescheduleVisitSheet({ visit, onClose }: { visit: Visit; onClose
 
   return (
     <Sheet
-      title="Reprogramar visita"
+      title="Reprogramar y asignar visita"
       onClose={onClose}
       variant="modal"
       footer={
@@ -224,6 +226,7 @@ export function RescheduleVisitSheet({ visit, onClose }: { visit: Visit; onClose
           <DateInput label="Nueva fecha" value={date} required onChange={(e) => setDate(e.target.value)} error={error} />
           <Input label="Hora" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
+        <AssigneeSelect value={assignee} onChange={setAssignee} />
       </form>
     </Sheet>
   );

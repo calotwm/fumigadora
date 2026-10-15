@@ -16,6 +16,7 @@ import {
 import { errorMessage } from '../../lib/api';
 import { money } from '../../lib/format';
 import type { ExpenseCategory, ServiceType } from '../../lib/types';
+import { EmployeesSection } from './EmployeesSection';
 
 export function AjustesPage() {
   return (
@@ -24,6 +25,7 @@ export function AjustesPage() {
       <div className="grid gap-12 lg:grid-cols-2">
         <ServiceTypes />
         <Categories />
+        <EmployeesSection />
       </div>
     </>
   );
