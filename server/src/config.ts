@@ -2,6 +2,14 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const DEV_SESSION_SECRET = 'dev-only-session-secret-change-me-0123456789';
 
+export interface MailConfig {
+  /** Resend API key; with `from` it switches the app from simulated to real sending. */
+  resendApiKey: string | undefined;
+  /** Sender, e.g. `Plagamix <avisos@dominio.com>`. */
+  from: string | undefined;
+  replyTo: string | undefined;
+}
+
 export interface Config {
   isProduction: boolean;
   port: number;
@@ -12,6 +20,7 @@ export interface Config {
   sessionSecret: string;
   /** Session lifetime in seconds. */
   sessionTtlSeconds: number;
+  mail: MailConfig;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -38,5 +47,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     adminPassword,
     sessionSecret,
     sessionTtlSeconds: 60 * 60 * 24 * 30,
+    mail: {
+      resendApiKey: env.RESEND_API_KEY?.trim() || undefined,
+      from: env.MAIL_FROM?.trim() || undefined,
+      replyTo: env.MAIL_REPLY_TO?.trim() || undefined,
+    },
   };
 }

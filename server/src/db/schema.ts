@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -25,6 +26,12 @@ export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
+export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test'] as const;
+export const EMAIL_STATUSES = ['sent', 'simulated', 'failed'] as const;
+export const ROUTE_PLAN_STATUSES = ['draft', 'approved'] as const;
+export const emailKindEnum = pgEnum('email_kind', EMAIL_KINDS);
+export const emailStatusEnum = pgEnum('email_status', EMAIL_STATUSES);
+export const routePlanStatusEnum = pgEnum('route_plan_status', ROUTE_PLAN_STATUSES);
 
 export const users = pgTable(
   'users',
@@ -208,6 +215,90 @@ export const cashEntries = pgTable(
   (t) => [index('cash_entries_date_idx').on(t.date)],
 );
 
+/** Every email the system tried to send (real, simulated or failed). */
+export const emailLog = pgTable(
+  'email_log',
+  {
+    id: serial('id').primaryKey(),
+    kind: emailKindEnum('kind').notNull(),
+    clientId: integer('client_id').references(() => clients.id),
+    to: text('to').notNull(),
+    subject: text('subject').notNull(),
+    html: text('html').notNull(),
+    status: emailStatusEnum('status').notNull(),
+    error: text('error'),
+    providerId: text('provider_id'),
+    /** What the email is about, e.g. `route_plan` / `2025-06` or `debt_reminder` / the run date. */
+    refType: text('ref_type'),
+    refId: text('ref_id'),
+    /** Business date (America/Argentina/Buenos_Aires) of the attempt; drives the reminder interval. */
+    sentOn: isoDate('sent_on').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('email_log_client_idx').on(t.clientId, t.kind), index('email_log_created_idx').on(t.createdAt)],
+);
+
+/** Month route proposed by the system and reviewed by the owner. One per month. */
+export const routePlans = pgTable(
+  'route_plans',
+  {
+    id: serial('id').primaryKey(),
+    /** `YYYY-MM`. */
+    month: text('month').notNull(),
+    status: routePlanStatusEnum('status').notNull().default('draft'),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('route_plans_month_uq').on(t.month)],
+);
+
+export const routePlanItems = pgTable(
+  'route_plan_items',
+  {
+    id: serial('id').primaryKey(),
+    planId: integer('plan_id')
+      .notNull()
+      .references(() => routePlans.id, { onDelete: 'cascade' }),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    date: isoDate('date').notNull(),
+    time: time('time'),
+    serviceTypeId: integer('service_type_id')
+      .notNull()
+      .references(() => serviceTypes.id),
+    assignedUserId: integer('assigned_user_id').references(() => users.id),
+    zone: text('zone'),
+    /** Set when the plan is approved. */
+    visitId: integer('visit_id').references(() => visits.id),
+    /** Day the service notice must go out (set on approval). */
+    noticeDueOn: isoDate('notice_due_on'),
+    noticeEmailLogId: integer('notice_email_log_id').references(() => emailLog.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index('route_plan_items_plan_idx').on(t.planId), index('route_plan_items_notice_idx').on(t.noticeDueOn)],
+);
+
+/** Key/value application settings (JSON values). */
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+});
+
+/** One row per job and business day: the guard that stops a restart from running the daily job twice. */
+export const jobRuns = pgTable(
+  'job_runs',
+  {
+    id: serial('id').primaryKey(),
+    job: text('job').notNull(),
+    runDate: isoDate('run_date').notNull(),
+    result: jsonb('result'),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('job_runs_job_date_uq').on(t.job, t.runDate)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;
@@ -216,3 +307,6 @@ export type Certificate = typeof certificates.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type CashEntry = typeof cashEntries.$inferSelect;
+export type EmailLog = typeof emailLog.$inferSelect;
+export type RoutePlan = typeof routePlans.$inferSelect;
+export type RoutePlanItem = typeof routePlanItems.$inferSelect;

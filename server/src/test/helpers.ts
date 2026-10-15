@@ -12,6 +12,7 @@ export const testConfig: Config = {
   adminPassword: TEST_PASSWORD,
   sessionSecret: 'test-secret-test-secret-test-secret-1234',
   sessionTtlSeconds: 3600,
+  mail: { resendApiKey: undefined, from: undefined, replyTo: undefined },
 };
 
 export interface ApiResult {

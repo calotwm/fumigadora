@@ -5,11 +5,13 @@ import { z, type ZodType } from 'zod';
 import { isIsoDate, isIsoMonth, type IsoDate } from '@fumigadora/shared';
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
+import type { MailProvider } from './mail/provider.js';
 
 /** Dependencies shared by every route/service. `today()` is injectable for deterministic tests. */
 export interface Deps {
   db: Db;
   config: Config;
+  mail: MailProvider;
   today: () => IsoDate;
 }
 

@@ -5,6 +5,9 @@ import { authRoutes, requireAdmin, requireSession, type AuthEnv } from './auth.j
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
+import { createMailProvider, type MailProvider } from './mail/provider.js';
+import { emailRoutes } from './routes/email.js';
+import { settingsRoutes } from './routes/settings.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
 import { handoverRoutes } from './routes/handover.js';
 import { meRoutes } from './routes/me.js';
@@ -22,6 +25,8 @@ export interface AppOptions {
   config: Config;
   /** Override the business date (tests). Defaults to today in America/Argentina/Buenos_Aires. */
   today?: () => string;
+  /** Email transport. Defaults to the provider chosen from the config (Resend or simulated). */
+  mail?: MailProvider;
   /** Serve the built SPA. Defaults to true; pass false in tests. */
   serveWeb?: boolean;
 }
@@ -30,6 +35,7 @@ export function createApp(options: AppOptions) {
   const deps: Deps = {
     db: options.db,
     config: options.config,
+    mail: options.mail ?? createMailProvider(options.config.mail),
     today: options.today ?? (() => businessToday()),
   };
 
@@ -48,6 +54,8 @@ export function createApp(options: AppOptions) {
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
   api.route('/tracking', trackingRoutes(deps));
+  api.route('/email', emailRoutes(deps));
+  api.route('/settings', settingsRoutes(deps));
   api.route('/invoices', invoiceRoutes(deps));
   api.route('/payments', paymentRoutes(deps));
   api.route('/cash-entries', cashRoutes(deps));
