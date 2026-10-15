@@ -21,6 +21,7 @@ import { EmptyState, ErrorNote, Loading, PageHeader, Tabs } from '../../ui/displ
 import { useActions } from '../actions/ActionsProvider';
 import { DayView } from './DayView';
 import { MonthView } from './MonthView';
+import { RouteView } from './RouteView';
 import { TrackingView } from './TrackingView';
 import { UpcomingView } from './UpcomingView';
 import { WeekView } from './WeekView';
@@ -31,6 +32,7 @@ const VIEWS = [
   { id: 'mes', label: 'Mes' },
   { id: 'proximas', label: 'Próximas' },
   { id: 'seguimiento', label: 'Seguimiento' },
+  { id: 'recorrido', label: 'Recorrido' },
 ] as const;
 type ViewId = (typeof VIEWS)[number]['id'];
 
@@ -72,14 +74,14 @@ export function AgendaPage() {
 
   const visitsQuery = useVisits(
     view === 'proximas' ? { status: 'scheduled' } : { from: range.from, to: range.to },
-    view !== 'seguimiento',
+    view !== 'seguimiento' && view !== 'recorrido',
   );
   const visits = (visitsQuery.data ?? []).filter((v) => v.status !== 'cancelled');
 
   function step(direction: -1 | 1) {
     if (view === 'dia') update({ d: addDays(date, direction) });
     else if (view === 'semana') update({ d: addDays(date, 7 * direction) });
-    else if (view === 'mes' || view === 'seguimiento') update({ d: addMonths(startOfMonth(date), direction) });
+    else if (view === 'mes' || view === 'seguimiento' || view === 'recorrido') update({ d: addMonths(startOfMonth(date), direction) });
   }
 
   const title =
@@ -87,7 +89,7 @@ export function AgendaPage() {
       ? longDate(date)
       : view === 'semana'
         ? `${dayMonth(startOfWeek(date))} al ${dayMonth(endOfWeek(date))}`
-        : view === 'mes' || view === 'seguimiento'
+        : view === 'mes' || view === 'seguimiento' || view === 'recorrido'
           ? monthLabelEs(monthOf(date)).replace(/^./, (c) => c.toUpperCase())
           : 'Próximas visitas';
 
@@ -155,6 +157,8 @@ export function AgendaPage() {
       <div className="mt-5">
         {view === 'seguimiento' ? (
           <TrackingView month={monthOf(date)} />
+        ) : view === 'recorrido' ? (
+          <RouteView month={monthOf(date)} />
         ) : visitsQuery.isLoading ? (
           <Loading />
         ) : visitsQuery.error ? (

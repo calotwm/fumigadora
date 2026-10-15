@@ -406,3 +406,100 @@ export interface CashHandover {
   employees: { userId: number; name: string; pendingCents: number; count: number; items: HandoverItem[] }[];
   recent: (HandoverItem & { userId: number; userName: string; handedOverAt: string })[];
 }
+
+// Emails, route planner and reminders --------------------------------------
+
+export type EmailKind = 'service_notice' | 'debt_reminder' | 'test';
+export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
+
+export interface EmailStatus {
+  mode: 'resend' | 'simulated';
+  from: string;
+}
+
+export interface EmailLogItem {
+  id: number;
+  kind: EmailKind;
+  clientId: number | null;
+  clientName: string | null;
+  to: string;
+  subject: string;
+  status: EmailLogStatus;
+  error: string | null;
+  providerId: string | null;
+  refType: string | null;
+  refId: string | null;
+  sentOn: IsoDate;
+  createdAt: string;
+  html?: string;
+}
+
+export interface EmailLogPage {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: EmailLogItem[];
+}
+
+export type NoticeMode = 'on_approve' | 'days_before';
+
+export interface AppSettings {
+  debtRemindersEnabled: boolean;
+  debtReminderEveryDays: number;
+  debtReminderMinDaysOverdue: number;
+  noticeMode: NoticeMode;
+  noticeDaysBefore: number;
+}
+
+export type NoticeState = 'no_email' | 'pending' | 'scheduled' | 'sent' | 'simulated' | 'failed';
+
+export interface RouteItem {
+  id: number;
+  clientId: number;
+  clientName: string;
+  hasEmail: boolean;
+  email: string | null;
+  address: string | null;
+  date: IsoDate;
+  time: string | null;
+  serviceTypeId: number;
+  serviceTypeName: string;
+  frequency: Frequency;
+  assignedUserId: number | null;
+  assigneeName: string | null;
+  zone: string | null;
+  visitId: number | null;
+  notice: { state: NoticeState; dueOn: IsoDate | null; emailLogId: number | null };
+}
+
+export interface RouteTotals {
+  visits: number;
+  clients: number;
+  withEmail: number;
+  withoutEmail: number;
+  notices: number;
+  noticesSent: number;
+  noticesSimulated: number;
+  noticesFailed: number;
+  noticesScheduled: number;
+}
+
+export interface RouteView {
+  month: IsoMonth;
+  noticeMode: NoticeMode;
+  noticeDaysBefore: number;
+  plan: { id: number; month: IsoMonth; status: 'draft' | 'approved'; approvedAt: string | null; notifiedAt: string | null } | null;
+  totals: RouteTotals;
+  zones: { zone: string | null; count: number; dates: { date: IsoDate; items: RouteItem[] }[] }[];
+  skipped?: { clientId: number; name: string; reason: string }[];
+  notices?: { sent: number; simulated: number; failed: number };
+}
+
+export interface ReminderPreview {
+  today: IsoDate;
+  enabled: boolean;
+  everyDays: number;
+  minDaysOverdue: number;
+  recipients: { clientId: number; name: string; email: string; overdueCents: number; daysOverdue: number; overdueInvoiceCount: number; lastReminderOn: IsoDate | null }[];
+  skipped: Record<'disabled' | 'no_email' | 'not_overdue' | 'not_late_enough' | 'too_recent', number>;
+}

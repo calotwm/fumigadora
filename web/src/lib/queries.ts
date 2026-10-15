@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import type {
+  AppSettings,
   CashHandover,
+  EmailKind,
+  EmailLogItem,
+  EmailLogPage,
+  EmailStatus,
+  ReminderPreview,
+  RouteView,
   MyVisits,
   UserInput,
   UserRow,
@@ -465,4 +472,88 @@ export function useMarkMyVisitDone() {
       api<CompleteVisitResult>(`/me/visits/${id}/done`, { body: { cashCollectedCents } }),
     onSuccess: () => invalidateData(queryClient),
   });
+}
+
+// Emails, route planner, reminders --------------------------------------------
+
+export function useEmailStatus() {
+  return useQuery({ queryKey: ['email-status'], queryFn: () => api<EmailStatus>('/email/status'), staleTime: 60_000 });
+}
+
+export function useEmailLog(params: { kind?: EmailKind; clientId?: number; page: number }, enabled = true) {
+  return useQuery({
+    queryKey: ['email-log', params],
+    queryFn: () => api<EmailLogPage>('/email/log', { query: params }),
+    placeholderData: (previous) => previous,
+    enabled,
+  });
+}
+
+export function useEmailDetail(id: number | null) {
+  return useQuery({
+    queryKey: ['email-log', 'detail', id],
+    queryFn: () => api<EmailLogItem>(`/email/log/${id}`),
+    enabled: id !== null,
+  });
+}
+
+export function useSendTestEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (to: string) => api<EmailLogItem>('/email/test', { body: { to } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useSettings() {
+  return useQuery({ queryKey: ['settings'], queryFn: () => api<AppSettings>('/settings') });
+}
+
+export function useSaveSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<AppSettings>) => api<AppSettings>('/settings', { method: 'PUT', body: patch }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useReminderPreview() {
+  return useQuery({ queryKey: ['reminders', 'preview'], queryFn: () => api<ReminderPreview>('/reminders/preview') });
+}
+
+export function useSendReminders() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ sent: number; simulated: number; failed: number }>('/reminders/send', { body: {} }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useRoute(month: string) {
+  return useQuery({ queryKey: ['route', month], queryFn: () => api<RouteView>(`/routes/${month}`) });
+}
+
+export interface RouteItemPatch {
+  date?: string;
+  time?: string | null;
+  assignedUserId?: number | null;
+}
+
+export function useRouteActions(month: string) {
+  const queryClient = useQueryClient();
+  const done = () => invalidateData(queryClient);
+  return {
+    generate: useMutation({ mutationFn: () => api<RouteView>(`/routes/${month}/generate`, { body: {} }), onSuccess: done }),
+    approve: useMutation({ mutationFn: () => api<RouteView>(`/routes/${month}/approve`, { body: {} }), onSuccess: done }),
+    patch: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: RouteItemPatch }) => api<RouteView>(`/routes/items/${id}`, { method: 'PATCH', body }),
+      onSuccess: done,
+    }),
+    remove: useMutation({ mutationFn: (id: number) => api<RouteView>(`/routes/items/${id}`, { method: 'DELETE' }), onSuccess: done }),
+    add: useMutation({
+      mutationFn: (body: { clientId: number; date: string; time?: string; serviceTypeId?: number; assignedUserId?: number | null }) =>
+        api<RouteView>(`/routes/${month}/items`, { body }),
+      onSuccess: done,
+    }),
+  };
 }
