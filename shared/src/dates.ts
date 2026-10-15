@@ -121,6 +121,21 @@ const MONTH_NAMES_ES = [
   'diciembre',
 ];
 
+const WEEKDAY_NAMES_ES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+
+/** `2025-03-04` -> `martes 4 de marzo de 2025`. */
+export function longDateEs(date: IsoDate): string {
+  const [, m, d] = parts(date);
+  const y = date.slice(0, 4);
+  return `${WEEKDAY_NAMES_ES[isoWeekday(date) - 1]} ${d} de ${MONTH_NAMES_ES[m - 1]} de ${y}`;
+}
+
+/** `2025-03-04` -> `04/03/2025`. */
+export function shortDateEs(date: IsoDate): string {
+  const [y, m, d] = parts(date);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+}
+
 /** `2025-03` -> `marzo 2025`. */
 export function monthLabelEs(month: IsoMonth): string {
   const [y, m] = month.split('-');
