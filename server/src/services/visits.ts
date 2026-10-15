@@ -9,7 +9,7 @@ import {
   type IsoDate,
 } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { certificates, clients, serviceTypes, visits } from '../db/schema.js';
+import { certificates, clients, serviceTypes, users, visits } from '../db/schema.js';
 import {
   badRequest,
   conflict,
@@ -26,6 +26,7 @@ import {
 import { toInvoiceView } from './accounts.js';
 import { requireClient } from './clients.js';
 import { insertInvoice } from './invoices.js';
+import { requireAssignee } from './users.js';
 
 export const visitInput = z.object({
   clientId: zId,
@@ -35,6 +36,7 @@ export const visitInput = z.object({
   frequency: z.enum(FREQUENCIES).default('none'),
   notes: zOptText(2000),
   priceCents: zCents.nullish(),
+  assignedUserId: zId.nullish(),
 });
 export const visitPatch = visitInput.partial();
 
@@ -43,6 +45,7 @@ export const visitListQuery = z.object({
   to: zDate.optional(),
   clientId: zId.optional(),
   status: z.enum(VISIT_STATUSES).optional(),
+  assignedUserId: zId.optional(),
 });
 
 export const completeInput = z.object({
@@ -68,6 +71,8 @@ const visitSelect = {
   notes: visits.notes,
   completedAt: visits.completedAt,
   priceCents: visits.priceCents,
+  assignedUserId: visits.assignedUserId,
+  assigneeName: users.name,
   clientName: clients.name,
   clientAddress: clients.address,
   clientPhone: clients.phone,
@@ -83,6 +88,7 @@ function selectVisits(db: Db, where: ReturnType<typeof and>) {
     .from(visits)
     .innerJoin(clients, eq(clients.id, visits.clientId))
     .innerJoin(serviceTypes, eq(serviceTypes.id, visits.serviceTypeId))
+    .leftJoin(users, eq(users.id, visits.assignedUserId))
     .where(where)
     .orderBy(asc(visits.date), sql`${visits.time} asc nulls last`, asc(visits.id));
 }
@@ -99,6 +105,7 @@ export async function listVisits(db: Db, q: z.infer<typeof visitListQuery>) {
       q.to ? lte(visits.date, q.to) : undefined,
       q.clientId ? eq(visits.clientId, q.clientId) : undefined,
       q.status ? eq(visits.status, q.status) : undefined,
+      q.assignedUserId ? eq(visits.assignedUserId, q.assignedUserId) : undefined,
     ),
   );
   return rows.map(visitView);
@@ -119,9 +126,16 @@ async function requireServiceType(db: Db, id: number) {
 export async function createVisit(db: Db, input: z.infer<typeof visitInput>) {
   await requireClient(db, input.clientId);
   await requireServiceType(db, input.serviceTypeId);
+  if (input.assignedUserId) await requireAssignee(db, input.assignedUserId);
   const [row] = await db
     .insert(visits)
-    .values({ ...input, time: input.time ?? null, notes: input.notes ?? null, priceCents: input.priceCents ?? null })
+    .values({
+      ...input,
+      time: input.time ?? null,
+      notes: input.notes ?? null,
+      priceCents: input.priceCents ?? null,
+      assignedUserId: input.assignedUserId ?? null,
+    })
     .returning({ id: visits.id });
   return getVisit(db, row!.id);
 }
@@ -133,6 +147,7 @@ export async function updateVisit(db: Db, id: number, patch: z.infer<typeof visi
   }
   if (patch.clientId) await requireClient(db, patch.clientId);
   if (patch.serviceTypeId) await requireServiceType(db, patch.serviceTypeId);
+  if (patch.assignedUserId && patch.assignedUserId !== current.assignedUserId) await requireAssignee(db, patch.assignedUserId);
   const values = definedOnly(patch);
   if (Object.keys(values).length > 0) await db.update(visits).set(values).where(eq(visits.id, id));
   return getVisit(db, id);
@@ -226,6 +241,7 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
           time: input.nextTime === undefined ? visit.time : input.nextTime,
           frequency: visit.frequency,
           priceCents: visit.priceCents,
+          assignedUserId: visit.assignedUserId,
         })
         .returning({ id: visits.id });
       nextVisitId = next!.id;

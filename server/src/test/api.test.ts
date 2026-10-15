@@ -362,6 +362,8 @@ describe('finance, receivables and dashboard', () => {
     expect(Object.keys(d).sort()).toEqual(
       [
         'agenda',
+        'cashPendingCents',
+        'cashPendingCount',
         'clientsWithoutNextVisit',
         'expiringCertificates',
         'month',

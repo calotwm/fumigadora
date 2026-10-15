@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { today as businessToday } from '@fumigadora/shared';
-import { authRoutes, requireSession } from './auth.js';
+import { authRoutes, requireAdmin, requireSession, type AuthEnv } from './auth.js';
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
+import { handoverRoutes } from './routes/handover.js';
+import { meRoutes } from './routes/me.js';
+import { userRoutes } from './routes/users.js';
 import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
@@ -30,10 +33,15 @@ export function createApp(options: AppOptions) {
     today: options.today ?? (() => businessToday()),
   };
 
-  const api = new Hono();
+  const api = new Hono<AuthEnv>();
   api.get('/health', (c) => c.json({ ok: true }));
-  api.route('/auth', authRoutes(deps.config));
-  api.use('*', requireSession(deps.config));
+  api.route('/auth', authRoutes(deps.config, deps.db));
+  api.use('*', requireSession(deps.config, deps.db));
+  // Employee routes sit before the admin guard; everything below is owner-only.
+  api.route('/me', meRoutes(deps));
+  api.use('*', requireAdmin);
+  api.route('/users', userRoutes(deps));
+  api.route('/cash-handover', handoverRoutes(deps));
   api.route('/clients', clientRoutes(deps));
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));

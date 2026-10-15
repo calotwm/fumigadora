@@ -26,7 +26,13 @@ export const paymentListQuery = z.object({
  * Records a payment and allocates it FIFO to the client's oldest open invoices
  * (or to `invoiceId` first). Everything runs in one transaction.
  */
-export async function createPayment(db: Db, today: IsoDate, input: z.infer<typeof paymentInput>) {
+export async function createPayment(
+  db: Db,
+  today: IsoDate,
+  input: z.infer<typeof paymentInput>,
+  /** Set when an employee collected the cash in the field: it stays "a rendir" until the owner confirms. */
+  collected?: { userId: number; visitId?: number | null },
+) {
   await requireClient(db, input.clientId);
   const created = await db.transaction(async (rawTx) => {
     const tx = rawTx as unknown as Db;
@@ -43,6 +49,8 @@ export async function createPayment(db: Db, today: IsoDate, input: z.infer<typeo
         amountCents: input.amountCents,
         method: input.method,
         notes: input.notes ?? null,
+        collectedByUserId: collected?.userId ?? null,
+        visitId: collected?.visitId ?? null,
       })
       .returning();
     if (parts.length > 0) {

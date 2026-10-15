@@ -4,6 +4,7 @@ import type { Db } from '../db/client.js';
 import { clients, visits } from '../db/schema.js';
 import { listCertificates } from './certificates.js';
 import { monthFigures } from './finance.js';
+import { cashPendingTotals } from './handover.js';
 import { receivables } from './receivables.js';
 import { trackingSummary } from './tracking.js';
 import { agendaSummary, listVisits } from './visits.js';
@@ -39,7 +40,7 @@ async function clientsWithoutNextVisit(db: Db, today: IsoDate) {
 export async function dashboard(db: Db, today: IsoDate) {
   const month = monthOf(today);
   const previousMonth = addMonthsToMonth(month, -1);
-  const [figures, recv, agenda, todayVisits, expiring, doneThis, doneLast, withoutNext, tracking] = await Promise.all([
+  const [figures, recv, agenda, todayVisits, expiring, doneThis, doneLast, withoutNext, tracking, cashPending] = await Promise.all([
     monthFigures(db, [previousMonth, month]),
     receivables(db, today),
     agendaSummary(db, today),
@@ -49,6 +50,7 @@ export async function dashboard(db: Db, today: IsoDate) {
     doneVisitsInMonth(db, previousMonth),
     clientsWithoutNextVisit(db, today),
     trackingSummary(db, today),
+    cashPendingTotals(db),
   ]);
   const cur = figures.get(month)!;
   const prev = figures.get(previousMonth)!;
@@ -87,5 +89,7 @@ export async function dashboard(db: Db, today: IsoDate) {
     services: { doneThisMonth: doneThis, doneLastMonth: doneLast },
     clientsWithoutNextVisit: withoutNext,
     tracking,
+    cashPendingCents: cashPending.cents,
+    cashPendingCount: cashPending.count,
   };
 }

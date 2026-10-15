@@ -5,13 +5,13 @@ REST JSON under `/api`. Conventions:
 - Money is always an **integer number of cents** (`amountCents: 15000000` = `$ 150.000,00`). Format on the client with `formatMoney` from `@fumigadora/shared`.
 - Dates are ISO strings `YYYY-MM-DD`; months are `YYYY-MM`; visit times are `HH:MM`.
 - "Today" is the calendar date in `America/Argentina/Buenos_Aires`.
-- Auth: single admin. `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production). Every other route except `/api/health` and `/api/auth/*` answers `401` without it. Send requests with `credentials: 'same-origin'`.
+- Auth: two roles. The **owner** (`admin`) logs in with the shared `ADMIN_PASSWORD` (no username); **employees** log in with `username` + `password` (stored as scrypt hashes). `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production) whose signed payload carries role and user id. Every route except `/api/health` and `/api/auth/*` answers `401` without a session. `/api/me/*` is open to employees; **every other route requires role `admin` and answers `403 forbidden` to employees**. Send requests with `credentials: 'same-origin'`.
 - Errors: `{ "error": { "code": string, "message": string (Spanish, user-facing), "details"?: any } }`.
-  Status codes: `400` validation (`code: "validation"`, `details.issues[{path,message}]`) or business rule, `401` unauthorized, `404` not found, `409` conflict / duplicate, `429` login throttled, `500` internal.
+  Status codes: `400` validation (`code: "validation"`, `details.issues[{path,message}]`) or business rule, `401` unauthorized, `403` forbidden (role), `404` not found, `409` conflict / duplicate, `429` login throttled, `500` internal.
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
 - Derived values (balances, invoice status, aging) are computed on every read; never stored.
 
-Environment: `ADMIN_PASSWORD`, `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `PORT` (default 3000).
+Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `PORT` (default 3000).
 
 Shared shapes used below:
 
@@ -37,7 +37,8 @@ Visit = {
   frequency: 'none'|'weekly'|'biweekly'|'monthly'|'bimonthly'|'quarterly'|'semiannual'|'yearly',
   notes: string|null, completedAt: string|null, priceCents: number|null,
   clientName, clientAddress: string|null, clientPhone: string|null,
-  serviceTypeName, issuesCertificate: boolean
+  serviceTypeName, issuesCertificate: boolean,
+  assignedUserId: number|null, assigneeName: string|null   // employee the visit is assigned to
 }
 Certificate = {
   id, clientId, clientName, clientPhone, visitId: number|null, number: string,
@@ -52,9 +53,38 @@ Allocation = { invoiceId, invoiceNumber, amountCents }
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/health` | - | `{ ok: true }` (public) |
-| POST | `/api/auth/login` | `{ password }` | `{ authenticated: true }` + cookie. `401 invalid_credentials`; `429` after 8 failures per IP / 10 min |
+| POST | `/api/auth/login` | owner: `{ password }`; employee: `{ username, password }` (username is case-insensitive) | `{ authenticated: true, role: 'admin'\|'employee', userId?, name }` + cookie. `401 invalid_credentials` (also for deactivated users); `429` after 8 failures per IP / 10 min (shared by both logins) |
 | POST | `/api/auth/logout` | - | `{ authenticated: false }` |
-| GET | `/api/auth/me` | - | `{ authenticated: true }` or `401` |
+| GET | `/api/auth/me` | - | `{ authenticated: true, role, userId?, name }` or `401`. The owner login has no `userId` and name `Dueño`. Deactivated employees get `401` immediately |
+
+Sessions issued before employee accounts existed (no role in the cookie) are rejected: log in again.
+
+## Users (owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/users` | - | `{ id, name, phone, username, role: 'admin'\|'employee', active, createdAt }[]` by name. Password hashes are never returned |
+| POST | `/api/users` | `{ name, phone?, username (3-40: a-z 0-9 . _ -, lowercased), password (>= 6), role?='employee' }` | `201` user; `409 duplicate` if the username exists |
+| PATCH | `/api/users/:id` | `{ name?, phone?, username?, role?, active? }` | user. `active: false` deactivates: the employee can no longer log in and existing sessions stop working at once |
+| POST | `/api/users/:id/password` | `{ password (>= 6) }` | `{ ok: true }` |
+
+## Employee routes (`/api/me`, employees and admin)
+
+An employee always acts as themselves. The owner may pass `?userId=` to act as an employee (testing); without it `400`.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/me/visits` | query `date?=today` | `{ date, visits: (Visit & { clientBalanceCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, ordered by time. `cashCollectedCents` = cash this employee registered for that visit; `cashPending` = all cash of the caller not yet confirmed by the owner |
+| POST | `/api/me/visits/:id/done` | `{ cashCollectedCents? (> 0), notes? }` | `{ visit, invoice, certificate, nextVisit, payment: <POST /api/payments response>\|null }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
+
+Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. With `cashCollectedCents` a `cash` payment is registered for the visit's client (FIFO allocation) with `collectedByUserId`, `visitId` and `handedOverAt = null` ("a rendir").
+
+## Cash to hand over (owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/cash-handover` | - | `{ pendingCents, pendingCount, employees: { userId, name, pendingCents, count, items: { paymentId, date, clientId, clientName, amountCents, visitId }[] }[] (largest first), recent: { paymentId, date, clientId, clientName, amountCents, visitId, userId, userName, handedOverAt }[] (last 30 confirmed) }` |
+| POST | `/api/cash-handover/confirm` | `{ paymentIds: number[] (1-500) }` | `{ confirmed, handedOverAt }`; sets `handedOverAt = now`. All-or-nothing: `400` if any id is unknown, not collected by an employee, or already confirmed |
 
 ## Clients
 
@@ -92,8 +122,8 @@ Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servi
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/visits` | query `from?`, `to?` (inclusive dates), `clientId?`, `status?` | `Visit[]` ordered by date, time (nulls last), id |
-| POST | `/api/visits` | `{ clientId, serviceTypeId, date, time?, frequency?='none', notes?, priceCents? }` | `201` `Visit` |
+| GET | `/api/visits` | query `from?`, `to?` (inclusive dates), `clientId?`, `status?`, `assignedUserId?` | `Visit[]` ordered by date, time (nulls last), id |
+| POST | `/api/visits` | `{ clientId, serviceTypeId, date, time?, frequency?='none', notes?, priceCents?, assignedUserId? }` (assignee must be an active user; `404` unknown, `409` deactivated; `null` unassigns on PATCH) | `201` `Visit` |
 | GET | `/api/visits/:id` | - | `Visit` |
 | PATCH | `/api/visits/:id` | subset of create body (rescheduling only while `scheduled`) | `Visit` |
 | POST | `/api/visits/:id/cancel` | - | `Visit` (`409` unless scheduled) |
@@ -114,7 +144,7 @@ Expected services per month: `weekly` = number of Mondays in the month (4 or 5);
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/tracking` | query `month?=YYYY-MM` (default current), `zone?` (exact `area`), `status?=pending\|scheduled\|complete` | `{ month, zones: string[] (zones of all tracked clients), totals: { expected, done, scheduled, pendingUnscheduled, clientsTracked }, rows: TrackingRow[] }` |
-| POST | `/api/tracking/schedule` | `{ month, items: [{ clientId, date (inside month), time?, serviceTypeId? (default: the plan's) }] }` (1-300 items) | `201 { created: Visit[] }`; one transaction, visit `frequency` = client plan. `400` if a date is outside the month, the client is archived or has no service to use; `404` unknown client / service |
+| POST | `/api/tracking/schedule` | `{ month, items: [{ clientId, date (inside month), time?, serviceTypeId? (default: the plan's), assignedUserId? }] }` (1-300 items) | `201 { created: Visit[] }`; one transaction, visit `frequency` = client plan. `400` if a date is outside the month, the client is archived or has no service to use; `404` unknown client / service |
 
 `TrackingRow = { clientId, name, zone: string|null, frequency, serviceTypeId, serviceTypeName, expected, done, scheduled, pendingUnscheduled, status: 'pending'|'scheduled'|'complete', lastDoneOn: IsoDate|null, daysSinceLast: number|null, nextScheduled: { id, date, time }|null }`. `status`: `pending` = something still to do and not yet scheduled; `scheduled` = everything pending is already scheduled; `complete` = all expected done. Rows are ordered by zone (no zone last) then name; clients not due this month (expected 0) are omitted. `totals` ignores the `status` filter but respects `zone`; `done + scheduled + pendingUnscheduled = expected`. `clientsTracked` counts every client with a plan in the zone filter.
 
@@ -175,7 +205,8 @@ Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
   expiringCertificates: Certificate[],        // <= 15 days (or expired), not superseded
   services: { doneThisMonth, doneLastMonth }, // done visits by visit date
   clientsWithoutNextVisit: number,            // active clients with a visit in the last 120 days and nothing scheduled from today on
-  tracking: { month, expected, done, scheduled, pendingUnscheduled, clientsTracked }  // current month, same rules as GET /api/tracking
+  tracking: { month, expected, done, scheduled, pendingUnscheduled, clientsTracked },  // current month, same rules as GET /api/tracking
+  cashPendingCents: number, cashPendingCount: number   // employee cash not yet confirmed by the owner
 }
 ```
 

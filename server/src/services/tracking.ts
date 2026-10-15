@@ -4,6 +4,7 @@ import { monthlyTrackingStatus, monthOf, monthRange, type Frequency, type IsoDat
 import type { Db } from '../db/client.js';
 import { clients, serviceTypes, visits } from '../db/schema.js';
 import { badRequest, hhmm, notFound, zDate, zId, zMonth, zTime } from '../http.js';
+import { requireAssignee } from './users.js';
 import { getVisit } from './visits.js';
 
 export const TRACKING_STATUSES = ['pending', 'scheduled', 'complete'] as const;
@@ -24,6 +25,7 @@ export const scheduleInput = z.object({
         date: zDate,
         time: zTime.nullish(),
         serviceTypeId: zId.optional(),
+        assignedUserId: zId.nullish(),
       }),
     )
     .min(1, 'Elegí al menos un cliente')
@@ -201,8 +203,12 @@ export async function scheduleTracking(db: Db, input: z.infer<typeof scheduleInp
       date: item.date,
       time: item.time ?? null,
       frequency: client.frequency,
+      assignedUserId: item.assignedUserId ?? null,
     };
   });
+  for (const userId of new Set(values.map((x) => x.assignedUserId).filter((x): x is number => x != null))) {
+    await requireAssignee(db, userId);
+  }
 
   const typeIds = [...new Set(values.map((v) => v.serviceTypeId))];
   const found = await db.select({ id: serviceTypes.id }).from(serviceTypes).where(inArray(serviceTypes.id, typeIds));

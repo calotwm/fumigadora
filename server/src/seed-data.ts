@@ -13,6 +13,7 @@ import {
   type PaymentMethod,
 } from '@fumigadora/shared';
 import type { Db } from './db/client.js';
+import { hashPassword } from './passwords.js';
 import {
   allocations,
   cashEntries,
@@ -22,6 +23,7 @@ import {
   invoices,
   payments,
   serviceTypes,
+  users,
   visits,
 } from './db/schema.js';
 
@@ -120,7 +122,11 @@ interface PaymentPlan {
 
 const roundTo = (cents: number, step: number) => Math.max(step, Math.round(cents / step) * step);
 
+/** Development-only password shared by the seeded employees. */
+export const SEED_EMPLOYEE_PASSWORD = 'empleado';
+
 export interface SeedSummary {
+  employees: string[];
   clients: number;
   visits: number;
   invoices: number;
@@ -141,9 +147,20 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients restart identity cascade',
+      'truncate table allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
+
+  // ---------- employees ----------
+  const passwordHash = await hashPassword(SEED_EMPLOYEE_PASSWORD);
+  const employeeRows = await db
+    .insert(users)
+    .values([
+      { name: 'Juan Pérez', phone: '+54 9 11 5555-0101', username: 'juan', passwordHash, role: 'employee' as const },
+      { name: 'Pablo Gómez', phone: '+54 9 11 5555-0102', username: 'pablo', passwordHash, role: 'employee' as const },
+      { name: 'Marcos Díaz', phone: '+54 9 11 5555-0103', username: 'marcos', passwordHash, role: 'employee' as const },
+    ])
+    .returning({ id: users.id, username: users.username });
 
   // ---------- catalogs ----------
   const categoryRows = await db
@@ -371,6 +388,13 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
   });
 
   visitPlans.sort((a, b) => a.date.localeCompare(b.date) || a.key - b.key);
+  // ~80% of today's and upcoming visits (and the late ones) are assigned round-robin to the employees.
+  const assigneeByKey = new Map<number, number>();
+  let turn = 0;
+  for (const v of visitPlans) {
+    if (v.status !== 'scheduled' || v.date < addDays(today, -7) || !chance(0.8)) continue;
+    assigneeByKey.set(v.key, employeeRows[turn++ % employeeRows.length]!.id);
+  }
   const visitRows = await db
     .insert(visits)
     .values(
@@ -383,6 +407,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
         frequency: v.frequency,
         notes: v.notes,
         priceCents: v.priceCents,
+        assignedUserId: assigneeByKey.get(v.key) ?? null,
         completedAt: v.status === 'done' ? new Date(`${v.date}T15:00:00Z`) : null,
       })),
     )
@@ -515,6 +540,40 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
   });
   if (allocationRows.length > 0) await db.insert(allocations).values(allocationRows);
 
+  // ---------- cash collected by employees: some still "a rendir", a couple already confirmed ----------
+  const cashPlan = [
+    { daysAgo: 0, confirmed: false },
+    { daysAgo: 0, confirmed: false },
+    { daysAgo: 1, confirmed: false },
+    { daysAgo: 2, confirmed: false },
+    { daysAgo: 3, confirmed: false },
+    { daysAgo: 6, confirmed: true },
+    { daysAgo: 9, confirmed: true },
+  ];
+  const cashCandidates = invoiceIdx.filter((inv) => inv.balance > 0 && inv.issuedOn <= today);
+  let employeePayments = 0;
+  for (const [n, plan] of cashPlan.entries()) {
+    const inv = cashCandidates[n * 2];
+    if (!inv) break;
+    const paidOn = addDays(today, -plan.daysAgo) < inv.issuedOn ? today : addDays(today, -plan.daysAgo);
+    const amountCents = Math.min(inv.balance, roundTo(inv.balance * 0.6, 10_000_00));
+    const [payment] = await db
+      .insert(payments)
+      .values({
+        clientId: clientPlans[inv.clientIdx]!.id,
+        paidOn,
+        amountCents,
+        method: 'cash',
+        notes: 'Efectivo cobrado en el domicilio',
+        collectedByUserId: employeeRows[n % employeeRows.length]!.id,
+        handedOverAt: plan.confirmed ? new Date(`${paidOn}T21:00:00Z`) : null,
+      })
+      .returning({ id: payments.id });
+    await db.insert(allocations).values({ paymentId: payment!.id, invoiceId: inv.id, amountCents });
+    inv.balance -= amountCents;
+    employeePayments++;
+  }
+
   // ---------- cash entries ----------
   const cash: (typeof cashEntries.$inferInsert)[] = [];
   const expense = (date: IsoDate, cat: string, amountPesos: number, description: string, method: PaymentMethod = 'cash') => {
@@ -540,10 +599,11 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
   await db.insert(cashEntries).values(cash);
 
   return {
+    employees: employeeRows.map((e) => e.username),
     clients: clientRows.length,
     visits: visitRows.length,
     invoices: invoiceRows.length,
-    payments: paymentRows.length,
+    payments: paymentRows.length + employeePayments,
     cashEntries: cash.length,
     certificates: certPlans.length,
   };

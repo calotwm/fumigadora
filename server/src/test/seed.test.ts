@@ -31,6 +31,12 @@ describe('seed', () => {
     expect(dash.body.topDebtors.length).toBeGreaterThan(0);
     expect(dash.body.receivables.owedCents).toBeGreaterThan(0);
     expect(dash.body.expiringCertificates.length).toBeGreaterThan(0);
+    expect(dash.body.cashPendingCents).toBeGreaterThan(0);
+    const handover = await t.get('/api/cash-handover');
+    expect(handover.body.employees.length).toBeGreaterThan(0);
+    expect(handover.body.recent.length).toBeGreaterThan(0);
+    const assigned = await t.get(`/api/visits?from=${today}&to=${today}`);
+    expect(assigned.body.some((v: { assignedUserId: number | null }) => v.assignedUserId !== null)).toBe(true);
 
     // ~70% of clients have a service plan and the follow-up is non-trivial.
     const planned = clients.body.filter((c: { serviceFrequency: string }) => c.serviceFrequency !== 'none').length;
