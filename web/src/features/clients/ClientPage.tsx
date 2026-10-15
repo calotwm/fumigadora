@@ -10,6 +10,7 @@ import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { ClientDetail, Statement } from '../../lib/types';
 import { BUCKET_LABELS } from './balance';
+import { EmailLogList } from '../mail/EmailLogList';
 import { AccountTab, CertificatesTab, DataTab, InvoicesTab, VisitsTab } from './ClientTabs';
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'visitas', label: 'Visitas' },
   { id: 'facturas', label: 'Facturas' },
   { id: 'obleas', label: 'Obleas' },
+  { id: 'mails', label: 'Mails' },
   { id: 'datos', label: 'Datos' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
@@ -173,6 +175,8 @@ function ClientView({
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pt-6">
           {tab === 'datos' ? (
             <DataTab client={client} />
+          ) : tab === 'mails' ? (
+            <EmailLogList clientId={client.id} showFilter={false} />
           ) : statementError ? (
             <ErrorNote message={errorMessage(statementError)} />
           ) : !statement ? (

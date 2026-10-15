@@ -11,7 +11,7 @@ REST JSON under `/api`. Conventions:
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
 - Derived values (balances, invoice status, aging) are computed on every read; never stored.
 
-Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `PORT` (default 3000).
+Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
 
 Shared shapes used below:
 
@@ -147,6 +147,40 @@ Expected services per month: `weekly` = number of Mondays in the month (4 or 5);
 | POST | `/api/tracking/schedule` | `{ month, items: [{ clientId, date (inside month), time?, serviceTypeId? (default: the plan's), assignedUserId? }] }` (1-300 items) | `201 { created: Visit[] }`; one transaction, visit `frequency` = client plan. `400` if a date is outside the month, the client is archived or has no service to use; `404` unknown client / service |
 
 `TrackingRow = { clientId, name, zone: string|null, frequency, serviceTypeId, serviceTypeName, expected, done, scheduled, pendingUnscheduled, status: 'pending'|'scheduled'|'complete', lastDoneOn: IsoDate|null, daysSinceLast: number|null, nextScheduled: { id, date, time }|null }`. `status`: `pending` = something still to do and not yet scheduled; `scheduled` = everything pending is already scheduled; `complete` = all expected done. Rows are ordered by zone (no zone last) then name; clients not due this month (expected 0) are omitted. `totals` ignores the `status` filter but respects `zone`; `done + scheduled + pendingUnscheduled = expected`. `clientsTracked` counts every client with a plan in the zone filter.
+
+## Emails, month route, settings and reminders (owner only)
+
+Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FROM` are set, **simulated** otherwise (logged to the console and to `email_log`, nothing leaves the server). Every attempt is stored; a provider failure is recorded as `failed` and never raised to the caller.
+
+| Method | Path | Body / query | Response |
+|---|---|---|---|
+| GET | `/api/email/status` | - | `{ mode: 'resend'\|'simulated', from }` |
+| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
+| GET | `/api/email/log/:id` | - | same item plus `html` |
+| POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7` |
+
+**Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
+Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/routes/:month` | - | `{ month, noticeMode, noticeDaysBefore, plan: { id, month, status, approvedAt, notifiedAt } \| null, totals: { visits, clients, withEmail, withoutEmail, notices, noticesSent, noticesSimulated, noticesFailed, noticesScheduled }, zones: { zone: string\|null, count, dates: { date, items: RouteItem[] }[] }[] }`; `RouteItem = { id, clientId, clientName, hasEmail, email, address, date, time, serviceTypeId, serviceTypeName, frequency, assignedUserId, assigneeName, zone, visitId, notice: { state: 'no_email'\|'pending'\|'scheduled'\|'sent'\|'simulated'\|'failed', dueOn, emailLogId } }` |
+| POST | `/api/routes/:month/generate` | - | route view plus `skipped: { clientId, name, reason }[]` (plans without a habitual service). Replaces a draft; `409 route_approved` once approved |
+| PATCH | `/api/routes/items/:id` | `{ date? (inside the month), time? \| null, assignedUserId? \| null }` | route view. Draft only (`409` after approval) |
+| DELETE | `/api/routes/items/:id` | - | route view. Draft only |
+| POST | `/api/routes/:month/items` | `{ clientId, date, time?, serviceTypeId?, assignedUserId? }` | `201` route view (creates the draft if needed) |
+| POST | `/api/routes/:month/approve` | - | route view plus `notices: { sent, simulated, failed }`. One transaction creates a `scheduled` visit per item (frequency = client plan, assignee), then notices go out outside it: `on_approve` sends now; `days_before` sends when `visit date - N <= today` (already-due ones go now, the rest wait for the daily job). Clients without email get no notice. Failed sends do not undo visits and are retried by the daily job while the visit is still ahead |
+
+**Debt reminders and the daily job.** A client gets a reminder when reminders are enabled, it has an email, its overdue balance is positive, its oldest overdue invoice is at least `debtReminderMinDaysOverdue` days late and no `debt_reminder` was sent or simulated to it in the last `debtReminderEveryDays` days (business date stored in `email_log.sentOn`). The email lists overdue invoices (number, due date, balance) and the total.
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/api/reminders/preview` | `{ today, enabled, everyDays, minDaysOverdue, recipients: { clientId, name, email, overdueCents, daysOverdue, overdueInvoiceCount, lastReminderOn }[], skipped: { disabled, no_email, not_overdue, not_late_enough, too_recent } }`; computed as if enabled |
+| POST | `/api/reminders/send` | `{ sent, simulated, failed }`. Manual "send now": ignores the on/off switch, keeps the interval rule |
+| POST | `/api/jobs/run-daily` | `{ date, notices: {sent,simulated,failed}, reminders: {sent,simulated,failed} }`. Runs due service notices then debt reminders; idempotent |
+
+An in-process scheduler checks hourly and runs the daily job once per Buenos Aires day, from 09:00 on, guarded by a `job_runs` row (unique per job and day) so restarts never double-run. Single instance only.
 
 ## Invoices and monthly billing
 

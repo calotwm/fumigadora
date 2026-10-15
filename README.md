@@ -46,6 +46,9 @@ See `.env.example`.
 | `ADMIN_PASSWORD` | in production | The server refuses to start in production without it |
 | `SESSION_SECRET` | in production | Signs the session cookie; the server refuses to start in production without it |
 | `DATABASE_URL` | in production | Postgres connection string; unset = embedded PGlite |
+| `RESEND_API_KEY` | no | With `MAIL_FROM`, enables real email through Resend. Without them emails are simulated: stored in the mail log, not sent |
+| `MAIL_FROM` | no | Sender, e.g. `Plagamix <avisos@your-domain.com>` (domain verified in Resend) |
+| `MAIL_REPLY_TO` | no | Optional reply-to address |
 | `PORT` | no | Defaults to 3000; the server binds to `0.0.0.0` |
 
 ## Deploy on Railway
