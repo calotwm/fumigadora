@@ -5,3 +5,4 @@ export * from './invoice.js';
 export * from './aging.js';
 export * from './allocation.js';
 export * from './recurrence.js';
+export * from './tracking.js';
