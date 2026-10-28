@@ -106,6 +106,8 @@ export const requireAdmin: MiddlewareHandler<AuthEnv> = async (c, next) => {
 /** Naive in-memory throttle: max 8 failed logins per IP per 10 minutes. */
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_FAILURES = 8;
+/** Expired entries are swept once the map reaches this size, so it cannot grow without bound. */
+const MAX_TRACKED_KEYS = 1000;
 
 const loginBody = z.object({
   username: z.string().trim().max(100).optional(),
@@ -117,7 +119,8 @@ export function authRoutes(config: Config, db: Db) {
   const app = new Hono<AuthEnv>();
 
   app.post('/login', v('json', loginBody), async (c) => {
-    const key = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
+    // Railway's edge sets X-Real-IP to the client address; X-Forwarded-For is client-controlled.
+    const key = c.req.header('x-real-ip')?.trim() || 'local';
     const now = Date.now();
     const entry = failures.get(key);
     if (entry && now - entry.first < WINDOW_MS && entry.count >= MAX_FAILURES) {
@@ -136,6 +139,9 @@ export function authRoutes(config: Config, db: Db) {
     }
 
     if (!identity) {
+      if (failures.size >= MAX_TRACKED_KEYS) {
+        for (const [k, e] of failures) if (now - e.first >= WINDOW_MS) failures.delete(k);
+      }
       const fresh = entry && now - entry.first < WINDOW_MS ? entry : { count: 0, first: now };
       fresh.count += 1;
       failures.set(key, fresh);
