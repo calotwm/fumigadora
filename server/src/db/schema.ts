@@ -55,6 +55,8 @@ export const NOTIFICATION_KINDS = [
   'visit_done',
   'cash_collected',
   'extras_added',
+  'visit_postponed',
+  'visit_cancelled',
 ] as const;
 export const notificationKindEnum = pgEnum('notification_kind', NOTIFICATION_KINDS);
 export const emailStatusEnum = pgEnum('email_status', EMAIL_STATUSES);
@@ -172,6 +174,8 @@ export const visits = pgTable(
     frequency: frequencyEnum('frequency').notNull().default('none'),
     notes: text('notes'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    /** Why a visit was cancelled, when the employee reported it. */
+    cancelReason: text('cancel_reason'),
     priceCents: cents('price_cents'),
     /** Employee who has to perform the visit (null = unassigned). */
     assignedUserId: integer('assigned_user_id').references(() => users.id),

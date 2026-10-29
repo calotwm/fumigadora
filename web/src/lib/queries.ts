@@ -11,7 +11,9 @@ import type {
   EmailStatus,
   ReminderPreview,
   RouteView,
+  CancelResult,
   MyDoneBody,
+  PostponeResult,
   MyVisits,
   NotificationList,
   UserInput,
@@ -554,6 +556,24 @@ export function useMarkMyVisitDone() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: number; body: MyDoneBody }) => api<CompleteVisitResult>(`/me/visits/${id}/done`, { body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function usePostponeMyVisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, date, time }: { id: number; date: string; time?: string | null }) =>
+      api<PostponeResult>(`/me/visits/${id}/postpone`, { body: { date, ...(time !== undefined ? { time } : {}) } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useCancelMyVisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      api<CancelResult>(`/me/visits/${id}/cancel`, { body: { reason } }),
     onSuccess: () => invalidateData(queryClient),
   });
 }

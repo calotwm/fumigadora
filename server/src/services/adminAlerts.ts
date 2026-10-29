@@ -12,7 +12,7 @@ export const ALERT_GROUP_WINDOW_MS = 10 * 60 * 1000;
  * Hook for new alert kinds (e.g. F6 extras): add the kind to `NOTIFICATION_KINDS` and AlertKind, a case in
  * `alertCopy`, and call `alertAdmins` from the employee flow.
  */
-export type AlertKind = 'visit_done' | 'cash_collected' | 'extras_added';
+export type AlertKind = 'visit_done' | 'cash_collected' | 'extras_added' | 'visit_postponed' | 'visit_cancelled';
 
 export interface EmployeeAlert {
   kind: AlertKind;
@@ -45,6 +45,14 @@ export function alertCopy(alert: EmployeeAlert, count: number, totalCents: numbe
       return count === 1
         ? { title: 'Extras agregados', body: `${who} agregó extras en ${alert.clientName}: ${alert.detail ?? ''} (${formatMoney(totalCents ?? 0)}).`, ...single }
         : { title: 'Extras agregados', body: `${who} agregó extras en ${count} visitas por ${formatMoney(totalCents ?? 0)}.`, link: '/agenda' };
+    case 'visit_postponed':
+      return count === 1
+        ? { title: 'Visita pospuesta', body: `${who} pospuso la visita de ${alert.clientName}${alert.detail ? ` ${alert.detail}` : ''}.`, ...single }
+        : { title: 'Visitas pospuestas', body: `${who} pospuso ${count} visitas.`, link: '/agenda' };
+    case 'visit_cancelled':
+      return count === 1
+        ? { title: 'Visita cancelada', body: `${who} canceló la visita de ${alert.clientName}${alert.detail ? `. Motivo: ${alert.detail}` : ''}.`, ...single }
+        : { title: 'Visitas canceladas', body: `${who} canceló ${count} visitas.`, link: '/agenda' };
   }
 }
 
@@ -139,6 +147,27 @@ export async function alertVisitDone(deps: Deps, input: VisitDoneAlertInput) {
         detail: input.extras.map((e) => `${e.quantity} × ${e.name}`).join(', '),
       });
     }
+  } catch (error) {
+    console.error('[alerts] could not alert the admins', error);
+  }
+}
+
+/** A client asked for another day (`detail` like "al 17/06 a las 10:00") or cancelled (`detail` is the reason). Never throws. */
+export async function alertVisitChanged(
+  deps: Deps,
+  input: { kind: 'visit_postponed' | 'visit_cancelled'; employeeId: number; employeeName: string; clientId: number; visitId: number; detail: string },
+) {
+  try {
+    const [client] = await deps.db.select({ name: clients.name }).from(clients).where(eq(clients.id, input.clientId));
+    await alertAdmins(deps, {
+      kind: input.kind,
+      employeeId: input.employeeId,
+      employeeName: input.employeeName,
+      clientId: input.clientId,
+      clientName: client?.name ?? 'un cliente',
+      entityId: input.visitId,
+      detail: input.detail,
+    });
   } catch (error) {
     console.error('[alerts] could not alert the admins', error);
   }

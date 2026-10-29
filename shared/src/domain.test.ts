@@ -14,6 +14,7 @@ import {
   isIsoDate,
   lastMonths,
   nextVisitDate,
+  nextWorkingDay,
   parseMoney,
   pesosToCents,
   splitCents,
@@ -306,5 +307,14 @@ describe('addMonths and nextVisitDate', () => {
     expect(nextVisitDate(d, 'quarterly')).toBe('2025-04-30');
     expect(nextVisitDate(d, 'semiannual')).toBe('2025-07-31');
     expect(nextVisitDate(d, 'yearly')).toBe('2026-01-31');
+  });
+});
+
+describe('nextWorkingDay', () => {
+  it('is the next day from Monday to Saturday and skips Sunday', () => {
+    expect(nextWorkingDay('2025-06-15')).toBe('2025-06-16'); // Sunday -> Monday
+    expect(nextWorkingDay('2025-06-13')).toBe('2025-06-14'); // Friday -> Saturday
+    expect(nextWorkingDay('2025-06-14')).toBe('2025-06-16'); // Saturday -> Monday (Sunday skipped)
+    expect(nextWorkingDay('2025-06-16')).toBe('2025-06-17');
   });
 });

@@ -79,11 +79,20 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 | GET | `/api/me/extras` | - | Active extras (`{ id, name, priceCents, active, createdAt }[]`) the caller can add when closing a visit |
 | POST | `/api/me/visits/:id/done` | `{ paymentStatus?: 'full'\|'partial'\|'none', method?: 'cash'\|'transfer'\|'mercadopago' (default cash), amountCents? (> 0, required for partial), extras?: { extraId, quantity }[], notes?, cashCollectedCents? (legacy: same as partial + cash) }` | `{ visit, invoice, extras, certificate, nextVisit, payment: <POST /api/payments response>\|null, paymentStatus, paymentMethod }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
 
+**Client cancelled** (the employee's own `scheduled` visits only; unknown or foreign id `404`, not `scheduled` `409`):
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/me/visits/:id/postpone` | `{ date (>= today), time? }` (`time` omitted keeps the current one, `null` clears it; `400` if neither date nor time changes) | `{ visit, previous: { date, time } }` |
+| POST | `/api/me/visits/:id/cancel` | `{ reason }` (required, <= 500) | `{ visit (status cancelled, cancelReason), nextVisit: Visit\|null }`. A recurring visit schedules its next occurrence (same client, service, frequency, price, assignee and time; `date + frequency`, never in the past) in the same transaction |
+
+Both alert the admins (employee sessions only): `visit_postponed` ("Juan pospuso la visita de X al 17/06 a las 09:00.") and `visit_cancelled` ("... canceló la visita de X. Motivo: ..."). `Visit` now also carries `cancelReason`.
+
 **Notifications** (the bell; every signed-in user, always the caller's own). The emergency owner session has no user: it gets an empty list and `404` on a single id.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`, `extras_added`; `link` is an in-app route. The web app polls this every 60 s |
+| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`, `extras_added`, `visit_postponed`, `visit_cancelled`; `link` is an in-app route. The web app polls this every 60 s |
 | POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
 | GET | `/api/me/push` | - | `{ enabled, publicKey }`. `enabled` is false (and `publicKey` null) until `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are all set |
 | POST | `/api/me/push/subscribe` | `{ endpoint, keys: { p256dh, auth } }` (a browser `PushSubscription.toJSON()`) | `201 { ok: true }`. Upserts by `endpoint` (the same device signed in as someone else moves to that user). `409 push_disabled` without VAPID; `400` for the emergency session (no user) |

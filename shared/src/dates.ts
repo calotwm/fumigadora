@@ -106,6 +106,12 @@ export function endOfWeek(date: IsoDate): IsoDate {
   return addDays(date, 7 - isoWeekday(date));
 }
 
+/** The next day from Monday to Saturday after `date` (field work happens Mon-Sat; Sunday is skipped). */
+export function nextWorkingDay(date: IsoDate): IsoDate {
+  const next = addDays(date, 1);
+  return isoWeekday(next) === 7 ? addDays(next, 1) : next;
+}
+
 const MONTH_NAMES_ES = [
   'enero',
   'febrero',

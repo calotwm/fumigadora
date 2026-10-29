@@ -4,9 +4,18 @@ import { queueAutoEmit } from '../arca/service.js';
 import { badRequest, conflict, idParam, notFound, v, type Deps } from '../http.js';
 import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsubscribeInput } from '../services/push.js';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
-import { alertVisitDone } from '../services/adminAlerts.js';
+import { alertVisitChanged, alertVisitDone } from '../services/adminAlerts.js';
 import { listExtras } from '../services/extras.js';
-import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
+import {
+  cancelMyVisit,
+  markMyVisitDone,
+  myCancelInput,
+  myDoneInput,
+  myPostponeInput,
+  myVisits,
+  myVisitsQuery,
+  postponeMyVisit,
+} from '../services/employee.js';
 
 /**
  * Employee-facing routes. An employee always acts as themselves; an admin user acts as themself too, and
@@ -52,6 +61,42 @@ export function meRoutes(deps: Deps) {
             : {}),
           ...(cashCents > 0 ? { cashCents } : {}),
           extras: result.extras,
+        });
+      }
+      return c.json(result);
+    })
+    // The client asked for another day.
+    .post('/visits/:id/postpone', v('param', idParam), v('json', myPostponeInput), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const result = await postponeMyVisit(db, today(), userId, c.req.valid('param').id, c.req.valid('json'));
+      const session = c.get('session');
+      if (session.role === 'employee') {
+        const { date, time } = result.visit;
+        await alertVisitChanged(deps, {
+          kind: 'visit_postponed',
+          employeeId: userId,
+          employeeName: session.name,
+          clientId: result.visit.clientId,
+          visitId: result.visit.id,
+          detail: `al ${date.slice(8, 10)}/${date.slice(5, 7)}${time ? ` a las ${time}` : ''}`,
+        });
+      }
+      return c.json(result);
+    })
+    // The client cancelled; the reason is required.
+    .post('/visits/:id/cancel', v('param', idParam), v('json', myCancelInput), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const body = c.req.valid('json');
+      const result = await cancelMyVisit(db, today(), userId, c.req.valid('param').id, body);
+      const session = c.get('session');
+      if (session.role === 'employee') {
+        await alertVisitChanged(deps, {
+          kind: 'visit_cancelled',
+          employeeId: userId,
+          employeeName: session.name,
+          clientId: result.visit.clientId,
+          visitId: result.visit.id,
+          detail: body.reason,
         });
       }
       return c.json(result);

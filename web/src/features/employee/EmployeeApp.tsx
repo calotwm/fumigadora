@@ -11,6 +11,7 @@ import type { MyVisit } from '../../lib/types';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading } from '../../ui/display';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { ClientCancelledSheet } from './ClientCancelledSheet';
 import { DoneSheet } from './DoneSheet';
 import plagamixWhite from '../../assets/plagamix-white.png';
 
@@ -28,6 +29,7 @@ export function EmployeeApp() {
   const today = todayIso();
   const [date, setDate] = useState(today);
   const [marking, setMarking] = useState<MyVisit | null>(null);
+  const [cancelling, setCancelling] = useState<MyVisit | null>(null);
   const { data, error, isLoading, refetch } = useMyVisits(date);
 
   const visits = data?.visits ?? [];
@@ -121,7 +123,7 @@ export function EmployeeApp() {
         ) : (
           <ul>
             {visits.map((visit) => (
-              <VisitItem key={visit.id} visit={visit} onMark={() => setMarking(visit)} />
+              <VisitItem key={visit.id} visit={visit} onMark={() => setMarking(visit)} onCancel={() => setCancelling(visit)} />
             ))}
           </ul>
         )}
@@ -144,11 +146,12 @@ export function EmployeeApp() {
       </footer>
 
       {marking ? <DoneSheet visit={marking} onClose={() => setMarking(null)} /> : null}
+      {cancelling ? <ClientCancelledSheet visit={cancelling} onClose={() => setCancelling(null)} /> : null}
     </div>
   );
 }
 
-function VisitItem({ visit, onMark }: { visit: MyVisit; onMark: () => void }) {
+function VisitItem({ visit, onMark, onCancel }: { visit: MyVisit; onMark: () => void; onCancel: () => void }) {
   const isDone = visit.status === 'done';
   const wa = whatsappLink(visit.clientPhone, visitReminderText(visit.clientName, visit.serviceTypeName, longDate(visit.date).toLowerCase(), visit.time));
   const tel = visit.clientPhone ? `tel:${visit.clientPhone.replace(/[^\d+]/g, '')}` : null;
@@ -221,6 +224,9 @@ function VisitItem({ visit, onMark }: { visit: MyVisit; onMark: () => void }) {
               </AnchorButton>
             ) : null}
           </div>
+          <Button variant="ghost" className="w-full" onClick={onCancel}>
+            El cliente canceló
+          </Button>
         </div>
       )}
     </li>

@@ -1,13 +1,13 @@
 import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import type { IsoDate } from '@fumigadora/shared';
+import { nextVisitDate, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { payments } from '../db/schema.js';
-import { badRequest, notFound, zDate, zOptText, zPositiveCents } from '../http.js';
+import { payments, visits } from '../db/schema.js';
+import { badRequest, conflict, notFound, zDate, zOptText, zPositiveCents, zTime } from '../http.js';
 import { clientFinancials } from './accounts.js';
 import { extraLineInput } from './extras.js';
 import { createPayment } from './payments.js';
-import { completeVisit, getVisit, listVisits } from './visits.js';
+import { completeVisit, getVisit, insertNextVisit, listVisits, updateVisit } from './visits.js';
 
 export const myVisitsQuery = z.object({
   date: zDate.optional(),
@@ -138,4 +138,52 @@ export async function markMyVisitDone(
         : null;
     return { ...result, payment, paymentStatus: status, paymentMethod: payment ? method : null };
   });
+}
+
+export const myPostponeInput = z.object({
+  date: zDate,
+  /** New time; `null` clears it, omitted keeps the current one. */
+  time: zTime.nullish(),
+});
+
+export const myCancelInput = z.object({
+  reason: z.string().trim().min(1, 'Indicá el motivo de la cancelación').max(500),
+});
+
+/** One of the caller's own visits that can still be changed; unknown and foreign ids answer the same. */
+async function ownScheduledVisit(db: Db, userId: number, visitId: number) {
+  const visit = await getVisit(db, visitId);
+  if (visit.assignedUserId !== userId) throw notFound('Visita');
+  if (visit.status !== 'scheduled') throw conflict('La visita ya fue completada o cancelada');
+  return visit;
+}
+
+/** The client asked for another day: the employee moves their own pending visit to a new date (and time). */
+export async function postponeMyVisit(db: Db, today: IsoDate, userId: number, visitId: number, input: z.infer<typeof myPostponeInput>) {
+  const visit = await ownScheduledVisit(db, userId, visitId);
+  if (input.date < today) throw badRequest('La nueva fecha no puede ser anterior a hoy');
+  const time = input.time === undefined ? visit.time : input.time ? input.time.slice(0, 5) : null;
+  if (input.date === visit.date && time === visit.time) throw badRequest('Elegí otra fecha u hora para posponer la visita');
+  const moved = await updateVisit(db, visitId, { date: input.date, time });
+  return { visit: moved, previous: { date: visit.date, time: visit.time } };
+}
+
+/**
+ * The client cancelled: the employee cancels their own pending visit with a reason. A recurring visit schedules its
+ * next occurrence (same rule as completing it) so the client does not fall off the plan.
+ */
+export async function cancelMyVisit(db: Db, today: IsoDate, userId: number, visitId: number, input: z.infer<typeof myCancelInput>) {
+  const visit = await ownScheduledVisit(db, userId, visitId);
+  let nextDate = nextVisitDate(visit.date, visit.frequency);
+  // A visit cancelled late must not schedule its follow-up in the past.
+  if (nextDate && nextDate <= today) nextDate = nextVisitDate(today, visit.frequency);
+  const nextVisitId = await db.transaction(async (rawTx) => {
+    const tx = rawTx as unknown as Db;
+    await tx.update(visits).set({ status: 'cancelled', cancelReason: input.reason }).where(eq(visits.id, visitId));
+    return nextDate ? insertNextVisit(tx, visit, nextDate, visit.time) : null;
+  });
+  return {
+    visit: await getVisit(db, visitId),
+    nextVisit: nextVisitId ? await getVisit(db, nextVisitId) : null,
+  };
 }

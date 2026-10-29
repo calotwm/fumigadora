@@ -77,6 +77,7 @@ const visitSelect = {
   frequency: visits.frequency,
   notes: visits.notes,
   completedAt: visits.completedAt,
+  cancelReason: visits.cancelReason,
   priceCents: visits.priceCents,
   assignedUserId: visits.assignedUserId,
   assigneeName: users.name,
@@ -158,6 +159,23 @@ export async function updateVisit(db: Db, id: number, patch: z.infer<typeof visi
   const values = definedOnly(patch);
   if (Object.keys(values).length > 0) await db.update(visits).set(values).where(eq(visits.id, id));
   return getVisit(db, id);
+}
+
+/** The follow-up of a recurring visit: same client, service, frequency, price and assignee. Call inside a transaction. */
+export async function insertNextVisit(db: Db, visit: Pick<VisitJoined, 'clientId' | 'serviceTypeId' | 'frequency' | 'priceCents' | 'assignedUserId'>, date: IsoDate, time: string | null) {
+  const [next] = await db
+    .insert(visits)
+    .values({
+      clientId: visit.clientId,
+      serviceTypeId: visit.serviceTypeId,
+      date,
+      time,
+      frequency: visit.frequency,
+      priceCents: visit.priceCents,
+      assignedUserId: visit.assignedUserId,
+    })
+    .returning({ id: visits.id });
+  return next!.id;
 }
 
 export async function cancelVisit(db: Db, id: number) {
@@ -260,22 +278,7 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
       certificate = inserted ?? null;
     }
 
-    let nextVisitId: number | null = null;
-    if (nextDate) {
-      const [next] = await tx
-        .insert(visits)
-        .values({
-          clientId: visit.clientId,
-          serviceTypeId: visit.serviceTypeId,
-          date: nextDate,
-          time: input.nextTime === undefined ? visit.time : input.nextTime,
-          frequency: visit.frequency,
-          priceCents: visit.priceCents,
-          assignedUserId: visit.assignedUserId,
-        })
-        .returning({ id: visits.id });
-      nextVisitId = next!.id;
-    }
+    const nextVisitId = nextDate ? await insertNextVisit(tx, visit, nextDate, input.nextTime === undefined ? visit.time : input.nextTime) : null;
     return { invoice, certificate, nextVisitId };
   });
 

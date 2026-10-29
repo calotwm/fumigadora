@@ -128,6 +128,7 @@ export interface Visit {
   frequency: Frequency;
   notes: string | null;
   completedAt: string | null;
+  cancelReason: string | null;
   priceCents: number | null;
   clientName: string;
   clientAddress: string | null;
@@ -464,6 +465,16 @@ export interface MyVisit extends Visit {
   paidCents: number;
   /** The cash part of it: the one that is "a rendir". */
   cashCollectedCents: number;
+}
+
+export interface PostponeResult {
+  visit: Visit;
+  previous: { date: IsoDate; time: string | null };
+}
+
+export interface CancelResult {
+  visit: Visit;
+  nextVisit: Visit | null;
 }
 
 export type PaymentStatus = 'full' | 'partial' | 'none';
