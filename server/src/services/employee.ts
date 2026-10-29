@@ -1,10 +1,11 @@
 import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { nextVisitDate, type IsoDate } from '@fumigadora/shared';
+import { nextVisitDate, orderDayRoute, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { payments, visits } from '../db/schema.js';
 import { badRequest, conflict, notFound, zDate, zOptText, zPositiveCents, zTime } from '../http.js';
 import { clientFinancials } from './accounts.js';
+import { getSettings } from './settings.js';
 import { extraLineInput } from './extras.js';
 import { createPayment } from './payments.js';
 import { completeVisit, getVisit, insertNextVisit, listVisits, updateVisit } from './visits.js';
@@ -51,13 +52,21 @@ export async function pendingCashFor(db: Db, userId: number) {
 }
 
 /**
- * The employee's own visits for a day (cancelled ones are hidden), with the client's balance, everything paid at the
+ * The employee's own visits for a day (cancelled ones are hidden) in route order, with the client's balance, everything paid at the
  * visit (`paidCents`) and the cash part of it (`cashCollectedCents`, the one that is "a rendir").
  */
 export async function myVisits(db: Db, today: IsoDate, userId: number, date: IsoDate) {
-  const rows = (await listVisits(db, { from: date, to: date, assignedUserId: userId })).filter(
-    (v) => v.status !== 'cancelled',
-  );
+  const all = (await listVisits(db, { from: date, to: date, assignedUserId: userId })).filter((v) => v.status !== 'cancelled');
+  const settings = await getSettings(db);
+  const base =
+    settings.companyLatitude !== null && settings.companyLongitude !== null
+      ? { latitude: settings.companyLatitude, longitude: settings.companyLongitude }
+      : null;
+  // Pending visits in driving order (timed first, then nearest-neighbour from the base); done ones follow.
+  const rows = [
+    ...orderDayRoute(all.filter((v) => v.status === 'scheduled'), base),
+    ...all.filter((v) => v.status !== 'scheduled'),
+  ];
   const balances = rows.length === 0 ? new Map() : await clientFinancials(db, today);
   const collected =
     rows.length === 0
@@ -74,6 +83,7 @@ export async function myVisits(db: Db, today: IsoDate, userId: number, date: Iso
   const paidByVisit = new Map(collected.map((c) => [c.visitId, c]));
   return {
     date,
+    base,
     visits: rows.map((v) => ({
       ...v,
       clientBalanceCents: balances.get(v.clientId)?.balanceCents ?? 0,

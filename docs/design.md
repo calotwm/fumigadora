@@ -75,6 +75,7 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 7. **Recordatorio WhatsApp**: `wa.me` link with prefilled text (debt reminder or visit reminder). No external API.
 8. **Cerrar visita (empleado, celular)**: "Marcar hecho" opens one sheet: extras from the catalog (+/- steppers), live total, "Pagó todo / Pagó una parte / No pagó", method chips (efectivo, transferencia, Mercado Pago) and the amount for a partial payment. The payment goes to this visit's invoice first, then to older debt; only cash is "a rendir". Admins get one alert with the payment outcome and, if any, another with the extras.
 9. **El cliente canceló (empleado)**: secondary action on each pending visit. Posponer (new date, default the next Mon-Sat day, optional time) or Cancelar (reason required; a recurring visit schedules its next occurrence). Admins are alerted either way.
+10. **Recorrido del día (empleado)**: the day list is the route. Timed visits by time, then the rest nearest-neighbour (haversine, `shared/dayRoute.ts`) from the company base (Ajustes > Base de la empresa; without it, from the first visit that has coordinates), clients without coordinates last. The first pending visit is highlighted, a progress bar reads "3 de 7 hechas", done visits collapse at the bottom, and "Abrir recorrido en Google Maps" opens directions with the stops in order (links of up to 10 stops: "Recorrido 1/2", "2/2"). Each card: Marcar hecho (primary), Llamar, WhatsApp, Mapa, El cliente canceló.
 
 ## 5. Navigation
 

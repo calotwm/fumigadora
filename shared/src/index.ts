@@ -7,6 +7,7 @@ export * from './allocation.js';
 export * from './recurrence.js';
 export * from './tracking.js';
 export * from './routePlan.js';
+export * from './dayRoute.js';
 export * from './reminders.js';
 export * from './arca.js';
 export * from './legacy.js';

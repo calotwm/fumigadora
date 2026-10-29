@@ -93,6 +93,9 @@ describe('email and settings API', () => {
       noticeMode: 'on_approve',
       noticeDaysBefore: 7,
       arcaAutoEmit: false,
+      companyAddress: null,
+      companyLatitude: null,
+      companyLongitude: null,
     });
     const put = await t.call('PUT', '/api/settings', { debtRemindersEnabled: true, debtReminderEveryDays: 20, noticeMode: 'days_before' });
     expect(put.status).toBe(200);

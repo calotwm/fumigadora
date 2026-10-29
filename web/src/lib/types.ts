@@ -133,6 +133,8 @@ export interface Visit {
   clientName: string;
   clientAddress: string | null;
   clientPhone: string | null;
+  clientLatitude: number | null;
+  clientLongitude: number | null;
   serviceTypeName: string;
   issuesCertificate: boolean;
   assignedUserId: number | null;
@@ -491,6 +493,8 @@ export interface MyDoneBody {
 
 export interface MyVisits {
   date: IsoDate;
+  /** Company location where the day route starts; null when not configured. */
+  base: { latitude: number; longitude: number } | null;
   visits: MyVisit[];
   cashPending: { cents: number; count: number };
 }
@@ -554,6 +558,9 @@ export interface AppSettings {
   noticeMode: NoticeMode;
   noticeDaysBefore: number;
   arcaAutoEmit: boolean;
+  companyAddress: string | null;
+  companyLatitude: number | null;
+  companyLongitude: number | null;
 }
 
 export interface ArcaStatusInfo {

@@ -84,6 +84,8 @@ const visitSelect = {
   clientName: clients.name,
   clientAddress: clients.address,
   clientPhone: clients.phone,
+  clientLatitude: clients.latitude,
+  clientLongitude: clients.longitude,
   serviceTypeName: serviceTypes.name,
   issuesCertificate: serviceTypes.issuesCertificate,
 };
