@@ -439,6 +439,9 @@ export interface UserPatch {
   name?: string;
   phone?: string;
   username?: string;
+  email?: string;
+  role?: 'admin' | 'employee';
+  assignable?: boolean;
   active?: boolean;
 }
 

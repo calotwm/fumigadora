@@ -25,7 +25,7 @@ The legacy system ("Plagamix") is a functional reference only.
 - Database: PostgreSQL (Railway plugin, `DATABASE_URL`). Local dev and tests use PGlite (embedded Postgres) when `DATABASE_URL` is unset — no Docker needed.
 - ORM: Drizzle (schema in TS, SQL migrations committed).
 - Frontend: Vite + React + TypeScript, React Router, TanStack Query, Tailwind CSS v4. No component library.
-- Auth: single admin. `ADMIN_PASSWORD` env var; login sets an HMAC-signed httpOnly cookie (`SESSION_SECRET`).
+- Auth: users with username + password and role `admin` or `employee` (optional unique email; `assignable` flag = can receive visits, on by default for employees, off for admins). Login sets an HMAC-signed httpOnly cookie (`SESSION_SECRET`). `ADMIN_PASSWORD` stays as emergency owner access (password only, no user row, no notifications); the admin shell nudges the owner to create an admin user while none is active.
 - Domain rules (money, invoice status, allocation, aging, recurrence) live in a pure `shared/domain` module used by server and covered by unit tests (Vitest).
 - Derived values are computed, never stored twice: invoice status and balances derive from invoices + allocations; monthly income derives from payments + manual incomes.
 

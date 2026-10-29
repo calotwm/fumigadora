@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { LogOut, Plus, Search, Settings } from 'lucide-react';
 import { ActionsProvider, QUICK_ACTIONS, useActions } from '../features/actions/ActionsProvider';
-import { useLogout } from '../features/auth/auth';
+import { useCurrentUser, useLogout } from '../features/auth/auth';
+import { useUsers } from '../lib/queries';
 import { Sheet } from '../ui/Sheet';
 import { CommandPalette } from './CommandPalette';
 import { NAV_ITEMS } from './nav';
@@ -191,6 +192,23 @@ function BottomBar() {
   );
 }
 
+/** Emergency (password-only) session with no active admin user yet: nudge the owner to create their own account. */
+function EmergencyBanner() {
+  const user = useCurrentUser();
+  const emergency = user?.role === 'admin' && user.userId === undefined;
+  const users = useUsers();
+  if (!emergency || !users.data || users.data.some((u) => u.role === 'admin' && u.active)) return null;
+  return (
+    <div role="status" className="mb-6 border-l-4 border-yellow bg-paper-2 px-4 py-3 text-sm">
+      Estás usando el acceso de emergencia. Creá tu usuario de administrador en{' '}
+      <Link to="/ajustes" className="font-semibold underline underline-offset-2">
+        Ajustes &gt; Empleados
+      </Link>{' '}
+      para ingresar con tu nombre y recibir notificaciones.
+    </div>
+  );
+}
+
 function ScrollReset() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -209,6 +227,7 @@ function Frame() {
       <TopBar />
       <main className="min-h-dvh px-4 pb-32 pt-6 md:px-8 lg:ml-60 lg:px-10 lg:pb-16 lg:pt-8">
         <div className="mx-auto max-w-[1200px]">
+          <EmergencyBanner />
           <Outlet />
         </div>
       </main>

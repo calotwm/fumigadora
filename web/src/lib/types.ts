@@ -390,7 +390,10 @@ export interface UserRow {
   name: string;
   phone: string | null;
   username: string;
+  email: string | null;
   role: 'admin' | 'employee';
+  /** Can be picked as the assignee of a visit. */
+  assignable: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -400,6 +403,10 @@ export interface UserInput {
   phone?: string;
   username: string;
   password: string;
+  /** Empty string = none. */
+  email?: string;
+  role: 'admin' | 'employee';
+  assignable: boolean;
 }
 
 export interface MyVisit extends Visit {

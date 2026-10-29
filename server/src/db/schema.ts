@@ -60,10 +60,14 @@ export const users = pgTable(
     /** `scrypt$<salt b64>$<hash b64>`; never leaves the server. */
     passwordHash: text('password_hash').notNull(),
     role: userRoleEnum('role').notNull().default('employee'),
+    /** Lowercase and optional; unique when present. Notification emails go here. */
+    email: text('email'),
+    /** Can be picked as the assignee of a visit: on for employees, opt-in for admins. */
+    assignable: boolean('assignable').notNull().default(true),
     active: boolean('active').notNull().default(true),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('users_username_uq').on(t.username)],
+  (t) => [uniqueIndex('users_username_uq').on(t.username), uniqueIndex('users_email_uq').on(t.email)],
 );
 
 export const clients = pgTable(

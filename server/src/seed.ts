@@ -1,7 +1,7 @@
 import { today } from '@fumigadora/shared';
 import { loadConfig } from './config.js';
 import { createDb } from './db/client.js';
-import { runSeed, SEED_EMPLOYEE_PASSWORD } from './seed-data.js';
+import { runSeed, SEED_ADMIN_PASSWORD, SEED_EMPLOYEE_PASSWORD } from './seed-data.js';
 
 const config = loadConfig();
 if (config.isProduction && process.env.ALLOW_SEED !== 'true') {
@@ -14,6 +14,7 @@ await handle.migrate();
 const summary = await runSeed(handle.db, today());
 console.log('Seed complete:', summary);
 if (!config.isProduction) {
+  console.log(`Admin login (development only): ${summary.admins.join(', ')} / password "${SEED_ADMIN_PASSWORD}"`);
   console.log(`Employee logins (development only): ${summary.employees.join(', ')} / password "${SEED_EMPLOYEE_PASSWORD}"`);
 }
 await handle.close();

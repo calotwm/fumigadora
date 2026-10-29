@@ -5,7 +5,7 @@ REST JSON under `/api`. Conventions:
 - Money is always an **integer number of cents** (`amountCents: 15000000` = `$ 150.000,00`). Format on the client with `formatMoney` from `@fumigadora/shared`.
 - Dates are ISO strings `YYYY-MM-DD`; months are `YYYY-MM`; visit times are `HH:MM`.
 - "Today" is the calendar date in `America/Argentina/Buenos_Aires`.
-- Auth: two roles. The **owner** (`admin`) logs in with the shared `ADMIN_PASSWORD` (no username); **employees** log in with `username` + `password` (stored as scrypt hashes). `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production) whose signed payload carries role and user id. Every route except `/api/health` and `/api/auth/*` answers `401` without a session. `/api/me/*` is open to employees; **every other route requires role `admin` and answers `403 forbidden` to employees**. Send requests with `credentials: 'same-origin'`.
+- Auth: two roles, `admin` and `employee`. Every user (admin or employee) logs in with `username` + `password` (stored as scrypt hashes). The shared `ADMIN_PASSWORD` (no username) is kept as **emergency owner access**: an admin session with no user id (name `Dueño`) that has no notifications. `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production) whose signed payload carries role and user id. Every route except `/api/health` and `/api/auth/*` answers `401` without a session. `/api/me/*` is open to every signed-in user; **every other route requires role `admin` and answers `403 forbidden` to employees**. Send requests with `credentials: 'same-origin'`.
 - Errors: `{ "error": { "code": string, "message": string (Spanish, user-facing), "details"?: any } }`.
   Status codes: `400` validation (`code: "validation"`, `details.issues[{path,message}]`) or business rule, `401` unauthorized, `403` forbidden (role), `404` not found, `409` conflict / duplicate, `429` login throttled, `500` internal.
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
@@ -53,9 +53,9 @@ Allocation = { invoiceId, invoiceNumber, amountCents }
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/health` | - | `{ ok: true }` (public) |
-| POST | `/api/auth/login` | owner: `{ password }`; employee: `{ username, password }` (username is case-insensitive) | `{ authenticated: true, role: 'admin'\|'employee', userId?, name }` + cookie. `401 invalid_credentials` (also for deactivated users); `429` after 8 failures per IP / 10 min (shared by both logins) |
+| POST | `/api/auth/login` | users: `{ username, password }` (username is case-insensitive); emergency owner access: `{ password }` | `{ authenticated: true, role: 'admin'\|'employee', userId?, name }` + cookie. `401 invalid_credentials` (also for deactivated users); `429` after 8 failures per IP / 10 min (shared by both logins) |
 | POST | `/api/auth/logout` | - | `{ authenticated: false }` |
-| GET | `/api/auth/me` | - | `{ authenticated: true, role, userId?, name }` or `401`. The owner login has no `userId` and name `Dueño`. Deactivated employees get `401` immediately |
+| GET | `/api/auth/me` | - | `{ authenticated: true, role, userId?, name }` or `401`. The emergency owner login has no `userId` and name `Dueño`. Deactivated users get `401` immediately |
 
 Sessions issued before employee accounts existed (no role in the cookie) are rejected: log in again.
 
@@ -63,14 +63,14 @@ Sessions issued before employee accounts existed (no role in the cookie) are rej
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/users` | - | `{ id, name, phone, username, role: 'admin'\|'employee', active, createdAt }[]` by name. Password hashes are never returned |
-| POST | `/api/users` | `{ name, phone?, username (3-40: a-z 0-9 . _ -, lowercased), password (>= 6), role?='employee' }` | `201` user; `409 duplicate` if the username exists |
-| PATCH | `/api/users/:id` | `{ name?, phone?, username?, role?, active? }` | user. `active: false` deactivates: the employee can no longer log in and existing sessions stop working at once |
+| GET | `/api/users` | - | `{ id, name, phone, username, email, role: 'admin'\|'employee', assignable, active, createdAt }[]` by name. Password hashes are never returned |
+| POST | `/api/users` | `{ name, phone?, username (3-40: a-z 0-9 . _ -, lowercased), password (>= 6), email? (lowercased, unique when set), role?='employee', assignable? (default true for employees, false for admins) }` | `201` user; `409 duplicate` if the username or email exists. `assignable` controls whether the user can be picked as the assignee of a visit or route item (others answer `409`) |
+| PATCH | `/api/users/:id` | `{ name?, phone?, username?, email? ('' clears), role?, assignable?, active? }` | user. `active: false` deactivates: the user can no longer log in and existing sessions stop working at once |
 | POST | `/api/users/:id/password` | `{ password (>= 6) }` | `{ ok: true }` |
 
 ## Employee routes (`/api/me`, employees and admin)
 
-An employee always acts as themselves. The owner may pass `?userId=` to act as an employee (testing); without it `400`.
+An employee always acts as themselves, and so does an admin user. An admin may pass `?userId=` to act as another user (testing); the emergency owner session has no user of its own, so without it `400`.
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|

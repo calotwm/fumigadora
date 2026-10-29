@@ -75,13 +75,11 @@ export function useLogout() {
   });
 }
 
-type Mode = 'owner' | 'employee';
-
 export function LoginPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const location = useLocation();
-  const [mode, setMode] = useState<Mode>('owner');
+  const [emergency, setEmergency] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
@@ -100,24 +98,24 @@ export function LoginPage() {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!password) return;
-    if (mode === 'employee') {
-      if (username.trim()) login.mutate({ username: username.trim(), password });
-    } else {
+    if (emergency) {
       login.mutate({ password });
+    } else if (username.trim()) {
+      login.mutate({ username: username.trim(), password });
     }
   }
 
-  function switchMode(next: Mode) {
-    setMode(next);
+  function switchMode(next: boolean) {
+    setEmergency(next);
     setPassword('');
     login.reset();
   }
 
   const failed =
     login.error instanceof ApiError && login.error.status === 401
-      ? mode === 'employee'
-        ? 'Usuario o contraseña incorrectos.'
-        : 'Contraseña incorrecta.'
+      ? emergency
+        ? 'Contraseña incorrecta.'
+        : 'Usuario o contraseña incorrectos.'
       : login.error
         ? errorMessage(login.error)
         : null;
@@ -136,29 +134,12 @@ export function LoginPage() {
         <div className="mx-auto my-auto w-full max-w-sm border-t-4 border-ink pt-5">
           <p className="label-caps">Acceso</p>
           <h1 className="mb-4 mt-1 text-4xl font-extrabold tracking-tight">Ingresar</h1>
-          <div role="tablist" aria-label="Tipo de acceso" className="mb-5 grid grid-cols-2 border border-ink">
-            {(
-              [
-                ['owner', 'Ingresar como dueño'],
-                ['employee', 'Soy empleado'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={mode === id}
-                onClick={() => switchMode(id)}
-                className={`min-h-11 px-2 text-xs font-semibold uppercase tracking-[0.06em] ${
-                  mode === id ? 'bg-yellow text-ink' : 'bg-paper text-muted hover:bg-paper-2'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <form onSubmit={submit} className="flex flex-col gap-4">
-            {mode === 'employee' ? (
+            {emergency ? (
+              <p className="border-l-4 border-yellow bg-paper-2 px-3 py-2 text-xs text-muted">
+                Acceso de emergencia: solo con la contraseña general del sistema.
+              </p>
+            ) : (
               <Input
                 label="Usuario"
                 autoComplete="username"
@@ -168,20 +149,27 @@ export function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
-            ) : null}
+            )}
             <Input
               label="Contraseña"
               type="password"
               autoComplete="current-password"
-              autoFocus={mode === 'owner'}
+              autoFocus={emergency}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               error={failed}
             />
-            <Button type="submit" variant="accent" disabled={login.isPending || !password || (mode === 'employee' && !username.trim())}>
+            <Button type="submit" variant="accent" disabled={login.isPending || !password || (!emergency && !username.trim())}>
               {login.isPending ? 'Ingresando…' : 'Ingresar'}
             </Button>
           </form>
+          <button
+            type="button"
+            onClick={() => switchMode(!emergency)}
+            className="mt-5 text-xs text-muted underline underline-offset-2 hover:text-ink"
+          >
+            {emergency ? 'Volver al ingreso con usuario' : 'Acceso de emergencia'}
+          </button>
         </div>
         <footer className="mt-10 flex items-center justify-center gap-2 lg:justify-start">
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Desarrollado por</span>

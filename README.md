@@ -2,12 +2,12 @@
 
 Management app for a pest-control company: clients and their account statements, receivables and aging,
 invoicing (including monthly fees), visit scheduling with certificates ("obleas"), cash flow and a daily
-dashboard. One admin user, used daily on desktop and phone. The UI is in Spanish (es-AR); code and docs are in English.
+dashboard. Used daily on desktop and phone by the owner (admin users); employees get a phone-first screen for their own visits. The UI is in Spanish (es-AR); code and docs are in English.
 
 ## Stack
 
 - `shared/`: pure domain logic (money in integer cents, invoice status, FIFO allocation, aging, recurrence), unit tested.
-- `server/`: Hono REST API, Drizzle ORM, PostgreSQL (PGlite when `DATABASE_URL` is unset), single-admin cookie auth. Serves the built SPA.
+- `server/`: Hono REST API, Drizzle ORM, PostgreSQL (PGlite when `DATABASE_URL` is unset), cookie auth for admin and employee users (username + password). Serves the built SPA.
 - `web/`: Vite + React 19 + TypeScript, React Router, TanStack Query, Tailwind CSS v4 (no component library).
 - `docs/`: [product and technical design](docs/design.md), [REST API reference](docs/api.md).
 
@@ -23,7 +23,7 @@ npm run db:seed           # optional: realistic demo data (idempotent)
 npm run dev               # API on :3000 and Vite on :5173 (proxies /api)
 ```
 
-Open http://localhost:5173. In development the password is `admin` unless `ADMIN_PASSWORD` is set (a warning is logged).
+Open http://localhost:5173. Log in with a username and password (demo seed: `lucas` / `lucas1234`; employees `juan`, `pablo`, `marcos` / `empleado`). `ADMIN_PASSWORD` (in development `admin` unless set, a warning is logged) is emergency owner access only: use the "Acceso de emergencia" link on the login page, then create an admin user in Ajustes > Empleados.
 
 ## Scripts
 
@@ -43,7 +43,7 @@ See `.env.example`.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `ADMIN_PASSWORD` | in production | The server refuses to start in production without it |
+| `ADMIN_PASSWORD` | in production | Emergency owner login (password only). The server refuses to start in production without it |
 | `SESSION_SECRET` | in production | Signs the session cookie; the server refuses to start in production without it |
 | `DATABASE_URL` | in production | Postgres connection string; unset = embedded PGlite |
 | `RESEND_API_KEY` | no | With `MAIL_FROM`, enables real email through Resend. Without them emails are simulated: stored in the mail log, not sent |
