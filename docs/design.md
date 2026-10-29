@@ -25,7 +25,7 @@ The legacy system ("Plagamix") is a functional reference only.
 - Database: PostgreSQL (Railway plugin, `DATABASE_URL`). Local dev and tests use PGlite (embedded Postgres) when `DATABASE_URL` is unset — no Docker needed.
 - ORM: Drizzle (schema in TS, SQL migrations committed).
 - Frontend: Vite + React + TypeScript, React Router, TanStack Query, Tailwind CSS v4. No component library.
-- Auth: single admin. `ADMIN_PASSWORD` env var; login sets an HMAC-signed httpOnly cookie (`SESSION_SECRET`).
+- Auth: users with username + password and role `admin` or `employee` (optional unique email; `assignable` flag = can receive visits, on by default for employees, off for admins). Login sets an HMAC-signed httpOnly cookie (`SESSION_SECRET`). `ADMIN_PASSWORD` stays as emergency owner access (password only, no user row, no notifications); the admin shell nudges the owner to create an admin user while none is active.
 - Domain rules (money, invoice status, allocation, aging, recurrence) live in a pure `shared/domain` module used by server and covered by unit tests (Vitest).
 - Derived values are computed, never stored twice: invoice status and balances derive from invoices + allocations; monthly income derives from payments + manual incomes.
 
@@ -48,6 +48,9 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 - **Invoice**: id, clientId, visitId (nullable), number (auto, per-year sequence), issuedOn, dueOn, amountCents, description, voidedAt.
 - **Payment**: id, clientId, paidOn, amountCents, method (`cash` | `transfer` | `mercadopago` | `check` | `other`), notes.
 - **Allocation**: id, paymentId, invoiceId, amountCents. Payments auto-allocate FIFO to oldest open invoices unless a specific invoice is chosen. Unallocated remainder = client credit.
+- **Notification**: id, userId (cascade), kind, title, body, link (in-app route), refType/refId, dedupeKey (unique: `userId:kind:refType:refId:businessDate`, so a job rerun never repeats one), groupKey/groupCount/groupAmountCents (live alerts: a burst of the same employee and kind updates one unread notification), readAt, createdAt. Addressed to one user and shown in the bell (admin shell and employee app, polled every 60 s); the emergency owner session has none.
+- **PushSubscription**: id, userId (cascade), endpoint (unique), p256dh, auth, userAgent, createdAt, lastUsedAt. One row per device; notifications are also delivered through Web Push (VAPID) and dead endpoints are pruned. The web app is an installable PWA whose service worker only handles push.
+- **EmailLog** kinds: `service_notice`, `debt_reminder`, `test` (to clients) and `owner_notification` (copy of an admin notification, no client).
 - **ExpenseCategory**: id, name (Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servicios, Otros).
 - **CashEntry**: id, kind (`expense` | `income`), date, amountCents, categoryId (expense only), description, method. Manual entries only; client payments are NOT copied here.
 

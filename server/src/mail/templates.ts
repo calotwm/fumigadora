@@ -135,6 +135,14 @@ export function debtReminderEmail(input: DebtReminderInput): RenderedEmail {
   ]);
 }
 
+/** Copy of an in-app notification for an admin's inbox. `body` may hold several lines. */
+export function ownerNotificationEmail(input: { title: string; body: string }): RenderedEmail {
+  return layout(input.title, input.title, [
+    ...input.body.split('\n').map((text): Block => ({ type: 'p', text })),
+    { type: 'p', text: 'Podés verlo también en la campana de notificaciones del sistema.' },
+  ]);
+}
+
 export function testEmail(): RenderedEmail {
   return layout('Mail de prueba', 'Mail de prueba', [
     { type: 'p', text: 'Este es un mensaje de prueba enviado desde el sistema.' },

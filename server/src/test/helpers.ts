@@ -1,5 +1,6 @@
 import { createApp } from '../app.js';
-import { loadArcaConfig, type Config } from '../config.js';
+import { loadArcaConfig, loadPushConfig, type Config } from '../config.js';
+import type { PushSender } from '../services/push.js';
 import { createDb } from '../db/client.js';
 import { createSimulatedProvider, type MailProvider } from '../mail/provider.js';
 
@@ -16,6 +17,7 @@ export const testConfig: Config = {
   sessionTtlSeconds: 3600,
   mail: { resendApiKey: undefined, from: undefined, replyTo: undefined },
   arca: loadArcaConfig({}),
+  push: loadPushConfig({}),
 };
 
 export interface ApiResult {
@@ -28,7 +30,7 @@ export interface ApiResult {
 export async function makeTestApp(
   initialToday = '2025-06-15',
   mail: MailProvider = createSimulatedProvider(),
-  opts: { config?: Partial<Config>; fetch?: typeof fetch } = {},
+  opts: { config?: Partial<Config>; fetch?: typeof fetch; push?: PushSender; now?: () => Date; alertWindowMs?: number } = {},
 ) {
   const config: Config = { ...testConfig, ...opts.config };
   const handle = createDb(); // memory://
@@ -41,6 +43,9 @@ export async function makeTestApp(
     serveWeb: false,
     mail,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    ...(opts.push ? { push: opts.push } : {}),
+    ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.alertWindowMs !== undefined ? { alertWindowMs: opts.alertWindowMs } : {}),
   });
 
   const login = await app.request('/api/auth/login', {

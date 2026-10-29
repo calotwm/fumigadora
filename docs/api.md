@@ -5,13 +5,13 @@ REST JSON under `/api`. Conventions:
 - Money is always an **integer number of cents** (`amountCents: 15000000` = `$ 150.000,00`). Format on the client with `formatMoney` from `@fumigadora/shared`.
 - Dates are ISO strings `YYYY-MM-DD`; months are `YYYY-MM`; visit times are `HH:MM`.
 - "Today" is the calendar date in `America/Argentina/Buenos_Aires`.
-- Auth: two roles. The **owner** (`admin`) logs in with the shared `ADMIN_PASSWORD` (no username); **employees** log in with `username` + `password` (stored as scrypt hashes). `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production) whose signed payload carries role and user id. Every route except `/api/health` and `/api/auth/*` answers `401` without a session. `/api/me/*` is open to employees; **every other route requires role `admin` and answers `403 forbidden` to employees**. Send requests with `credentials: 'same-origin'`.
+- Auth: two roles, `admin` and `employee`. Every user (admin or employee) logs in with `username` + `password` (stored as scrypt hashes). The shared `ADMIN_PASSWORD` (no username) is kept as **emergency owner access**: an admin session with no user id (name `Dueño`) that has no notifications. `POST /api/auth/login` sets an httpOnly `fumigadora_session` cookie (SameSite=Lax, Secure in production) whose signed payload carries role and user id. Every route except `/api/health` and `/api/auth/*` answers `401` without a session. `/api/me/*` is open to every signed-in user; **every other route requires role `admin` and answers `403 forbidden` to employees**. Send requests with `credentials: 'same-origin'`.
 - Errors: `{ "error": { "code": string, "message": string (Spanish, user-facing), "details"?: any } }`.
   Status codes: `400` validation (`code: "validation"`, `details.issues[{path,message}]`) or business rule, `401` unauthorized, `403` forbidden (role), `404` not found, `409` conflict / duplicate, `429` login throttled, `500` internal.
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
 - Derived values (balances, invoice status, aging) are computed on every read; never stored.
 
-Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `FILES_DIR` (stored certificate PDFs; default `./.data/files` relative to `server/`; a persistent volume path in production), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
+Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (all three = Web Push on; generate keys with `npm run push:keys`), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `FILES_DIR` (stored certificate PDFs; default `./.data/files` relative to `server/`; a persistent volume path in production), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
 
 Shared shapes used below:
 
@@ -53,9 +53,9 @@ Allocation = { invoiceId, invoiceNumber, amountCents }
 | Method | Path | Body | Response |
 |---|---|---|---|
 | GET | `/api/health` | - | `{ ok: true }` (public) |
-| POST | `/api/auth/login` | owner: `{ password }`; employee: `{ username, password }` (username is case-insensitive) | `{ authenticated: true, role: 'admin'\|'employee', userId?, name }` + cookie. `401 invalid_credentials` (also for deactivated users); `429` after 8 failures per IP / 10 min (shared by both logins) |
+| POST | `/api/auth/login` | users: `{ username, password }` (username is case-insensitive); emergency owner access: `{ password }` | `{ authenticated: true, role: 'admin'\|'employee', userId?, name }` + cookie. `401 invalid_credentials` (also for deactivated users); `429` after 8 failures per IP / 10 min (shared by both logins) |
 | POST | `/api/auth/logout` | - | `{ authenticated: false }` |
-| GET | `/api/auth/me` | - | `{ authenticated: true, role, userId?, name }` or `401`. The owner login has no `userId` and name `Dueño`. Deactivated employees get `401` immediately |
+| GET | `/api/auth/me` | - | `{ authenticated: true, role, userId?, name }` or `401`. The emergency owner login has no `userId` and name `Dueño`. Deactivated users get `401` immediately |
 
 Sessions issued before employee accounts existed (no role in the cookie) are rejected: log in again.
 
@@ -63,19 +63,34 @@ Sessions issued before employee accounts existed (no role in the cookie) are rej
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/users` | - | `{ id, name, phone, username, role: 'admin'\|'employee', active, createdAt }[]` by name. Password hashes are never returned |
-| POST | `/api/users` | `{ name, phone?, username (3-40: a-z 0-9 . _ -, lowercased), password (>= 6), role?='employee' }` | `201` user; `409 duplicate` if the username exists |
-| PATCH | `/api/users/:id` | `{ name?, phone?, username?, role?, active? }` | user. `active: false` deactivates: the employee can no longer log in and existing sessions stop working at once |
+| GET | `/api/users` | - | `{ id, name, phone, username, email, role: 'admin'\|'employee', assignable, active, createdAt }[]` by name. Password hashes are never returned |
+| POST | `/api/users` | `{ name, phone?, username (3-40: a-z 0-9 . _ -, lowercased), password (>= 6), email? (lowercased, unique when set), role?='employee', assignable? (default true for employees, false for admins) }` | `201` user; `409 duplicate` if the username or email exists. `assignable` controls whether the user can be picked as the assignee of a visit or route item (others answer `409`) |
+| PATCH | `/api/users/:id` | `{ name?, phone?, username?, email? ('' clears), role?, assignable?, active? }` | user. `active: false` deactivates: the user can no longer log in and existing sessions stop working at once |
 | POST | `/api/users/:id/password` | `{ password (>= 6) }` | `{ ok: true }` |
 
 ## Employee routes (`/api/me`, employees and admin)
 
-An employee always acts as themselves. The owner may pass `?userId=` to act as an employee (testing); without it `400`.
+An employee always acts as themselves, and so does an admin user. An admin may pass `?userId=` to act as another user (testing); the emergency owner session has no user of its own, so without it `400`.
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/me/visits` | query `date?=today` | `{ date, visits: (Visit & { clientBalanceCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, ordered by time. `cashCollectedCents` = cash this employee registered for that visit; `cashPending` = all cash of the caller not yet confirmed by the owner |
 | POST | `/api/me/visits/:id/done` | `{ cashCollectedCents? (> 0), notes? }` | `{ visit, invoice, certificate, nextVisit, payment: <POST /api/payments response>\|null }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
+
+**Notifications** (the bell; every signed-in user, always the caller's own). The emergency owner session has no user: it gets an empty list and `404` on a single id.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`; `link` is an in-app route. The web app polls this every 60 s |
+| POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
+| GET | `/api/me/push` | - | `{ enabled, publicKey }`. `enabled` is false (and `publicKey` null) until `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are all set |
+| POST | `/api/me/push/subscribe` | `{ endpoint, keys: { p256dh, auth } }` (a browser `PushSubscription.toJSON()`) | `201 { ok: true }`. Upserts by `endpoint` (the same device signed in as someone else moves to that user). `409 push_disabled` without VAPID; `400` for the emergency session (no user) |
+| POST | `/api/me/push/unsubscribe` | `{ endpoint }` | `{ ok: true }`; only removes the caller's own subscription |
+| POST | `/api/me/notifications/read-all` | - | `{ ok: true, updated }` |
+
+**Live admin alerts.** When an *employee* (session role `employee`) marks a visit done through `POST /api/me/visits/:id/done`, every active admin user gets a `visit_done` notification right away (bell and push, no email); with `cashCollectedCents` also a `cash_collected` one with the amount. Title/body are in Spanish with the employee and client name and link to the client. What the owner or an admin user does (`/api/visits/:id/complete`, `/api/payments`, an admin acting in `/api/me`) never alerts. **Bursts are grouped**: if the same employee triggers another alert of the same kind within 10 minutes (`alertWindowMs`) while the admin's previous one is still unread, that notification is updated instead ("Juan completó 3 visitas", cash totals are summed, `groupCount` grows, it moves back to the top) and pushed again with the same `tag`, so phones replace it instead of stacking. Reading it ends the group. New alert kinds (e.g. F6 extras) plug into `alertAdmins` / `alertCopy` in `services/adminAlerts.ts`.
+
+**Web Push.** Whenever a notification is created (the single path in `services/notifications.ts`, outside any transaction) it is also sent to every device the user subscribed, as `{ title, body, link, tag }` for the service worker (`/sw.js`), which shows it and opens `link` on tap. Delivery never fails the caller; subscriptions that answer `404`/`410` are deleted. The web app is a PWA (`/manifest.webmanifest`, icons under `/icons`); iOS needs it added to the home screen (16.4+).
 
 Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. With `cashCollectedCents` a `cash` payment is registered for the visit's client (FIFO allocation) with `collectedByUserId`, `visitId` and `handedOverAt = null` ("a rendir").
 
@@ -155,7 +170,7 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/email/status` | - | `{ mode: 'resend'\|'simulated', from }` |
-| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
+| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
 | GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false` |
@@ -181,6 +196,16 @@ Generation takes every client with a service plan whose month still has pending 
 | POST | `/api/jobs/run-daily` | `{ date, notices: {sent,simulated,failed}, reminders: {sent,simulated,failed} }`. Runs due service notices then debt reminders; idempotent |
 
 An in-process scheduler checks hourly and runs the daily job once per Buenos Aires day, from 09:00 on, guarded by a `job_runs` row (unique per job and day) so restarts never double-run. Single instance only.
+
+**Notification jobs.** The same hourly tick runs three time-slotted jobs, each claimed once per Buenos Aires day in `job_runs` (a restart later in the day catches up) and idempotent through the notification dedupe key (`userId:kind:ref:day`):
+
+| Job (`job_runs.job`) | Window | Who | What |
+|---|---|---|---|
+| `notify_morning` | from 09:00 | assignees; admins | `visits_today` to each active user with `scheduled` visits today (count and first time); `visits_overdue` to every active admin when visits from earlier days are still `scheduled` |
+| `notify_afternoon` | 17:00 to 20:00 | assignees | `visits_reminder` to users that still have unmarked visits today |
+| `notify_evening` | from 20:00 | admins | `day_summary`: visits done / pending today, collected today (all payments by `paidOn`) and cash employees still have to hand over (`/api/cash-handover`). Skipped on a day with nothing to report |
+
+Admin notifications (`visits_overdue`, `day_summary`, `client_email_failed`) go to every **active admin user** in the bell and, when the admin has an `email`, by email too (`email_log.kind = 'owner_notification'`, no client). A client email that ends `failed` (service notice or debt reminder, where `sendLogged` records it) creates one `client_email_failed` notification per client, email kind and day; a failing admin copy is logged but never notifies again. Employees only get bell notifications.
 
 ## Invoices and monthly billing
 

@@ -42,10 +42,20 @@ export const userRoleEnum = pgEnum('user_role', USER_ROLES);
 export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
 export const ivaConditionEnum = pgEnum('iva_condition', IVA_CONDITIONS);
 export const arcaStatusEnum = pgEnum('arca_status', ARCA_STATUSES);
-export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test'] as const;
+export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test', 'owner_notification'] as const;
 export const EMAIL_STATUSES = ['sent', 'simulated', 'failed'] as const;
 export const ROUTE_PLAN_STATUSES = ['draft', 'approved'] as const;
 export const emailKindEnum = pgEnum('email_kind', EMAIL_KINDS);
+export const NOTIFICATION_KINDS = [
+  'day_summary',
+  'visits_overdue',
+  'client_email_failed',
+  'visits_today',
+  'visits_reminder',
+  'visit_done',
+  'cash_collected',
+] as const;
+export const notificationKindEnum = pgEnum('notification_kind', NOTIFICATION_KINDS);
 export const emailStatusEnum = pgEnum('email_status', EMAIL_STATUSES);
 export const routePlanStatusEnum = pgEnum('route_plan_status', ROUTE_PLAN_STATUSES);
 
@@ -60,10 +70,14 @@ export const users = pgTable(
     /** `scrypt$<salt b64>$<hash b64>`; never leaves the server. */
     passwordHash: text('password_hash').notNull(),
     role: userRoleEnum('role').notNull().default('employee'),
+    /** Lowercase and optional; unique when present. Notification emails go here. */
+    email: text('email'),
+    /** Can be picked as the assignee of a visit: on for employees, opt-in for admins. */
+    assignable: boolean('assignable').notNull().default(true),
     active: boolean('active').notNull().default(true),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('users_username_uq').on(t.username)],
+  (t) => [uniqueIndex('users_username_uq').on(t.username), uniqueIndex('users_email_uq').on(t.email)],
 );
 
 export const clients = pgTable(
@@ -313,6 +327,52 @@ export const emailLog = pgTable(
   (t) => [index('email_log_client_idx').on(t.clientId, t.kind), index('email_log_created_idx').on(t.createdAt)],
 );
 
+/** In-app notification addressed to one user (the bell). Generators dedupe on `dedupeKey`, so reruns never repeat one. */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: notificationKindEnum('kind').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** In-app route to open when the notification is clicked. */
+    link: text('link'),
+    /** What it is about, e.g. `email_log` / the log id. */
+    refType: text('ref_type'),
+    refId: text('ref_id'),
+    /** `<userId>:<kind>:<refType>:<refId>:<business date>`. */
+    dedupeKey: text('dedupe_key').notNull(),
+    /** Live alerts of one employee and kind share a group while unread; a burst updates the row instead of adding one. */
+    groupKey: text('group_key'),
+    groupCount: integer('group_count').notNull().default(1),
+    groupAmountCents: cents('group_amount_cents'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('notifications_dedupe_uq').on(t.dedupeKey), index('notifications_user_idx').on(t.userId, t.createdAt)],
+);
+
+/** Browser/phone endpoints that receive Web Push for a user; one row per device. */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
+);
+
 /** Month route proposed by the system and reviewed by the owner. One per month. */
 export const routePlans = pgTable(
   'route_plans',
@@ -390,6 +450,8 @@ export const jobRuns = pgTable(
 );
 
 export type User = typeof users.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;

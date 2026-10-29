@@ -10,6 +10,7 @@ import { mapsLink, visitReminderText, whatsappLink } from '../../lib/whatsapp';
 import type { MyVisit } from '../../lib/types';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading } from '../../ui/display';
+import { NotificationBell } from '../notifications/NotificationBell';
 import { DoneSheet } from './DoneSheet';
 import plagamixWhite from '../../assets/plagamix-white.png';
 
@@ -40,6 +41,10 @@ export function EmployeeApp() {
           <img src={plagamixWhite} alt="Plagamix" width={374} height={100} className="h-6 w-auto" />
           <div className="flex items-center">
             <span className="mr-2 max-w-40 truncate text-sm font-semibold">{user?.name}</span>
+            <NotificationBell
+              buttonClassName={iconButton}
+              panelClassName="fixed right-2 top-16 w-[min(22rem,calc(100vw-1rem))]"
+            />
             {user?.role === 'admin' ? (
               <Link to="/" aria-label="Volver al panel" className={iconButton}>
                 <ChevronLeft size={20} aria-hidden />

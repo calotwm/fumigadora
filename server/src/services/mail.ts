@@ -6,6 +6,7 @@ import { clients, emailLog, EMAIL_KINDS, type EmailLog } from '../db/schema.js';
 import { notFound, zId } from '../http.js';
 import type { MailProvider } from '../mail/provider.js';
 import { testEmail, type RenderedEmail } from '../mail/templates.js';
+import { notifyClientEmailFailed } from './adminNotifications.js';
 
 export const PAGE_SIZE = 25;
 
@@ -62,6 +63,14 @@ export async function sendLogged(db: Db, mail: MailProvider, request: SendReques
       sentOn: request.today,
     })
     .returning();
+  // A failed client email is worth the owner's attention. Never let that bookkeeping break the send.
+  if (row!.status === 'failed' && row!.clientId !== null && row!.kind !== 'test' && row!.kind !== 'owner_notification') {
+    try {
+      await notifyClientEmailFailed(db, mail, { clientId: row!.clientId, emailKind: row!.kind, to: row!.to, error: row!.error, day: request.today });
+    } catch (e) {
+      console.error('[notifications] could not notify admins about a failed email', e);
+    }
+  }
   return row!;
 }
 

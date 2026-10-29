@@ -124,8 +124,11 @@ const roundTo = (cents: number, step: number) => Math.max(step, Math.round(cents
 
 /** Development-only password shared by the seeded employees. */
 export const SEED_EMPLOYEE_PASSWORD = 'empleado';
+/** Development-only password of the seeded owner account (`lucas`). */
+export const SEED_ADMIN_PASSWORD = 'lucas1234';
 
 export interface SeedSummary {
+  admins: string[];
   employees: string[];
   clients: number;
   visits: number;
@@ -147,11 +150,19 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
+      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
 
-  // ---------- employees ----------
+  // ---------- admin and employees ----------
+  await db.insert(users).values({
+    name: 'Lucas',
+    username: 'lucas',
+    email: 'lucas@example.com',
+    passwordHash: await hashPassword(SEED_ADMIN_PASSWORD),
+    role: 'admin',
+    assignable: false,
+  });
   const passwordHash = await hashPassword(SEED_EMPLOYEE_PASSWORD);
   const employeeRows = await db
     .insert(users)
@@ -608,6 +619,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
   await db.insert(cashEntries).values(cash);
 
   return {
+    admins: ['lucas'],
     employees: employeeRows.map((e) => e.username),
     clients: clientRows.length,
     visits: visitRows.length,

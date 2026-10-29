@@ -12,6 +12,7 @@ export const KIND_LABEL: Record<EmailKind, string> = {
   service_notice: 'Aviso de servicio',
   debt_reminder: 'Recordatorio de deuda',
   test: 'Prueba',
+  owner_notification: 'Aviso interno',
 };
 
 const STATUS_LABEL = { sent: 'Enviado', simulated: 'Simulado', failed: 'Falló el envío' } as const;
@@ -22,6 +23,7 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: 'service_notice', label: 'Avisos de servicio' },
   { value: 'debt_reminder', label: 'Recordatorios' },
   { value: 'test', label: 'Pruebas' },
+  { value: 'owner_notification', label: 'Avisos internos' },
 ];
 
 /** Paged list of sent/simulated/failed emails with an HTML preview. Optionally scoped to one client. */

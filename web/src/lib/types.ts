@@ -390,7 +390,10 @@ export interface UserRow {
   name: string;
   phone: string | null;
   username: string;
+  email: string | null;
   role: 'admin' | 'employee';
+  /** Can be picked as the assignee of a visit. */
+  assignable: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -400,6 +403,35 @@ export interface UserInput {
   phone?: string;
   username: string;
   password: string;
+  /** Empty string = none. */
+  email?: string;
+  role: 'admin' | 'employee';
+  assignable: boolean;
+}
+
+export type NotificationKind =
+  | 'day_summary'
+  | 'visits_overdue'
+  | 'client_email_failed'
+  | 'visits_today'
+  | 'visits_reminder'
+  | 'visit_done'
+  | 'cash_collected';
+
+export interface NotificationItem {
+  id: number;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** In-app route to open on click. */
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationList {
+  unreadCount: number;
+  items: NotificationItem[];
 }
 
 export interface MyVisit extends Visit {
@@ -431,7 +463,7 @@ export interface CashHandover {
 
 // Emails, route planner and reminders --------------------------------------
 
-export type EmailKind = 'service_notice' | 'debt_reminder' | 'test';
+export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_notification';
 export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
 
 export interface EmailStatus {

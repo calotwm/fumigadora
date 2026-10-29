@@ -319,7 +319,7 @@ function RouteRow({ item, month, editable }: { item: RouteItem; month: string; e
 
 function AssigneeOptions({ current, currentName }: { current: number | null; currentName: string | null }) {
   const users = useUsers();
-  const list = (users.data ?? []).filter((u) => u.active);
+  const list = (users.data ?? []).filter((u) => u.active && u.assignable);
   return (
     <>
       <option value="">Sin asignar</option>

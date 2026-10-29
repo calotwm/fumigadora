@@ -2,6 +2,11 @@ import { eq } from 'drizzle-orm';
 import { BUSINESS_TIMEZONE } from '@fumigadora/shared';
 import { jobRuns } from '../db/schema.js';
 import type { Deps } from '../http.js';
+import {
+  runAfternoonNotifications,
+  runEveningNotifications,
+  runMorningNotifications,
+} from './notificationJobs.js';
 import { sendDebtReminders } from './reminders.js';
 import { sendDueNotices } from './routePlans.js';
 
@@ -16,7 +21,7 @@ export async function runDailyJob(deps: Deps) {
   return { date: deps.today(), notices, reminders };
 }
 
-function localHour(now: Date): number {
+export function localHour(now: Date): number {
   const hour = new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TIMEZONE, hour: '2-digit', hourCycle: 'h23' }).format(now);
   return Number(hour);
 }
@@ -28,11 +33,16 @@ function localHour(now: Date): number {
  */
 export async function maybeRunDailyJob(deps: Deps, now: Date = new Date()) {
   if (localHour(now) < DAILY_HOUR) return null;
+  return runClaimed(deps, DAILY_JOB, () => runDailyJob(deps));
+}
+
+/** Claims today's `job_runs` row for `job` and runs it; a failure releases the claim. Null when already claimed. */
+async function runClaimed<T extends object>(deps: Deps, job: string, run: () => Promise<T>): Promise<T | null> {
   const runDate = deps.today();
-  const [claim] = await deps.db.insert(jobRuns).values({ job: DAILY_JOB, runDate }).onConflictDoNothing().returning({ id: jobRuns.id });
+  const [claim] = await deps.db.insert(jobRuns).values({ job, runDate }).onConflictDoNothing().returning({ id: jobRuns.id });
   if (!claim) return null;
   try {
-    const result = await runDailyJob(deps);
+    const result = await run();
     await deps.db.update(jobRuns).set({ result }).where(eq(jobRuns.id, claim.id));
     return result;
   } catch (error) {
@@ -40,6 +50,28 @@ export async function maybeRunDailyJob(deps: Deps, now: Date = new Date()) {
     await deps.db.delete(jobRuns).where(eq(jobRuns.id, claim.id));
     throw error;
   }
+}
+
+/**
+ * Time-slotted notification jobs, each claimed once per business day in `job_runs`. A slot runs from its hour on
+ * (a restart later in the day still catches up); the afternoon reminder is moot once the evening slot opens.
+ */
+export const NOTIFICATION_SLOTS: readonly { job: string; fromHour: number; untilHour: number; run: (deps: Deps) => Promise<object> }[] = [
+  { job: 'notify_morning', fromHour: 9, untilHour: 24, run: runMorningNotifications },
+  { job: 'notify_afternoon', fromHour: 17, untilHour: 20, run: runAfternoonNotifications },
+  { job: 'notify_evening', fromHour: 20, untilHour: 24, run: runEveningNotifications },
+];
+
+/** Runs the notification slots that are due at `now`; returns the results keyed by job (slots already claimed are left out). */
+export async function maybeRunNotificationJobs(deps: Deps, now: Date = new Date()) {
+  const hour = localHour(now);
+  const results: Record<string, object> = {};
+  for (const slot of NOTIFICATION_SLOTS) {
+    if (hour < slot.fromHour || hour >= slot.untilHour) continue;
+    const result = await runClaimed(deps, slot.job, () => slot.run(deps));
+    if (result) results[slot.job] = result;
+  }
+  return results;
 }
 
 /** Checks hourly (and shortly after boot). Single-instance, in-process. */
@@ -50,6 +82,11 @@ export function startDailyScheduler(deps: Deps): () => void {
         if (result) console.log('[jobs] daily job done', JSON.stringify(result));
       })
       .catch((error) => console.error('[jobs] daily job failed', error));
+    maybeRunNotificationJobs(deps)
+      .then((results) => {
+        if (Object.keys(results).length > 0) console.log('[jobs] notifications done', JSON.stringify(results));
+      })
+      .catch((error) => console.error('[jobs] notifications failed', error));
   };
   const timer = setInterval(tick, 60 * 60 * 1000);
   timer.unref();
