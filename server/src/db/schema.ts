@@ -343,6 +343,24 @@ export const notifications = pgTable(
   (t) => [uniqueIndex('notifications_dedupe_uq').on(t.dedupeKey), index('notifications_user_idx').on(t.userId, t.createdAt)],
 );
 
+/** Browser/phone endpoints that receive Web Push for a user; one row per device. */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
+);
+
 /** Month route proposed by the system and reviewed by the owner. One per month. */
 export const routePlans = pgTable(
   'route_plans',
@@ -421,6 +439,7 @@ export const jobRuns = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;

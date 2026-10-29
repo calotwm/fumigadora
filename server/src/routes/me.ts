@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { AuthEnv, Session } from '../auth.js';
 import { queueAutoEmit } from '../arca/service.js';
-import { badRequest, idParam, notFound, v, type Deps } from '../http.js';
+import { badRequest, conflict, idParam, notFound, v, type Deps } from '../http.js';
+import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsubscribeInput } from '../services/push.js';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
 import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
 
@@ -36,6 +37,22 @@ export function meRoutes(deps: Deps) {
     .post('/notifications/read-all', async (c) => {
       const { userId } = c.get('session');
       return c.json(userId === undefined ? { ok: true, updated: 0 } : await markAllNotificationsRead(db, userId));
+    })
+    // Web Push devices of the signed-in user. Everything is inert while VAPID is not configured.
+    .get('/push', (c) => {
+      const enabled = pushEnabled(db);
+      return c.json({ enabled, publicKey: enabled ? (deps.config.push.publicKey ?? null) : null });
+    })
+    .post('/push/subscribe', v('json', subscribeInput), async (c) => {
+      const { userId } = c.get('session');
+      if (!pushEnabled(db)) throw conflict('Las notificaciones push no están activadas en el servidor', 'push_disabled');
+      if (userId === undefined) throw badRequest('El acceso de emergencia no recibe notificaciones');
+      return c.json(await saveSubscription(db, userId, c.req.valid('json'), c.req.header('user-agent')), 201);
+    })
+    .post('/push/unsubscribe', v('json', unsubscribeInput), async (c) => {
+      const { userId } = c.get('session');
+      if (userId === undefined) return c.json({ ok: true });
+      return c.json(await removeSubscription(db, userId, c.req.valid('json').endpoint));
     })
     .post('/notifications/:id/read', v('param', idParam), async (c) => {
       const { userId } = c.get('session');

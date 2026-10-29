@@ -4,6 +4,7 @@ import { Bell } from 'lucide-react';
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from '../../lib/queries';
 import type { NotificationItem } from '../../lib/types';
 import { useCurrentUser } from '../auth/auth';
+import { PushToggle } from './PushToggle';
 
 function ago(iso: string, now = Date.now()): string {
   const minutes = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
@@ -109,6 +110,7 @@ function BellWithList({ buttonClassName, panelClassName }: BellProps) {
           ) : (
             <p className="px-4 py-6 text-center text-sm text-muted">No tenés notificaciones.</p>
           )}
+          <PushToggle />
         </div>
       ) : null}
     </div>

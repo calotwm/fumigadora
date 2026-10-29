@@ -11,7 +11,7 @@ REST JSON under `/api`. Conventions:
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
 - Derived values (balances, invoice status, aging) are computed on every read; never stored.
 
-Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `FILES_DIR` (stored certificate PDFs; default `./.data/files` relative to `server/`; a persistent volume path in production), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
+Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (all three = Web Push on; generate keys with `npm run push:keys`), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `FILES_DIR` (stored certificate PDFs; default `./.data/files` relative to `server/`; a persistent volume path in production), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
 
 Shared shapes used below:
 
@@ -83,7 +83,12 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 |---|---|---|---|
 | GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`; `link` is an in-app route. The web app polls this every 60 s |
 | POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
+| GET | `/api/me/push` | - | `{ enabled, publicKey }`. `enabled` is false (and `publicKey` null) until `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are all set |
+| POST | `/api/me/push/subscribe` | `{ endpoint, keys: { p256dh, auth } }` (a browser `PushSubscription.toJSON()`) | `201 { ok: true }`. Upserts by `endpoint` (the same device signed in as someone else moves to that user). `409 push_disabled` without VAPID; `400` for the emergency session (no user) |
+| POST | `/api/me/push/unsubscribe` | `{ endpoint }` | `{ ok: true }`; only removes the caller's own subscription |
 | POST | `/api/me/notifications/read-all` | - | `{ ok: true, updated }` |
+
+**Web Push.** Whenever a notification is created (the single path in `services/notifications.ts`, outside any transaction) it is also sent to every device the user subscribed, as `{ title, body, link, tag }` for the service worker (`/sw.js`), which shows it and opens `link` on tap. Delivery never fails the caller; subscriptions that answer `404`/`410` are deleted. The web app is a PWA (`/manifest.webmanifest`, icons under `/icons`); iOS needs it added to the home screen (16.4+).
 
 Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. With `cashCollectedCents` a `cash` payment is registered for the visit's client (FIFO allocation) with `collectedByUserId`, `visitId` and `handedOverAt = null` ("a rendir").
 

@@ -49,8 +49,18 @@ See `.env.example`.
 | `RESEND_API_KEY` | no | With `MAIL_FROM`, enables real email through Resend. Without them emails are simulated: stored in the mail log, not sent |
 | `MAIL_FROM` | no | Sender, e.g. `Plagamix <avisos@your-domain.com>` (domain verified in Resend) |
 | `MAIL_REPLY_TO` | no | Optional reply-to address |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | no | Turn on push notifications on phones (Web Push). All three are needed; without them push stays off and nothing else changes. Generate the pair with `npm run push:keys`; the subject is a contact like `mailto:owner@your-domain.com`. Keep the private key secret and do not rotate it casually: devices subscribed with the old key must subscribe again |
 | `FILES_DIR` | no | Directory for stored files (certificate PDFs). Defaults to `server/.data/files`; in production point it at a persistent volume (see below) |
 | `PORT` | no | Defaults to 3000; the server binds to `0.0.0.0` |
+
+## Install on the phone (PWA) and push notifications
+
+Plagamix can be installed as an app from the browser; there is nothing to download from a store.
+
+- **Android (Chrome):** open the site, menu (three dots) > "Instalar app" / "Agregar a la pantalla principal".
+- **iPhone (Safari):** open the site, Share > "Agregar a inicio". **iOS 16.4 or newer is required**, and push notifications only work from the app opened from the home screen, not from a Safari tab.
+
+Then tap the bell inside the app and "Activar notificaciones" (once per device). Admins and employees are sent to their own screen after logging in. Push needs the `VAPID_*` variables above on the server and HTTPS (Railway provides it; `localhost` also works for testing). The service worker (`/sw.js`) only handles notifications and caches nothing, so deploys are picked up immediately.
 
 ## Deploy on Railway
 
@@ -66,6 +76,7 @@ the start command to `npm start` and the health check to `/api/health`.
    - `NODE_ENV` = `production` (set it explicitly if the builder does not)
 4. Stored files (certificate PDFs): create a **volume** on the service in the Railway UI (volumes are not configurable in `railway.json`), mount it at `/data`, and set `FILES_DIR` = `/data/files`. Without a volume the container disk is ephemeral and the PDFs are lost on every deploy.
 5. Deploy. Migrations run automatically on start.
+5b. Optional push notifications: run `npm run push:keys` locally and set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` on the service.
 6. Optional demo data: `railway run npm run db:seed` runs the seed against the service `DATABASE_URL`. Skip it for a real installation.
 7. Legacy data: `npm run db:import-legacy -- --file <export.json> --files <files-bundle.json>` (add `--dry-run` first) imports the legacy system export and writes the certificate PDFs into `FILES_DIR`. It is idempotent.
 

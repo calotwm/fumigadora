@@ -21,6 +21,7 @@ import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billin
 import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
+import { createPushService, registerPush, type PushSender } from './services/push.js';
 import { mountStatic } from './static.js';
 
 export interface AppOptions {
@@ -34,6 +35,8 @@ export interface AppOptions {
   serveWeb?: boolean;
   /** HTTP client for ARCA calls (tests inject a mock). */
   fetch?: typeof fetch;
+  /** Web Push transport. Defaults to `web-push` with the configured VAPID keys; only used when push is configured. */
+  push?: PushSender;
 }
 
 export function createApp(options: AppOptions) {
@@ -44,6 +47,8 @@ export function createApp(options: AppOptions) {
     today: options.today ?? (() => businessToday()),
     ...(options.fetch ? { fetch: options.fetch } : {}),
   };
+  // Every notification created through this db is also pushed to the user's devices.
+  registerPush(options.db, createPushService(options.config.push, options.push));
 
   const api = new Hono<AuthEnv>();
   api.get('/health', (c) => c.json({ ok: true }));

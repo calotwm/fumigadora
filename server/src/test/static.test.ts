@@ -14,6 +14,8 @@ describe('static SPA serving', () => {
     mkdirSync(join(dir, 'assets'));
     writeFileSync(join(dir, 'index.html'), '<!doctype html><title>spa</title>');
     writeFileSync(join(dir, 'assets', 'app.js'), 'console.log(1)');
+    writeFileSync(join(dir, 'sw.js'), 'self.addEventListener("push", () => {})');
+    writeFileSync(join(dir, 'manifest.webmanifest'), '{"name":"Plagamix"}');
     app.get('/api/ping', (c) => c.json({ ok: true }));
     expect(mountStatic(app, dir)).toBe(true);
   });
@@ -31,6 +33,16 @@ describe('static SPA serving', () => {
     const res = await app.request('/assets/app.js');
     expect(res.headers.get('content-type')).toContain('javascript');
     expect(res.headers.get('cache-control')).toContain('immutable');
+  });
+
+  it('serves the manifest and the service worker with the right types and never caches the worker', async () => {
+    const manifest = await app.request('/manifest.webmanifest');
+    expect(manifest.headers.get('content-type')).toContain('application/manifest+json');
+    expect(await manifest.json()).toEqual({ name: 'Plagamix' });
+    const sw = await app.request('/sw.js');
+    expect(sw.status).toBe(200);
+    expect(sw.headers.get('content-type')).toContain('text/javascript');
+    expect(sw.headers.get('cache-control')).toBe('no-cache');
   });
 
   it('does not fall back to the SPA for missing files or /api paths', async () => {

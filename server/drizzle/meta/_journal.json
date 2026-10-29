@@ -71,6 +71,13 @@
       "when": 1793295657079,
       "tag": "0009_owner_notification_email",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793296186340,
+      "tag": "0010_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }

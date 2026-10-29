@@ -30,6 +30,22 @@ export interface ArcaConfig {
   configured: boolean;
 }
 
+/** Web Push (VAPID). Active only when all three values are set. */
+export interface PushConfig {
+  publicKey: string | undefined;
+  privateKey: string | undefined;
+  /** `mailto:` or https URL that identifies the sender to the push services. */
+  subject: string | undefined;
+  enabled: boolean;
+}
+
+export function loadPushConfig(env: NodeJS.ProcessEnv = process.env): PushConfig {
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim() || undefined;
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim() || undefined;
+  const subject = env.VAPID_SUBJECT?.trim() || undefined;
+  return { publicKey, privateKey, subject, enabled: Boolean(publicKey && privateKey && subject) };
+}
+
 export interface Config {
   isProduction: boolean;
   port: number;
@@ -44,6 +60,7 @@ export interface Config {
   sessionTtlSeconds: number;
   mail: MailConfig;
   arca: ArcaConfig;
+  push: PushConfig;
 }
 
 /** Accepts PEM text (real or backslash-n escaped newlines) or the base64 of a PEM file. */
@@ -119,5 +136,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       replyTo: env.MAIL_REPLY_TO?.trim() || undefined,
     },
     arca: loadArcaConfig(env),
+    push: loadPushConfig(env),
   };
 }

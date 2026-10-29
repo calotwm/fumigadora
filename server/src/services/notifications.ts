@@ -3,6 +3,7 @@ import type { IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { notifications, type Notification } from '../db/schema.js';
 import { notFound } from '../http.js';
+import { pushToUser } from './push.js';
 
 const RECENT_LIMIT = 30;
 
@@ -17,12 +18,22 @@ export interface NewNotification {
   refId?: string;
   /** Business date; part of the dedupe key, so the same event notifies a user once per day. */
   day: IsoDate;
+  /** Web Push tag: a later push with the same tag replaces this one on the phone. Defaults to one per notification. */
+  pushTag?: string;
 }
 
 export const dedupeKeyOf = (n: Pick<NewNotification, 'userId' | 'kind' | 'refType' | 'refId' | 'day'>) =>
   [n.userId, n.kind, n.refType ?? '', n.refId ?? '', n.day].join(':');
 
-/** Inserts the notification unless one with the same dedupe key exists. Returns the new row, or null when it was a repeat. */
+/** Also delivers a stored notification as Web Push to the user's devices (no-op when push is off; never throws). */
+export function pushNotification(db: Db, n: Notification, tag?: string) {
+  return pushToUser(db, n.userId, { title: n.title, body: n.body, link: n.link, tag: tag ?? `notification-${n.id}` });
+}
+
+/**
+ * Inserts the notification unless one with the same dedupe key exists, then pushes it. Returns the new row, or null
+ * when it was a repeat. This is the single create path: callers must not run it inside a database transaction.
+ */
 export async function createNotification(db: Db, n: NewNotification): Promise<Notification | null> {
   const [row] = await db
     .insert(notifications)
@@ -38,6 +49,7 @@ export async function createNotification(db: Db, n: NewNotification): Promise<No
     })
     .onConflictDoNothing()
     .returning();
+  if (row) await pushNotification(db, row, n.pushTag);
   return row ?? null;
 }
 
