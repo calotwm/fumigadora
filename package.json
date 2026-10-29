@@ -19,7 +19,8 @@
     "typecheck": "npm run typecheck -w @fumigadora/shared && npm run typecheck -w @fumigadora/server && npm run typecheck -w @fumigadora/web",
     "db:generate": "npm run db:generate -w @fumigadora/server",
     "db:migrate": "npm run db:migrate -w @fumigadora/server",
-    "db:seed": "npm run db:seed -w @fumigadora/server"
+    "db:seed": "npm run db:seed -w @fumigadora/server",
+    "db:import-legacy": "npm run db:import-legacy -w @fumigadora/server --"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
