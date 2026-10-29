@@ -99,7 +99,7 @@ function BellWithList({ buttonClassName, panelClassName }: BellProps) {
                     <span aria-hidden className={`mt-1.5 size-2 shrink-0 rounded-full ${item.readAt ? 'bg-transparent' : 'bg-yellow'}`} />
                     <span className="min-w-0">
                       <span className={`block text-sm ${item.readAt ? 'font-medium' : 'font-bold'}`}>{item.title}</span>
-                      <span className="mt-0.5 block text-xs text-muted">{item.body}</span>
+                      <span className="mt-0.5 block whitespace-pre-line text-xs text-muted">{item.body}</span>
                       <span className="mt-1 block text-[11px] text-muted">{ago(item.createdAt)}</span>
                     </span>
                   </button>

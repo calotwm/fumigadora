@@ -163,7 +163,7 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/email/status` | - | `{ mode: 'resend'\|'simulated', from }` |
-| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
+| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
 | GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false` |
@@ -189,6 +189,16 @@ Generation takes every client with a service plan whose month still has pending 
 | POST | `/api/jobs/run-daily` | `{ date, notices: {sent,simulated,failed}, reminders: {sent,simulated,failed} }`. Runs due service notices then debt reminders; idempotent |
 
 An in-process scheduler checks hourly and runs the daily job once per Buenos Aires day, from 09:00 on, guarded by a `job_runs` row (unique per job and day) so restarts never double-run. Single instance only.
+
+**Notification jobs.** The same hourly tick runs three time-slotted jobs, each claimed once per Buenos Aires day in `job_runs` (a restart later in the day catches up) and idempotent through the notification dedupe key (`userId:kind:ref:day`):
+
+| Job (`job_runs.job`) | Window | Who | What |
+|---|---|---|---|
+| `notify_morning` | from 09:00 | assignees; admins | `visits_today` to each active user with `scheduled` visits today (count and first time); `visits_overdue` to every active admin when visits from earlier days are still `scheduled` |
+| `notify_afternoon` | 17:00 to 20:00 | assignees | `visits_reminder` to users that still have unmarked visits today |
+| `notify_evening` | from 20:00 | admins | `day_summary`: visits done / pending today, collected today (all payments by `paidOn`) and cash employees still have to hand over (`/api/cash-handover`). Skipped on a day with nothing to report |
+
+Admin notifications (`visits_overdue`, `day_summary`, `client_email_failed`) go to every **active admin user** in the bell and, when the admin has an `email`, by email too (`email_log.kind = 'owner_notification'`, no client). A client email that ends `failed` (service notice or debt reminder, where `sendLogged` records it) creates one `client_email_failed` notification per client, email kind and day; a failing admin copy is logged but never notifies again. Employees only get bell notifications.
 
 ## Invoices and monthly billing
 

@@ -64,6 +64,13 @@
       "when": 1793295447250,
       "tag": "0008_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793295657079,
+      "tag": "0009_owner_notification_email",
+      "breakpoints": true
     }
   ]
 }

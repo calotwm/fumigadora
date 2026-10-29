@@ -456,7 +456,7 @@ export interface CashHandover {
 
 // Emails, route planner and reminders --------------------------------------
 
-export type EmailKind = 'service_notice' | 'debt_reminder' | 'test';
+export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_notification';
 export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
 
 export interface EmailStatus {
