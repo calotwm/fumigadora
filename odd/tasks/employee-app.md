@@ -36,10 +36,10 @@ Mode: off (project convention). Runner: Vitest (`npm test`). Ordinary functional
 Branch `feat/employee-app` (from main a5f0718). Strategy: ask-on-risk; forecast above 400 lines; single PR with work-unit commits (accepted for previous features). RDD disabled globally by user.
 
 ## Tasks
-- [ ] E1 Extras + invoice line items: `extras` catalog + Ajustes section, `invoice_items` (+ backfill-free rendering of legacy invoices), `visit_extras`, `completeVisit` builds lines, admin completion form supports extras, invoice views show lines, unified oblea rule + base line copy, tests. Route: delegated (one writer for E1-E4, 2+ non-trivial files).
-- [ ] E2 Payment status at closing: `myDoneInput` with `paymentStatus`, `amountCents`, `method`, `extras[]`; allocation to the visit's invoice first; only cash a rendir; DoneSheet redesign; alert copy with payment status + `extras_added` (enum migration); tests. Route: delegated.
-- [ ] E3 Postpone / cancel by employee: `/api/me/visits/:id/postpone` and `/cancel` (reason), recurring cancel schedules next, admin alerts `visit_postponed` / `visit_cancelled`, employee UI sheet, tests. Route: delegated.
-- [ ] E4 Ordered route + simpler UI: company base setting, shared pure `orderDayRoute` (time first, nearest-neighbor, no-coords last) with tests, Google Maps directions link(s), EmployeeApp redesign (progress, next visit highlighted). Route: delegated.
+- [x] E1 Extras + invoice line items: `extras` catalog + Ajustes section, `invoice_items` (+ backfill-free rendering of legacy invoices), `visit_extras`, `completeVisit` builds lines, admin completion form supports extras, invoice views show lines, unified oblea rule + base line copy, tests. Route: delegated (one writer for E1-E4, 2+ non-trivial files).
+- [x] E2 Payment status at closing: `myDoneInput` with `paymentStatus`, `amountCents`, `method`, `extras[]`; allocation to the visit's invoice first; only cash a rendir; DoneSheet redesign; alert copy with payment status + `extras_added` (enum migration); tests. Route: delegated.
+- [x] E3 Postpone / cancel by employee: `/api/me/visits/:id/postpone` and `/cancel` (reason), recurring cancel schedules next, admin alerts `visit_postponed` / `visit_cancelled`, employee UI sheet, tests. Route: delegated.
+- [x] E4 Ordered route + simpler UI: company base setting, shared pure `orderDayRoute` (time first, nearest-neighbor, no-coords last) with tests, Google Maps directions link(s), EmployeeApp redesign (progress, next visit highlighted). Route: delegated.
 
 ## Acceptance criteria
 - Employee closes a visit adding 2 extras and "Pagó una parte" by transfer: invoice has 3 lines and the right total, payment allocated to that invoice, nothing "a rendir", admin gets one grouped alert with payment status and extras.
@@ -53,7 +53,16 @@ Branch `feat/employee-app` (from main a5f0718). Strategy: ask-on-risk; forecast 
 ## Progress / evidence
 - Mapping: delegated explorer (employee web/server flow, completeVisit, invoices, reschedule/cancel, route, ARCA, tests).
 
+- E1 (delegated, one writer): 1c25bcf. Migration 0012: `extras`, `invoice_items`, `visit_extras`; extras section in Ajustes; invoices render lines (legacy invoices as one line); admin completion supports extras (requires createInvoice); oblea rule unified on `issuesCertificate` (validity default 30).
+- E2 (delegated): ed380c5. Migration 0013 (extras_added kind). `myDoneInput` paymentStatus/method/amount/extras/notes; payment allocated to the visit invoice first; non-cash `handedOverAt` = recording time; handover lists cash only. Legacy `cashCollectedCents` body still accepted.
+- E3 (delegated): 32763f0. Migration 0014 `visits.cancel_reason`; `/api/me/visits/:id/postpone` and `/cancel`; recurring cancel schedules next; alerts visit_postponed / visit_cancelled (dedupe per visit and day).
+- E4 (delegated): 64b1ded. `shared/src/dayRoute.ts` (time first, haversine nearest-neighbor from company base, no-coords last), Maps directions links chunked by 10, company base in Ajustes ("Usar mi ubicación"), EmployeeApp redesign (progress, next stop first, done collapsed). Seed: extras Cebo/Estación cebadera, base, CABA coordinates.
+- Deviations: allocation now pays the visit invoice first (existing test updated); extras on a visit without own price bill only the extras; base-line copy only when the type issues certificates.
+- Checks: typecheck 0 errors; `npm test` 313/313 (re-run by parent); build ok; writer API smoke ok.
+- Browser QA by parent (built app, seeded throwaway PGlite, mobile 375x812): EmployeeApp shows progress "0 de 1 hecha", Google Maps route link, next stop highlighted, actions; DoneSheet with extras picker (2 × Cebo -> total $71.000), payment chips and method chips with cash hint; confirmed Mercado Pago -> "¡Terminaste los servicios del día!"; postponed tomorrow's visit (default next working day); `lucas` received visit_done "Pagó todo ($ 71.000,00, Mercado Pago)", extras_added "2 × Cebo ($ 9.000,00)", visit_postponed; admin client invoices tab shows lines Desratización $62.000 + 2 × Cebo $9.000 = $71.000 PAGADA. QA data deleted.
+- Not verified: Google Maps link opened in a real phone, push delivery of new kinds, Postgres run of migrations 0012-0014.
+
 ## Next step
-E1-E4 with one delegated writer.
+PR to main.
 
 Engram mirror: `odd/employee-app/tasks`.
