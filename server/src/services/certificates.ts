@@ -30,6 +30,7 @@ export async function listCertificates(db: Db, today: IsoDate, q: z.infer<typeof
       expiresOn: certificates.expiresOn,
       serviceTypeId: serviceTypes.id,
       serviceTypeName: serviceTypes.name,
+      fileKey: certificates.fileKey,
     })
     .from(certificates)
     .innerJoin(clients, eq(clients.id, certificates.clientId))
@@ -46,12 +47,19 @@ export async function listCertificates(db: Db, today: IsoDate, q: z.infer<typeof
     if (!cur || r.expiresOn > cur) latest.set(key, r.expiresOn);
   }
 
-  const list = rows.map(({ clientArchived, ...r }) => ({
+  const list = rows.map(({ clientArchived, fileKey, ...r }) => ({
     ...r,
+    hasFile: fileKey !== null,
     daysLeft: diffDays(r.expiresOn, today),
     superseded: (latest.get(`${r.clientId}:${r.serviceTypeId ?? 0}`) ?? r.expiresOn) > r.expiresOn,
   }));
   if (q.expiringWithinDays === undefined) return list;
   const limit = addDays(today, q.expiringWithinDays);
   return list.filter((c) => !c.superseded && c.expiresOn <= limit);
+}
+
+/** Storage key of a certificate's PDF plus the number used for the download name; null file key when none is stored. */
+export async function certificateFileInfo(db: Db, id: number) {
+  const [row] = await db.select({ number: certificates.number, fileKey: certificates.fileKey }).from(certificates).where(eq(certificates.id, id));
+  return row ?? null;
 }

@@ -36,6 +36,8 @@ export interface Config {
   databaseUrl: string | undefined;
   /** Directory for the embedded PGlite database when no DATABASE_URL is set. */
   pgliteDir: string;
+  /** Directory for stored files (certificate PDFs). In production, the mount path of a persistent volume. */
+  filesDir: string;
   adminPassword: string;
   sessionSecret: string;
   /** Session lifetime in seconds. */
@@ -107,6 +109,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: Number(env.PORT ?? 3000),
     databaseUrl: env.DATABASE_URL || undefined,
     pgliteDir: env.PGLITE_DIR ?? './.data/pglite',
+    filesDir: env.FILES_DIR?.trim() || './.data/files',
     adminPassword,
     sessionSecret,
     sessionTtlSeconds: 60 * 60 * 24 * 30,

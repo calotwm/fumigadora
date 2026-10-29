@@ -11,7 +11,7 @@ REST JSON under `/api`. Conventions:
 - Request bodies are JSON (`content-type: application/json`). In the "Body" columns `?` means optional and `x | null` accepts null.
 - Derived values (balances, invoice status, aging) are computed on every read; never stored.
 
-Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
+Environment: `ADMIN_PASSWORD` (owner login; employees are created in the app), `SESSION_SECRET` (required when `NODE_ENV=production`; insecure dev defaults with a console warning otherwise), `DATABASE_URL` (Postgres; unset = embedded PGlite at `PGLITE_DIR`, default `./.data/pglite` relative to `server/`), `FILES_DIR` (stored certificate PDFs; default `./.data/files` relative to `server/`; a persistent volume path in production), `PORT` (default 3000), `RESEND_API_KEY` + `MAIL_FROM` (both set = real email through Resend; otherwise emails are only simulated and logged), `MAIL_REPLY_TO` (optional).
 
 Shared shapes used below:
 
@@ -235,7 +235,8 @@ Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
 | Method | Path | Response |
 |---|---|---|
 | GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone } & BalanceFields)[] }` debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
-| GET | `/api/certificates?expiringWithinDays=15&clientId=` | `Certificate[]` by expiry asc. With `expiringWithinDays`: only non-superseded certificates of active clients with `expiresOn <= today + N` (already expired included, `daysLeft < 0`). A certificate is superseded when the client has a newer one for the same service type |
+| GET | `/api/certificates?expiringWithinDays=15&clientId=` | `Certificate[]` by expiry asc. With `expiringWithinDays`: only non-superseded certificates of active clients with `expiresOn <= today + N` (already expired included, `daysLeft < 0`). A certificate is superseded when the client has a newer one for the same service type. Each item has `hasFile` (a PDF is stored) |
+| GET | `/api/certificates/:id/file` | - | The certificate PDF (`application/pdf`, `Content-Disposition: inline; filename="oblea-<number>.pdf"`). `404` when the certificate has no stored file. Owner only (`401` without session, `403` for employees) |
 | GET | `/api/dashboard` | see below |
 | GET | `/api/search?q=` | `{ clients: { id, name, kind, address, phone }[] }` max 10, active clients, matches name/address/phone/contact (case-insensitive). `q` is required (1-100 chars) |
 

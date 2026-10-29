@@ -49,6 +49,7 @@ See `.env.example`.
 | `RESEND_API_KEY` | no | With `MAIL_FROM`, enables real email through Resend. Without them emails are simulated: stored in the mail log, not sent |
 | `MAIL_FROM` | no | Sender, e.g. `Plagamix <avisos@your-domain.com>` (domain verified in Resend) |
 | `MAIL_REPLY_TO` | no | Optional reply-to address |
+| `FILES_DIR` | no | Directory for stored files (certificate PDFs). Defaults to `server/.data/files`; in production point it at a persistent volume (see below) |
 | `PORT` | no | Defaults to 3000; the server binds to `0.0.0.0` |
 
 ## Deploy on Railway
@@ -63,8 +64,10 @@ the start command to `npm start` and the health check to `/api/health`.
    - `ADMIN_PASSWORD` = a strong password
    - `SESSION_SECRET` = a long random string, e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
    - `NODE_ENV` = `production` (set it explicitly if the builder does not)
-4. Deploy. Migrations run automatically on start.
-5. Optional demo data: `railway run npm run db:seed` runs the seed against the service `DATABASE_URL`. Skip it for a real installation.
+4. Stored files (certificate PDFs): create a **volume** on the service in the Railway UI (volumes are not configurable in `railway.json`), mount it at `/data`, and set `FILES_DIR` = `/data/files`. Without a volume the container disk is ephemeral and the PDFs are lost on every deploy.
+5. Deploy. Migrations run automatically on start.
+6. Optional demo data: `railway run npm run db:seed` runs the seed against the service `DATABASE_URL`. Skip it for a real installation.
+7. Legacy data: `npm run db:import-legacy -- --file <export.json> --files <files-bundle.json>` (add `--dry-run` first) imports the legacy system export and writes the certificate PDFs into `FILES_DIR`. It is idempotent.
 
 The session cookie is `Secure` in production, so use the Railway HTTPS domain.
 
