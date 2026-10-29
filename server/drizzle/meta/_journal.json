@@ -57,6 +57,13 @@
       "when": 1793295177297,
       "tag": "0007_users_email_assignable",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793295447250,
+      "tag": "0008_notifications",
+      "breakpoints": true
     }
   ]
 }

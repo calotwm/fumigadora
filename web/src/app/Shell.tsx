@@ -4,6 +4,7 @@ import { LogOut, Plus, Search, Settings } from 'lucide-react';
 import { ActionsProvider, QUICK_ACTIONS, useActions } from '../features/actions/ActionsProvider';
 import { useCurrentUser, useLogout } from '../features/auth/auth';
 import { useUsers } from '../lib/queries';
+import { NotificationBell } from '../features/notifications/NotificationBell';
 import { Sheet } from '../ui/Sheet';
 import { CommandPalette } from './CommandPalette';
 import { NAV_ITEMS } from './nav';
@@ -71,7 +72,13 @@ function Rail() {
   const logout = useLogout();
   return (
     <aside className="on-ink fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-ink text-paper lg:flex">
-      <div className="border-t-4 border-yellow px-6 pb-5 pt-5">
+      <div className="relative border-t-4 border-yellow px-6 pb-5 pt-5">
+        <div className="absolute right-2 top-3">
+          <NotificationBell
+            buttonClassName="grid size-11 place-items-center hover:bg-paper/10"
+            panelClassName="absolute left-full top-0 ml-3 w-80"
+          />
+        </div>
         <img src={plagamixWhite} alt="Plagamix" width={374} height={100} className="h-auto w-40" />
         <p className="mt-2 text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-paper/60">Gestión</p>
       </div>
@@ -141,6 +148,10 @@ function TopBar() {
     <header className="on-ink sticky top-0 z-30 flex h-14 items-center justify-between border-t-4 border-t-yellow bg-ink pl-4 pr-1 text-paper lg:hidden">
       <img src={plagamixWhite} alt="Plagamix" width={374} height={100} className="h-6 w-auto" />
       <div className="flex">
+        <NotificationBell
+          buttonClassName={iconButton}
+          panelClassName="fixed right-2 top-16 w-[min(22rem,calc(100vw-1rem))]"
+        />
         <button type="button" aria-label="Buscar" onClick={() => setPaletteOpen(true)} className={iconButton}>
           <Search size={20} aria-hidden />
         </button>

@@ -409,6 +409,24 @@ export interface UserInput {
   assignable: boolean;
 }
 
+export type NotificationKind = 'day_summary' | 'visits_overdue' | 'client_email_failed' | 'visits_today' | 'visits_reminder';
+
+export interface NotificationItem {
+  id: number;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** In-app route to open on click. */
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationList {
+  unreadCount: number;
+  items: NotificationItem[];
+}
+
 export interface MyVisit extends Visit {
   clientBalanceCents: number;
   cashCollectedCents: number;

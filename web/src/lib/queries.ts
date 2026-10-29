@@ -12,6 +12,7 @@ import type {
   ReminderPreview,
   RouteView,
   MyVisits,
+  NotificationList,
   UserInput,
   UserRow,
   ClientDetail,
@@ -476,6 +477,33 @@ export function useConfirmHandover() {
 }
 
 // Employee app (/api/me) -----------------------------------------------------
+
+// Notifications ---------------------------------------------------------------
+
+/** The bell polls once a minute; there are no websockets. */
+export function useNotifications() {
+  return useQuery({
+    queryKey: ['me', 'notifications'],
+    queryFn: () => api<NotificationList>('/me/notifications'),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ ok: true }>(`/me/notifications/${id}/read`, { body: {} }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me', 'notifications'] }),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ ok: true }>('/me/notifications/read-all', { body: {} }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['me', 'notifications'] }),
+  });
+}
 
 export function useMyVisits(date: string) {
   return useQuery({

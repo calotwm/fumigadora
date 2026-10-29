@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { AuthEnv, Session } from '../auth.js';
 import { queueAutoEmit } from '../arca/service.js';
-import { badRequest, idParam, v, type Deps } from '../http.js';
+import { badRequest, idParam, notFound, v, type Deps } from '../http.js';
+import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
 import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
 
 /**
@@ -26,5 +27,19 @@ export function meRoutes(deps: Deps) {
       const result = await markMyVisitDone(db, today(), userId, c.req.valid('param').id, c.req.valid('json'));
       if (result.invoice) queueAutoEmit(deps, [result.invoice.id]);
       return c.json(result);
+    })
+    // Notifications belong to the signed-in user. The emergency owner session has no user, hence nothing to list.
+    .get('/notifications', async (c) => {
+      const { userId } = c.get('session');
+      return c.json(userId === undefined ? { unreadCount: 0, items: [] } : await listNotifications(db, userId));
+    })
+    .post('/notifications/read-all', async (c) => {
+      const { userId } = c.get('session');
+      return c.json(userId === undefined ? { ok: true, updated: 0 } : await markAllNotificationsRead(db, userId));
+    })
+    .post('/notifications/:id/read', v('param', idParam), async (c) => {
+      const { userId } = c.get('session');
+      if (userId === undefined) throw notFound('Notificación');
+      return c.json(await markNotificationRead(db, userId, c.req.valid('param').id));
     });
 }

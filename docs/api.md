@@ -77,6 +77,14 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 | GET | `/api/me/visits` | query `date?=today` | `{ date, visits: (Visit & { clientBalanceCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, ordered by time. `cashCollectedCents` = cash this employee registered for that visit; `cashPending` = all cash of the caller not yet confirmed by the owner |
 | POST | `/api/me/visits/:id/done` | `{ cashCollectedCents? (> 0), notes? }` | `{ visit, invoice, certificate, nextVisit, payment: <POST /api/payments response>\|null }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
 
+**Notifications** (the bell; every signed-in user, always the caller's own). The emergency owner session has no user: it gets an empty list and `404` on a single id.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`; `link` is an in-app route. The web app polls this every 60 s |
+| POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
+| POST | `/api/me/notifications/read-all` | - | `{ ok: true, updated }` |
+
 Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. With `cashCollectedCents` a `cash` payment is registered for the visit's client (FIFO allocation) with `collectedByUserId`, `visitId` and `handedOverAt = null` ("a rendir").
 
 ## Cash to hand over (owner only)

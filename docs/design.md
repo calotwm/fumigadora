@@ -48,6 +48,7 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 - **Invoice**: id, clientId, visitId (nullable), number (auto, per-year sequence), issuedOn, dueOn, amountCents, description, voidedAt.
 - **Payment**: id, clientId, paidOn, amountCents, method (`cash` | `transfer` | `mercadopago` | `check` | `other`), notes.
 - **Allocation**: id, paymentId, invoiceId, amountCents. Payments auto-allocate FIFO to oldest open invoices unless a specific invoice is chosen. Unallocated remainder = client credit.
+- **Notification**: id, userId (cascade), kind, title, body, link (in-app route), refType/refId, dedupeKey (unique: `userId:kind:refType:refId:businessDate`, so a job rerun never repeats one), readAt, createdAt. Addressed to one user and shown in the bell (admin shell and employee app, polled every 60 s); the emergency owner session has none.
 - **ExpenseCategory**: id, name (Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servicios, Otros).
 - **CashEntry**: id, kind (`expense` | `income`), date, amountCents, categoryId (expense only), description, method. Manual entries only; client payments are NOT copied here.
 
