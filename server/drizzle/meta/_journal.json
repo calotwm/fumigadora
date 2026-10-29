@@ -85,6 +85,27 @@
       "when": 1793296501052,
       "tag": "0011_live_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793298927814,
+      "tag": "0012_employee_extras",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793299281315,
+      "tag": "0013_extras_alert_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793299591679,
+      "tag": "0014_visit_cancel_reason",
+      "breakpoints": true
     }
   ]
 }

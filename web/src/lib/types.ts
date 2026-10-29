@@ -70,6 +70,26 @@ export interface ClientDetail extends ClientRow {
   summary: ClientSummary;
 }
 
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  amountCents: number;
+}
+
+export interface Extra {
+  id: number;
+  name: string;
+  priceCents: number;
+  active: boolean;
+}
+
+/** One extra picked on a visit: `extraId` -> quantity. */
+export interface ExtraSelection {
+  extraId: number;
+  quantity: number;
+}
+
 export interface Invoice {
   id: number;
   clientId: number;
@@ -94,6 +114,8 @@ export interface Invoice {
   caeDueOn: IsoDate | null;
   arcaObservations: { observations: { code: number; msg: string }[]; errors: { code: number; msg: string }[]; message?: string } | null;
   arcaAttemptedAt: string | null;
+  /** Always at least one line; invoices without stored lines come as a single line from description and amount. */
+  items: InvoiceItem[];
 }
 
 export interface Visit {
@@ -106,10 +128,13 @@ export interface Visit {
   frequency: Frequency;
   notes: string | null;
   completedAt: string | null;
+  cancelReason: string | null;
   priceCents: number | null;
   clientName: string;
   clientAddress: string | null;
   clientPhone: string | null;
+  clientLatitude: number | null;
+  clientLongitude: number | null;
   serviceTypeName: string;
   issuesCertificate: boolean;
   assignedUserId: number | null;
@@ -245,6 +270,7 @@ export interface CompleteVisitBody {
   nextDate?: IsoDate;
   nextTime?: string | null;
   notes?: string;
+  extras?: ExtraSelection[];
 }
 
 export interface CompleteVisitResult {
@@ -416,7 +442,8 @@ export type NotificationKind =
   | 'visits_today'
   | 'visits_reminder'
   | 'visit_done'
-  | 'cash_collected';
+  | 'cash_collected'
+  | 'extras_added';
 
 export interface NotificationItem {
   id: number;
@@ -436,11 +463,38 @@ export interface NotificationList {
 
 export interface MyVisit extends Visit {
   clientBalanceCents: number;
+  /** Everything the employee registered as paid at this visit (any method). */
+  paidCents: number;
+  /** The cash part of it: the one that is "a rendir". */
   cashCollectedCents: number;
+}
+
+export interface PostponeResult {
+  visit: Visit;
+  previous: { date: IsoDate; time: string | null };
+}
+
+export interface CancelResult {
+  visit: Visit;
+  nextVisit: Visit | null;
+}
+
+export type PaymentStatus = 'full' | 'partial' | 'none';
+export type FieldPaymentMethod = 'cash' | 'transfer' | 'mercadopago';
+
+export interface MyDoneBody {
+  paymentStatus: PaymentStatus;
+  method?: FieldPaymentMethod;
+  /** Amount received when the payment is partial. */
+  amountCents?: number;
+  extras?: ExtraSelection[];
+  notes?: string;
 }
 
 export interface MyVisits {
   date: IsoDate;
+  /** Company location where the day route starts; null when not configured. */
+  base: { latitude: number; longitude: number } | null;
   visits: MyVisit[];
   cashPending: { cents: number; count: number };
 }
@@ -504,6 +558,9 @@ export interface AppSettings {
   noticeMode: NoticeMode;
   noticeDaysBefore: number;
   arcaAutoEmit: boolean;
+  companyAddress: string | null;
+  companyLatitude: number | null;
+  companyLongitude: number | null;
 }
 
 export interface ArcaStatusInfo {

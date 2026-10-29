@@ -20,9 +20,11 @@ import {
   certificates,
   clients,
   expenseCategories,
+  extras,
   invoices,
   payments,
   serviceTypes,
+  settings,
   users,
   visits,
 } from './db/schema.js';
@@ -76,6 +78,37 @@ const STREETS = [
 const AREAS = ['Palermo', 'Belgrano', 'Caballito', 'Recoleta', 'Almagro', 'Villa Urquiza', 'Flores', 'San Telmo', 'Núñez', 'Villa Crespo', 'Once', 'Devoto', 'Boedo', 'Colegiales'];
 const SURNAMES = ['Rodríguez', 'Fernández', 'González', 'López', 'Martínez', 'Pérez', 'Gómez', 'Sánchez', 'Romero', 'Díaz', 'Álvarez', 'Torres'];
 const FIRST_NAMES = ['Marcelo', 'Laura', 'Gustavo', 'Silvia', 'Carlos', 'Mónica', 'Roberto', 'Claudia', 'Daniel', 'Patricia', 'Hernán', 'Verónica'];
+/** Approximate centre of each neighbourhood (CABA), so seeded clients have coordinates for the day route. */
+const AREA_CENTERS: Record<string, [number, number]> = {
+  Palermo: [-34.5889, -58.4306],
+  Belgrano: [-34.5627, -58.4564],
+  Caballito: [-34.6186, -58.4423],
+  Recoleta: [-34.5875, -58.3974],
+  Almagro: [-34.6092, -58.4194],
+  'Villa Urquiza': [-34.5736, -58.4881],
+  Flores: [-34.6279, -58.4639],
+  'San Telmo': [-34.6214, -58.3731],
+  Núñez: [-34.5434, -58.4636],
+  'Villa Crespo': [-34.5993, -58.4398],
+  Once: [-34.6092, -58.4065],
+  Devoto: [-34.6003, -58.5116],
+  Boedo: [-34.6307, -58.4189],
+  Colegiales: [-34.5744, -58.4491],
+};
+/** Company base used by the seed (Plaza de Mayo area). */
+const SEED_BASE = { address: 'Av. de Mayo 760, CABA', latitude: -34.6086, longitude: -58.3797 };
+
+/** Deterministic offset (about +-500 m) from the client's name, so seeding stays reproducible without touching the PRNG. */
+function seedCoordinates(area: string | null | undefined, name: string): { latitude: number; longitude: number } | null {
+  const center = area ? AREA_CENTERS[area] : undefined;
+  if (!center) return null;
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const dLat = (((h % 1000) / 1000) - 0.5) * 0.009;
+  const dLon = ((((h >>> 10) % 1000) / 1000) - 0.5) * 0.009;
+  return { latitude: Number((center[0] + dLat).toFixed(5)), longitude: Number((center[1] + dLon).toFixed(5)) };
+}
+
 const TIMES = ['08:00', '09:30', '11:00', '14:00', '16:00', '17:30'];
 
 type Profile = 'good' | 'slow' | 'partial' | 'bad';
@@ -150,7 +183,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
+      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoice_items, invoices, certificates, visit_extras, visits, extras, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
 
@@ -173,6 +206,12 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
     ])
     .returning({ id: users.id, username: users.username });
 
+  await db.insert(settings).values([
+    { key: 'companyAddress', value: SEED_BASE.address },
+    { key: 'companyLatitude', value: SEED_BASE.latitude },
+    { key: 'companyLongitude', value: SEED_BASE.longitude },
+  ]);
+
   // ---------- catalogs ----------
   const categoryRows = await db
     .insert(expenseCategories)
@@ -187,6 +226,10 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
     { name: 'Control de palomas', defaultPriceCents: 85_000_00, issuesCertificate: false, certificateValidityDays: null },
     { name: 'Limpieza de tanque', defaultPriceCents: 70_000_00, issuesCertificate: true, certificateValidityDays: 180 },
   ];
+  await db.insert(extras).values([
+    { name: 'Cebo', priceCents: 4_500_00 },
+    { name: 'Estación cebadera', priceCents: 8_000_00 },
+  ]);
   const serviceRows = await db.insert(serviceTypes).values(serviceDefs).returning();
   const SVC = { insects: 0, rodents: 1, disinfection: 2, pigeons: 3, tank: 4 };
 
@@ -204,7 +247,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
     kind: ClientPlan['kind'],
     fee: number | null,
   ) => {
-    clientDefs.push({ ...def, monthlyFeeCents: fee });
+    clientDefs.push({ ...def, ...seedCoordinates(def.area, def.name), monthlyFeeCents: fee });
     plans.push({
       name: def.name,
       kind,

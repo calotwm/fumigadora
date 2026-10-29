@@ -245,7 +245,7 @@ describe('employees', () => {
       expect((await juan.post(`/api/me/visits/${v.id}/done`, {})).status).toBe(409);
     });
 
-    it('completes with cash: cash payment FIFO-allocated, collectedBy set, pending handover', async () => {
+    it('completes with the legacy cashCollectedCents: cash payment to the visit invoice first, collectedBy set, pending handover', async () => {
       const c = (await t.post('/api/clients', { name: 'Paga Efectivo' })).body.id;
       const oldInv = (await t.post('/api/invoices', { clientId: c, amountCents: 20_000_00, issuedOn: '2025-05-01' })).body;
       const v = (
@@ -255,10 +255,10 @@ describe('employees', () => {
       expect(res.status).toBe(200);
       const { payment, invoice } = res.body;
       expect(payment.payment).toMatchObject({ amountCents: 60_000_00, method: 'cash', collectedByUserId: juanId, visitId: v.id, handedOverAt: null });
-      // FIFO: the old invoice first (20k), then the new one (40k of 50k).
+      // The visit's own invoice first (50k), the remainder FIFO to the old debt (10k of 20k).
       expect(payment.allocations.map((a: { invoiceId: number; amountCents: number }) => [a.invoiceId, a.amountCents])).toEqual([
-        [oldInv.id, 20_000_00],
-        [invoice.id, 40_000_00],
+        [invoice.id, 50_000_00],
+        [oldInv.id, 10_000_00],
       ]);
       expect(payment.client.balanceCents).toBe(10_000_00);
 

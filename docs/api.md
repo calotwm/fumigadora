@@ -29,7 +29,8 @@ Invoice = {
   id, clientId, visitId: number|null, number: 'YYYY-NNNN', issuedOn, dueOn,
   amountCents, description, periodMonth: 'YYYY-MM'|null, voided: boolean,
   status: 'pending'|'partial'|'overdue'|'paid'|'void',   // overdue wins over partial
-  paidCents, balanceCents, isPartial: boolean, daysOverdue
+  paidCents, balanceCents, isPartial: boolean, daysOverdue,
+  items: { description, quantity, unitPriceCents, amountCents }[]   // invoice lines; amountCents = their sum
 }
 Visit = {
   id, clientId, serviceTypeId, date, time: 'HH:MM'|null,
@@ -74,25 +75,35 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/me/visits` | query `date?=today` | `{ date, visits: (Visit & { clientBalanceCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, ordered by time. `cashCollectedCents` = cash this employee registered for that visit; `cashPending` = all cash of the caller not yet confirmed by the owner |
-| POST | `/api/me/visits/:id/done` | `{ cashCollectedCents? (> 0), notes? }` | `{ visit, invoice, certificate, nextVisit, payment: <POST /api/payments response>\|null }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
+| GET | `/api/me/visits` | query `date?=today` | `{ date, base: { latitude, longitude }\|null, visits: (Visit & { clientBalanceCents, paidCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, in **route order**: pending visits first (timed ones by time, then the untimed ones nearest-neighbour from the company base, clients without coordinates last), then the done ones. `base` is the company location from the settings (null when not configured; the route then starts at the first located visit). `Visit` carries `clientLatitude`/`clientLongitude` (null when unknown). `paidCents` = everything this employee registered as paid at that visit (any method), `cashCollectedCents` = the cash part of it; `cashPending` = all cash of the caller not yet confirmed by the owner |
+| GET | `/api/me/extras` | - | Active extras (`{ id, name, priceCents, active, createdAt }[]`) the caller can add when closing a visit |
+| POST | `/api/me/visits/:id/done` | `{ paymentStatus?: 'full'\|'partial'\|'none', method?: 'cash'\|'transfer'\|'mercadopago' (default cash), amountCents? (> 0, required for partial), extras?: { extraId, quantity }[], notes?, cashCollectedCents? (legacy: same as partial + cash) }` | `{ visit, invoice, extras, certificate, nextVisit, payment: <POST /api/payments response>\|null, paymentStatus, paymentMethod }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
+
+**Client cancelled** (the employee's own `scheduled` visits only; unknown or foreign id `404`, not `scheduled` `409`):
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/me/visits/:id/postpone` | `{ date (>= today), time? }` (`time` omitted keeps the current one, `null` clears it; `400` if neither date nor time changes) | `{ visit, previous: { date, time } }` |
+| POST | `/api/me/visits/:id/cancel` | `{ reason }` (required, <= 500) | `{ visit (status cancelled, cancelReason), nextVisit: Visit\|null }`. A recurring visit schedules its next occurrence (same client, service, frequency, price, assignee and time; `date + frequency`, never in the past) in the same transaction |
+
+Both alert the admins (employee sessions only): `visit_postponed` ("Juan pospuso la visita de X al 17/06 a las 09:00.") and `visit_cancelled` ("... canceló la visita de X. Motivo: ..."). `Visit` now also carries `cancelReason`.
 
 **Notifications** (the bell; every signed-in user, always the caller's own). The emergency owner session has no user: it gets an empty list and `404` on a single id.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`; `link` is an in-app route. The web app polls this every 60 s |
+| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`, `extras_added`, `visit_postponed`, `visit_cancelled`; `link` is an in-app route. The web app polls this every 60 s |
 | POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
 | GET | `/api/me/push` | - | `{ enabled, publicKey }`. `enabled` is false (and `publicKey` null) until `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are all set |
 | POST | `/api/me/push/subscribe` | `{ endpoint, keys: { p256dh, auth } }` (a browser `PushSubscription.toJSON()`) | `201 { ok: true }`. Upserts by `endpoint` (the same device signed in as someone else moves to that user). `409 push_disabled` without VAPID; `400` for the emergency session (no user) |
 | POST | `/api/me/push/unsubscribe` | `{ endpoint }` | `{ ok: true }`; only removes the caller's own subscription |
 | POST | `/api/me/notifications/read-all` | - | `{ ok: true, updated }` |
 
-**Live admin alerts.** When an *employee* (session role `employee`) marks a visit done through `POST /api/me/visits/:id/done`, every active admin user gets a `visit_done` notification right away (bell and push, no email); with `cashCollectedCents` also a `cash_collected` one with the amount. Title/body are in Spanish with the employee and client name and link to the client. What the owner or an admin user does (`/api/visits/:id/complete`, `/api/payments`, an admin acting in `/api/me`) never alerts. **Bursts are grouped**: if the same employee triggers another alert of the same kind within 10 minutes (`alertWindowMs`) while the admin's previous one is still unread, that notification is updated instead ("Juan completó 3 visitas", cash totals are summed, `groupCount` grows, it moves back to the top) and pushed again with the same `tag`, so phones replace it instead of stacking. Reading it ends the group. New alert kinds (e.g. F6 extras) plug into `alertAdmins` / `alertCopy` in `services/adminAlerts.ts`.
+**Live admin alerts.** When an *employee* (session role `employee`) marks a visit done through `POST /api/me/visits/:id/done`, every active admin user gets a `visit_done` notification right away (bell and push, no email) that states the payment outcome when `paymentStatus` was sent ("Pagó todo ($ 50.000, transferencia)", "Pagó una parte (...)", "No pagó"); a cash payment also raises a `cash_collected` one with the amount (the cash that is now "a rendir"), and extras raise an `extras_added` one with the extras list and amount. Title/body are in Spanish with the employee and client name and link to the client. What the owner or an admin user does (`/api/visits/:id/complete`, `/api/payments`, an admin acting in `/api/me`) never alerts. **Bursts are grouped**: if the same employee triggers another alert of the same kind within 10 minutes (`alertWindowMs`) while the admin's previous one is still unread, that notification is updated instead ("Juan completó 3 visitas", cash totals are summed, `groupCount` grows, it moves back to the top) and pushed again with the same `tag`, so phones replace it instead of stacking. Reading it ends the group. New alert kinds plug into `alertAdmins` / `alertCopy` in `services/adminAlerts.ts`.
 
 **Web Push.** Whenever a notification is created (the single path in `services/notifications.ts`, outside any transaction) it is also sent to every device the user subscribed, as `{ title, body, link, tag }` for the service worker (`/sw.js`), which shows it and opens `link` on tap. Delivery never fails the caller; subscriptions that answer `404`/`410` are deleted. The web app is a PWA (`/manifest.webmanifest`, icons under `/icons`); iOS needs it added to the home screen (16.4+).
 
-Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. With `cashCollectedCents` a `cash` payment is registered for the visit's client (FIFO allocation) with `collectedByUserId`, `visitId` and `handedOverAt = null` ("a rendir").
+Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice only when the visit has its own price > 0, next visit when the visit has a frequency (same assignee), certificate when the service type issues one. **Extras and payment at closing.** `extras` are billed as invoice lines (see "Extras"); a visit without its own price bills only the extras. `paymentStatus` says what the client paid at the visit: `full` = the visit's invoice total (extras included; `400` when there is nothing to charge), `partial` = `amountCents`, `none` = nothing is registered. The payment is registered for the visit's client with `collectedByUserId` and `visitId` and is allocated to **the visit's invoice first**, any remainder FIFO to older debt (credit if there is none). Only `cash` stays "a rendir" (`handedOverAt = null`); `transfer` and `mercadopago` are recorded as already received (`handedOverAt` set), so they never show in `cashPending` or `/api/cash-handover`. Omitting `paymentStatus` (and `cashCollectedCents`) registers no payment.
 
 ## Cash to hand over (owner only)
 
@@ -133,6 +144,17 @@ Statement:
 
 Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servicios, Otros.
 
+### Extras (owner only)
+
+Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. "Cebo" or "Estación cebadera". Employees read the active ones through `GET /api/me/extras`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/extras` | - | `{ id, name, priceCents, active, createdAt }[]` by name (inactive included) |
+| POST | `/api/extras` | `{ name, priceCents (>0), active?=true }` | `201` row |
+| PATCH | `/api/extras/:id` | subset | row (a price change never touches lines already billed) |
+| DELETE | `/api/extras/:id` | - | `{ ok: true }`; `409` once used by a visit (deactivate instead) |
+
 ## Visits and agenda
 
 | Method | Path | Body / query | Response |
@@ -146,9 +168,11 @@ Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servi
 | GET | `/api/agenda/summary` | - | `{ today, tomorrow, thisWeek, overdueScheduled }`: scheduled visit counts; `thisWeek` = today through Sunday of the current Mon-Sun week; `overdueScheduled` = scheduled with date < today |
 
 `POST /api/visits/:id/complete` body (all optional, booleans default false):
-`{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate, certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes? }`.
-One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
-Errors (`400`): price <= 0 when invoicing, service does not issue certificates, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
+`{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate? (default: what the service type does), certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes?, extras?: { extraId, quantity (1-99) }[] }`.
+One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`, 30 days when the type has none), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, extras: { extraId, name, quantity, unitPriceCents, amountCents }[], certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
+**Invoice lines and extras.** The invoice gets one line for the base service (when its price is > 0) plus one line per extra at the catalog price of that moment (the same extra twice is merged); `amountCents` is the total of the lines, so ARCA still sees one total. The extras are also stored per visit (`visit_extras`, name and price snapshot). Extras need `createInvoice`; an unknown extra is `404`, an inactive one `400`.
+**Oblea rule.** A service type with `issuesCertificate` always issues the oblea on completion (the owner may pass `issueCertificate: false` explicitly; the employee flow cannot). Its base invoice line reads `"<service> (incluye desinfección y oblea)"`.
+Errors (`400`): total <= 0 when invoicing, extras without invoice, `issueCertificate: true` for a service that does not issue them, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
 
 ## Monthly service tracking
 
@@ -173,7 +197,7 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
-| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false` |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
 
 **Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
 Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.

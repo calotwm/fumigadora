@@ -6,6 +6,7 @@ import { useServiceTypes } from '../../lib/queries';
 import { EmptyState, Table, Tag, type Column } from '../../ui/display';
 import { useActions } from '../actions/ActionsProvider';
 import { ArcaState, EmitButton } from '../receivables/Arca';
+import { InvoiceLines } from '../receivables/InvoiceLines';
 import type { Certificate, ClientDetail, Invoice, LedgerEntry, Statement, Visit } from '../../lib/types';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -171,7 +172,7 @@ export function InvoicesTab({ statement }: { statement: Statement }) {
       cell: (i) => (
         <div>
           <p className="num font-bold">{i.number}</p>
-          {i.description ? <p className="truncate text-xs text-muted">{i.description}</p> : null}
+          <InvoiceLines invoice={i} />
         </div>
       ),
     },

@@ -5,11 +5,12 @@ import { Button } from '../../ui/Button';
 import { Checkbox, DateInput, Input, MoneyInput, Textarea } from '../../ui/form';
 import { ErrorNote, Loading } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
-import { useCancelVisit, useCompleteVisit, useRescheduleVisit, useServiceTypes } from '../../lib/queries';
+import { useCancelVisit, useCompleteVisit, useExtras, useRescheduleVisit, useServiceTypes } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { FREQUENCY_LABELS, dayMonth, fullDate, money } from '../../lib/format';
-import type { ServiceType, Visit } from '../../lib/types';
+import type { ExtraSelection, ServiceType, Visit } from '../../lib/types';
 import { AssigneeSelect } from '../employees/AssigneeSelect';
+import { ExtrasPicker, extrasTotal } from '../extras/ExtrasPicker';
 
 function VisitSummary({ visit }: { visit: Visit }) {
   return (
@@ -40,6 +41,8 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
   const formId = useId();
   const toast = useToast();
   const mutation = useCompleteVisit();
+  const extrasCatalog = useExtras().data?.filter((e) => e.active) ?? [];
+  const [extras, setExtras] = useState<ExtraSelection[]>([]);
   const initialPrice = visit.priceCents ?? service?.defaultPriceCents ?? 0;
   const hasFrequency = visit.frequency !== 'none';
 
@@ -56,12 +59,17 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
   const [error, setError] = useState<string | null>(null);
 
   const validity = service?.certificateValidityDays ?? null;
+  const extrasCents = extrasTotal(extrasCatalog, extras);
   const expiry = validity ? addDays(completedOn, validity) : null;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (createInvoice && (price === null || price <= 0)) {
       setError('Ingrese el importe a facturar o desmarque la factura.');
+      return;
+    }
+    if (extras.length > 0 && !createInvoice) {
+      setError('Los extras se facturan: marque "Crear factura".');
       return;
     }
     if (scheduleNext && (!nextDate || nextDate <= completedOn)) {
@@ -77,6 +85,7 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
           priceCents: price ?? undefined,
           createInvoice,
           issueCertificate: visit.issuesCertificate && issueCertificate,
+          extras: extras.length > 0 ? extras : undefined,
           certificateNumber: issueCertificate && certificateNumber.trim() ? certificateNumber.trim() : undefined,
           scheduleNext,
           nextDate: scheduleNext ? nextDate : undefined,
@@ -126,9 +135,19 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
           }}
         />
         <div className="flex flex-col gap-2 border-t border-rule pt-3">
-          <Checkbox label="Crear factura" hint={price ? money(price) : 'Sin importe definido'} checked={createInvoice} onChange={setCreateInvoice} />
+          <Checkbox
+            label="Crear factura"
+            hint={price || extrasCents ? money((price ?? 0) + extrasCents) : 'Sin importe definido'}
+            checked={createInvoice}
+            onChange={setCreateInvoice}
+          />
           {createInvoice ? <MoneyInput label="Importe a facturar" value={price} onChange={setPrice} /> : null}
         </div>
+        {extrasCatalog.length > 0 ? (
+          <div className="border-t border-rule pt-3">
+            <ExtrasPicker catalog={extrasCatalog} value={extras} onChange={setExtras} />
+          </div>
+        ) : null}
         {visit.issuesCertificate ? (
           <div className="flex flex-col gap-2 border-t border-rule pt-3">
             <Checkbox

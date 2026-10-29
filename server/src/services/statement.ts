@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { invoices, payments } from '../db/schema.js';
-import { allocationsForPayments, selectInvoices, toInvoiceView } from './accounts.js';
+import { allocationsForPayments, selectInvoices, toInvoiceView, withInvoiceItems } from './accounts.js';
 import { clientSummary, requireClient } from './clients.js';
 import { listCertificates } from './certificates.js';
 import { listVisits } from './visits.js';
@@ -35,7 +35,10 @@ export async function clientStatement(db: Db, today: IsoDate, clientId: number) 
     paymentRows.map((p) => p.id),
   );
 
-  const invoiceViews = invoiceRows.map((r) => toInvoiceView(r, today));
+  const invoiceViews = await withInvoiceItems(
+    db,
+    invoiceRows.map((r) => toInvoiceView(r, today)),
+  );
   const activeInvoices = invoiceViews.filter((i) => !i.voided);
   const paymentViews = paymentRows.map((p) => {
     const list = allocs.get(p.id) ?? [];
