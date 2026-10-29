@@ -81,12 +81,14 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`; `link` is an in-app route. The web app polls this every 60 s |
+| GET | `/api/me/notifications` | - | `{ unreadCount, items: { id, kind, title, body, link, readAt, createdAt }[] }`, the latest 30 newest first. `kind`: `day_summary`, `visits_overdue`, `client_email_failed`, `visits_today`, `visits_reminder`, `visit_done`, `cash_collected`; `link` is an in-app route. The web app polls this every 60 s |
 | POST | `/api/me/notifications/:id/read` | - | `{ ok: true }` (repeating it is fine). `404` for an unknown id or one that belongs to someone else |
 | GET | `/api/me/push` | - | `{ enabled, publicKey }`. `enabled` is false (and `publicKey` null) until `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` are all set |
 | POST | `/api/me/push/subscribe` | `{ endpoint, keys: { p256dh, auth } }` (a browser `PushSubscription.toJSON()`) | `201 { ok: true }`. Upserts by `endpoint` (the same device signed in as someone else moves to that user). `409 push_disabled` without VAPID; `400` for the emergency session (no user) |
 | POST | `/api/me/push/unsubscribe` | `{ endpoint }` | `{ ok: true }`; only removes the caller's own subscription |
 | POST | `/api/me/notifications/read-all` | - | `{ ok: true, updated }` |
+
+**Live admin alerts.** When an *employee* (session role `employee`) marks a visit done through `POST /api/me/visits/:id/done`, every active admin user gets a `visit_done` notification right away (bell and push, no email); with `cashCollectedCents` also a `cash_collected` one with the amount. Title/body are in Spanish with the employee and client name and link to the client. What the owner or an admin user does (`/api/visits/:id/complete`, `/api/payments`, an admin acting in `/api/me`) never alerts. **Bursts are grouped**: if the same employee triggers another alert of the same kind within 10 minutes (`alertWindowMs`) while the admin's previous one is still unread, that notification is updated instead ("Juan completó 3 visitas", cash totals are summed, `groupCount` grows, it moves back to the top) and pushed again with the same `tag`, so phones replace it instead of stacking. Reading it ends the group. New alert kinds (e.g. F6 extras) plug into `alertAdmins` / `alertCopy` in `services/adminAlerts.ts`.
 
 **Web Push.** Whenever a notification is created (the single path in `services/notifications.ts`, outside any transaction) it is also sent to every device the user subscribed, as `{ title, body, link, tag }` for the service worker (`/sw.js`), which shows it and opens `link` on tap. Delivery never fails the caller; subscriptions that answer `404`/`410` are deleted. The web app is a PWA (`/manifest.webmanifest`, icons under `/icons`); iOS needs it added to the home screen (16.4+).
 

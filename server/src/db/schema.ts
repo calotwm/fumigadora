@@ -46,7 +46,15 @@ export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test', 'owner_no
 export const EMAIL_STATUSES = ['sent', 'simulated', 'failed'] as const;
 export const ROUTE_PLAN_STATUSES = ['draft', 'approved'] as const;
 export const emailKindEnum = pgEnum('email_kind', EMAIL_KINDS);
-export const NOTIFICATION_KINDS = ['day_summary', 'visits_overdue', 'client_email_failed', 'visits_today', 'visits_reminder'] as const;
+export const NOTIFICATION_KINDS = [
+  'day_summary',
+  'visits_overdue',
+  'client_email_failed',
+  'visits_today',
+  'visits_reminder',
+  'visit_done',
+  'cash_collected',
+] as const;
 export const notificationKindEnum = pgEnum('notification_kind', NOTIFICATION_KINDS);
 export const emailStatusEnum = pgEnum('email_status', EMAIL_STATUSES);
 export const routePlanStatusEnum = pgEnum('route_plan_status', ROUTE_PLAN_STATUSES);
@@ -337,6 +345,10 @@ export const notifications = pgTable(
     refId: text('ref_id'),
     /** `<userId>:<kind>:<refType>:<refId>:<business date>`. */
     dedupeKey: text('dedupe_key').notNull(),
+    /** Live alerts of one employee and kind share a group while unread; a burst updates the row instead of adding one. */
+    groupKey: text('group_key'),
+    groupCount: integer('group_count').notNull().default(1),
+    groupAmountCents: cents('group_amount_cents'),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: createdAt(),
   },

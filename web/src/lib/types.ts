@@ -409,7 +409,14 @@ export interface UserInput {
   assignable: boolean;
 }
 
-export type NotificationKind = 'day_summary' | 'visits_overdue' | 'client_email_failed' | 'visits_today' | 'visits_reminder';
+export type NotificationKind =
+  | 'day_summary'
+  | 'visits_overdue'
+  | 'client_email_failed'
+  | 'visits_today'
+  | 'visits_reminder'
+  | 'visit_done'
+  | 'cash_collected';
 
 export interface NotificationItem {
   id: number;

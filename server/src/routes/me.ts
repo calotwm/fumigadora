@@ -4,6 +4,7 @@ import { queueAutoEmit } from '../arca/service.js';
 import { badRequest, conflict, idParam, notFound, v, type Deps } from '../http.js';
 import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsubscribeInput } from '../services/push.js';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
+import { alertVisitDone } from '../services/adminAlerts.js';
 import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
 
 /**
@@ -27,6 +28,17 @@ export function meRoutes(deps: Deps) {
       const userId = actingUser(c.get('session'), c.req.valid('query').userId);
       const result = await markMyVisitDone(db, today(), userId, c.req.valid('param').id, c.req.valid('json'));
       if (result.invoice) queueAutoEmit(deps, [result.invoice.id]);
+      // Admins hear about field work right away; what the owner or an admin does themselves is not an alert.
+      const session = c.get('session');
+      if (session.role === 'employee') {
+        await alertVisitDone(deps, {
+          employeeId: userId,
+          employeeName: session.name,
+          clientId: result.visit.clientId,
+          visitId: result.visit.id,
+          ...(c.req.valid('json').cashCollectedCents ? { cashCents: c.req.valid('json').cashCollectedCents! } : {}),
+        });
+      }
       return c.json(result);
     })
     // Notifications belong to the signed-in user. The emergency owner session has no user, hence nothing to list.

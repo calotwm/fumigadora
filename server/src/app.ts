@@ -37,6 +37,8 @@ export interface AppOptions {
   fetch?: typeof fetch;
   /** Web Push transport. Defaults to `web-push` with the configured VAPID keys; only used when push is configured. */
   push?: PushSender;
+  now?: () => Date;
+  alertWindowMs?: number;
 }
 
 export function createApp(options: AppOptions) {
@@ -46,6 +48,8 @@ export function createApp(options: AppOptions) {
     mail: options.mail ?? createMailProvider(options.config.mail),
     today: options.today ?? (() => businessToday()),
     ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.alertWindowMs !== undefined ? { alertWindowMs: options.alertWindowMs } : {}),
   };
   // Every notification created through this db is also pushed to the user's devices.
   registerPush(options.db, createPushService(options.config.push, options.push));

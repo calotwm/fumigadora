@@ -20,6 +20,11 @@ export interface NewNotification {
   day: IsoDate;
   /** Web Push tag: a later push with the same tag replaces this one on the phone. Defaults to one per notification. */
   pushTag?: string;
+  /** Overrides the creation time (tests and alert grouping use an injected clock). */
+  createdAt?: Date;
+  /** Live-alert grouping, see `adminAlerts.ts`. */
+  groupKey?: string;
+  groupAmountCents?: number | null;
 }
 
 export const dedupeKeyOf = (n: Pick<NewNotification, 'userId' | 'kind' | 'refType' | 'refId' | 'day'>) =>
@@ -46,6 +51,8 @@ export async function createNotification(db: Db, n: NewNotification): Promise<No
       refType: n.refType ?? null,
       refId: n.refId ?? null,
       dedupeKey: dedupeKeyOf(n),
+      ...(n.createdAt ? { createdAt: n.createdAt } : {}),
+      ...(n.groupKey ? { groupKey: n.groupKey, groupAmountCents: n.groupAmountCents ?? null } : {}),
     })
     .onConflictDoNothing()
     .returning();

@@ -30,7 +30,7 @@ export interface ApiResult {
 export async function makeTestApp(
   initialToday = '2025-06-15',
   mail: MailProvider = createSimulatedProvider(),
-  opts: { config?: Partial<Config>; fetch?: typeof fetch; push?: PushSender } = {},
+  opts: { config?: Partial<Config>; fetch?: typeof fetch; push?: PushSender; now?: () => Date; alertWindowMs?: number } = {},
 ) {
   const config: Config = { ...testConfig, ...opts.config };
   const handle = createDb(); // memory://
@@ -44,6 +44,8 @@ export async function makeTestApp(
     mail,
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
     ...(opts.push ? { push: opts.push } : {}),
+    ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.alertWindowMs !== undefined ? { alertWindowMs: opts.alertWindowMs } : {}),
   });
 
   const login = await app.request('/api/auth/login', {
