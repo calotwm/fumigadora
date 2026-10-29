@@ -42,15 +42,15 @@ Mode: off (project convention, see plagamix-etapas). Runner: Vitest (`npm test`)
 Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast above 400 lines. Work-unit commits per task; PR slicing decided with the user before opening PRs. RDD disabled globally by user.
 
 ## Tasks
-- [ ] I1 Schema: `legacy_id` columns, client location fields, `client_contacts` table, certificate description + legacy file url; Drizzle migration. Route: delegated (one writer for I1+I2+I4, 2+ non-trivial files).
-- [ ] I2 Pure mapper in `shared/src/legacy.ts` with fixture tests (money, dates, statuses, tax ids, ledger split into invoices/payments). Route: delegated.
+- [x] I1 Schema: `legacy_id` columns, client location fields, `client_contacts` table, certificate description + legacy file url; Drizzle migration. Route: delegated (one writer for I1+I2+I4, 2+ non-trivial files).
+- [x] I2 Pure mapper in `shared/src/legacy.ts` with fixture tests (money, dates, statuses, tax ids, ledger split into invoices/payments). Route: delegated.
 - [x] I3 Ledger semantics verified against legacy balances (see above). Route: inline (analysis only).
-- [ ] I4 `server/src/import-legacy.ts` + `npm run db:import-legacy` (`--dry-run`, `--file`), transactional, idempotent, reconciliation report (per-client computed debt vs legacy balance). Route: delegated.
+- [x] I4 `server/src/import-legacy.ts` + `npm run db:import-legacy` (`--dry-run`, `--file`), transactional, idempotent, reconciliation report (per-client computed debt vs legacy balance). Route: delegated.
 - [ ] I5 Oblea PDFs to new storage (needs storage decision: Railway volume vs S3).
 - [ ] I6 Run the import on production after the first Railway deploy.
 
 ## Acceptance criteria
-- Dry-run on the real export reports 303 clients, 959 visits, 279 certificates, and 0 clients whose computed debt differs from the legacy balance.
+- Dry-run on the real export reports 303 clients, 957 visits (959 minus 2 legacy appointments without date, reported as skipped), 279 certificates, and 0 clients whose computed debt differs from the legacy balance.
 - Running the import twice produces no duplicates.
 - Existing tests keep passing; the importer has tests with small fixtures (no real client data in the repo).
 
@@ -59,8 +59,12 @@ Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast
 
 ## Progress / evidence
 - I3: node analysis of the export, 303/303 balances match `sum(currentAccount)`.
+- I1 (delegated, one writer): 5b57813. Migration 0005_legacy_import; `client_contacts` (name, phone, whatsapp, email, position, notes), client city/province/postal_code/latitude/longitude, certificate description/legacy_file_url, nullable unique legacy_id.
+- I2 (delegated): 048fa5e. `shared/src/legacy.ts`, 17 tests. Deviations: `legacyPesosToCents` (name clash with money.ts); iva 0 -> consumidor_final (column default); doc type 80/86 -> cuit, 96 -> dni, else none; certificates numbered `L-<legacyId>`.
+- I4 (delegated): b972d65. `server/src/services/legacyImport.ts` + CLI `server/src/import-legacy.ts`, `npm run db:import-legacy` (`--dry-run`, `--file`, extra `--allow-mismatches`; any mismatch exits 1 and a real run rolls back). Invoices/payments insert-only, other entities upserted by legacy_id. FIFO allocates each new payment over all open client invoices (same net balance).
+- Checks: typecheck exit 0; `npm test` 224/224 (re-run by parent: 224 passed); build ok. Real export on throwaway PGlite: 303 clients, 98 contacts, 957 visits (2 skipped undated), 279 certificates, 5003 invoices (3 zero charges skipped, 0 negative), 4289 payments, 5219 allocations, 4 service types created, 0/303 reconciliation mismatches. Second real run: 0 inserted, 0 mismatches (idempotent).
 
 ## Next step
-I1+I2+I4 with one delegated writer.
+I5: decide oblea PDF storage. I6 after the first Railway deploy.
 
 Engram mirror: `odd/legacy-import/tasks`.
