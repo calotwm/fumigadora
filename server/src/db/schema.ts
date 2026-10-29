@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -28,6 +29,8 @@ import {
 
 const cents = (name: string) => bigint(name, { mode: 'number' });
 const isoDate = (name: string) => date(name, { mode: 'string' });
+/** Id of the row in the legacy system; unique when set, so the legacy import can upsert. */
+const legacyId = () => integer('legacy_id');
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 
 export const clientKindEnum = pgEnum('client_kind', CLIENT_KINDS);
@@ -87,10 +90,38 @@ export const clients = pgTable(
     ivaCondition: ivaConditionEnum('iva_condition').notNull().default('consumidor_final'),
     /** Razón social. */
     legalName: text('legal_name'),
+    /** Location (kept next to `address`; `area` is the delivery zone). */
+    city: text('city'),
+    province: text('province'),
+    postalCode: text('postal_code'),
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
+    legacyId: legacyId(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('clients_name_idx').on(t.name)],
+  (t) => [index('clients_name_idx').on(t.name), uniqueIndex('clients_legacy_id_uq').on(t.legacyId)],
+);
+
+/** Extra contact people of a client (administrator, doorman...), in addition to the main contact on the client. */
+export const clientContacts = pgTable(
+  'client_contacts',
+  {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    phone: text('phone'),
+    whatsapp: text('whatsapp'),
+    email: text('email'),
+    /** Role of the person, e.g. administrator. */
+    position: text('position'),
+    notes: text('notes'),
+    legacyId: legacyId(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('client_contacts_client_idx').on(t.clientId), uniqueIndex('client_contacts_legacy_id_uq').on(t.legacyId)],
 );
 
 export const serviceTypes = pgTable('service_types', {
@@ -120,9 +151,11 @@ export const visits = pgTable(
     priceCents: cents('price_cents'),
     /** Employee who has to perform the visit (null = unassigned). */
     assignedUserId: integer('assigned_user_id').references(() => users.id),
+    legacyId: legacyId(),
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex('visits_legacy_id_uq').on(t.legacyId),
     index('visits_assigned_idx').on(t.assignedUserId, t.date),
     index('visits_date_idx').on(t.date),
     index('visits_client_idx').on(t.clientId, t.date),
@@ -141,9 +174,14 @@ export const certificates = pgTable(
     number: text('number').notNull(),
     issuedOn: isoDate('issued_on').notNull(),
     expiresOn: isoDate('expires_on').notNull(),
+    description: text('description'),
+    /** URL of the certificate PDF in the legacy system, until the file is copied to our own storage. */
+    legacyFileUrl: text('legacy_file_url'),
+    legacyId: legacyId(),
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex('certificates_legacy_id_uq').on(t.legacyId),
     uniqueIndex('certificates_number_uq').on(t.number),
     index('certificates_client_idx').on(t.clientId),
     index('certificates_expires_idx').on(t.expiresOn),
@@ -179,9 +217,11 @@ export const invoices = pgTable(
     arcaAttemptedAt: timestamp('arca_attempted_at', { withTimezone: true }),
     /** Number requested in the last attempt; lets a retry reconcile a lost answer. */
     arcaAttemptedNumber: integer('arca_attempted_number'),
+    legacyId: legacyId(),
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex('invoices_legacy_id_uq').on(t.legacyId),
     uniqueIndex('invoices_number_uq').on(t.number),
     index('invoices_client_idx').on(t.clientId),
     index('invoices_due_idx').on(t.dueOn),
@@ -206,9 +246,10 @@ export const payments = pgTable(
     visitId: integer('visit_id').references(() => visits.id),
     /** When the owner confirmed receiving the cash; null while it is still "a rendir". */
     handedOverAt: timestamp('handed_over_at', { withTimezone: true }),
+    legacyId: legacyId(),
     createdAt: createdAt(),
   },
-  (t) => [index('payments_collected_idx').on(t.collectedByUserId, t.handedOverAt), index('payments_client_idx').on(t.clientId), index('payments_paid_on_idx').on(t.paidOn)],
+  (t) => [uniqueIndex('payments_legacy_id_uq').on(t.legacyId), index('payments_collected_idx').on(t.collectedByUserId, t.handedOverAt), index('payments_client_idx').on(t.clientId), index('payments_paid_on_idx').on(t.paidOn)],
 );
 
 export const allocations = pgTable(
@@ -347,6 +388,7 @@ export const jobRuns = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type Client = typeof clients.$inferSelect;
+export type ClientContact = typeof clientContacts.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;
 export type Visit = typeof visits.$inferSelect;
 export type Certificate = typeof certificates.$inferSelect;
