@@ -10,6 +10,7 @@ export const testConfig: Config = {
   port: 0,
   databaseUrl: undefined,
   pgliteDir: 'memory://',
+  filesDir: './.data/test-files',
   adminPassword: TEST_PASSWORD,
   sessionSecret: 'test-secret-test-secret-test-secret-1234',
   sessionTtlSeconds: 3600,

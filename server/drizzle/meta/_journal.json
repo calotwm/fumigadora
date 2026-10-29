@@ -43,6 +43,13 @@
       "when": 1793290145561,
       "tag": "0005_legacy_import",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793291234720,
+      "tag": "0006_certificate_files",
+      "breakpoints": true
     }
   ]
 }

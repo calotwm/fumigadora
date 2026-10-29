@@ -129,6 +129,8 @@ export interface Certificate {
   serviceTypeId: number | null;
   serviceTypeName: string | null;
   superseded: boolean;
+  /** A PDF is stored and available at `/api/certificates/:id/file`. */
+  hasFile: boolean;
 }
 
 export interface Allocation {

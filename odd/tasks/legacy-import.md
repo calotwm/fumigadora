@@ -46,7 +46,7 @@ Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast
 - [x] I2 Pure mapper in `shared/src/legacy.ts` with fixture tests (money, dates, statuses, tax ids, ledger split into invoices/payments). Route: delegated.
 - [x] I3 Ledger semantics verified against legacy balances (see above). Route: inline (analysis only).
 - [x] I4 `server/src/import-legacy.ts` + `npm run db:import-legacy` (`--dry-run`, `--file`), transactional, idempotent, reconciliation report (per-client computed debt vs legacy balance). Route: delegated.
-- [ ] I5 Oblea PDFs to new storage (needs storage decision: Railway volume vs S3).
+- [x] I5 Oblea PDFs on a Railway volume (decided 2026-10-29). Legacy serves files only through the authenticated API (`/files/byIdNoHeader/:fileId`, base64), so the 273 PDFs were fetched from the logged-in browser into `server/.data/legacy/plagamix-legacy-files.json` (gitignored, 116 MB, `{exportedAt, files: {<legacyFileId>: {certificateId, name, extension, base64}}}`, all verified `%PDF`). Build: `FILES_DIR` config (default `server/.data/files`; production = volume mount path), certificate file column, importer `--files <bundle>` writes PDFs idempotently, authenticated download endpoint, "Ver PDF" link in the client's certificates, deploy docs for the volume. Route: delegated (one writer, 2+ non-trivial files).
 - [ ] I6 Run the import on production after the first Railway deploy.
 
 ## Acceptance criteria
@@ -63,8 +63,9 @@ Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast
 - I2 (delegated): 048fa5e. `shared/src/legacy.ts`, 17 tests. Deviations: `legacyPesosToCents` (name clash with money.ts); iva 0 -> consumidor_final (column default); doc type 80/86 -> cuit, 96 -> dni, else none; certificates numbered `L-<legacyId>`.
 - I4 (delegated): b972d65. `server/src/services/legacyImport.ts` + CLI `server/src/import-legacy.ts`, `npm run db:import-legacy` (`--dry-run`, `--file`, extra `--allow-mismatches`; any mismatch exits 1 and a real run rolls back). Invoices/payments insert-only, other entities upserted by legacy_id. FIFO allocates each new payment over all open client invoices (same net balance).
 - Checks: typecheck exit 0; `npm test` 224/224 (re-run by parent: 224 passed); build ok. Real export on throwaway PGlite: 303 clients, 98 contacts, 957 visits (2 skipped undated), 279 certificates, 5003 invoices (3 zero charges skipped, 0 negative), 4289 payments, 5219 allocations, 4 service types created, 0/303 reconciliation mismatches. Second real run: 0 inserted, 0 mismatches (idempotent).
+- I5 (delegated, one writer): `FILES_DIR` config, migration 0006 (`certificates.file_key`, `file_size`), `services/files.ts` (key escape rejected), importer `--files` (plans inside the transaction, writes after commit, sets `file_key` per file, skips same-size files, dry run only counts), owner-only `GET /api/certificates/:id/file`, `hasFile` in the certificate payload, "Ver PDF" link, deploy docs. typecheck ok; `npm test` 241/241; build ok. Real export + bundle on throwaway PGlite/FILES_DIR: dry run 273 to write; real run 273 written, 0 missing; second run 273 skipped, 0 written; 273 PDFs on disk, `%PDF` header; 0/303 mismatches; scratch deleted.
 
 ## Next step
-I5: decide oblea PDF storage. I6 after the first Railway deploy.
+PR slicing decision with the user. I6 after the first Railway deploy.
 
 Engram mirror: `odd/legacy-import/tasks`.

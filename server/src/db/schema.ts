@@ -177,6 +177,9 @@ export const certificates = pgTable(
     description: text('description'),
     /** URL of the certificate PDF in the legacy system, until the file is copied to our own storage. */
     legacyFileUrl: text('legacy_file_url'),
+    /** PDF location relative to FILES_DIR (e.g. `certificates/12.pdf`); null while no file is stored. */
+    fileKey: text('file_key'),
+    fileSize: integer('file_size'),
     legacyId: legacyId(),
     createdAt: createdAt(),
   },

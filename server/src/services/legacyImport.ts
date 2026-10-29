@@ -21,6 +21,7 @@ import {
 import type { Db } from '../db/client.js';
 import { allocations, certificates, clientContacts, clients, invoices, payments, serviceTypes, visits } from '../db/schema.js';
 import { clientFinancials, openInvoiceRows } from './accounts.js';
+import { storedFileSize, writeStoredFile } from './files.js';
 
 /** The part of the legacy export the importer reads. */
 export interface LegacyExport {
@@ -41,6 +42,25 @@ export interface ImportOptions {
   allowMismatches?: boolean;
   /** Business date used for the balance snapshot; defaults to today. */
   today?: IsoDate;
+  /** Certificate PDFs to store. Requires `filesDir`. */
+  files?: LegacyFilesBundle;
+  /** Directory the PDFs are written to (FILES_DIR). */
+  filesDir?: string;
+}
+
+/** Certificate PDFs fetched from the legacy API, keyed by legacy file id. */
+export interface LegacyFilesBundle {
+  exportedAt?: string;
+  files: Record<string, { certificateId: number; name?: string; extension?: string; base64: string }>;
+}
+
+export interface FileCounts {
+  /** Files written; on a rolled-back run (dry run, mismatches) the files that would be written. */
+  written: number;
+  /** Certificates that already hold an identical-size file, or duplicate bundle entries. */
+  skipped: number;
+  /** Bundle entries whose legacy certificate is not in the database. */
+  missing: number;
 }
 
 export interface EntityCounts {
@@ -69,6 +89,8 @@ export interface ImportReport {
   payments: EntityCounts;
   serviceTypesCreated: number;
   allocationsInserted: number;
+  /** Certificate PDFs; all zero when no files bundle was given. */
+  files: FileCounts;
   /** Ledger conversion totals across all clients. */
   ledger: LedgerReport;
   reconciliation: {
@@ -76,6 +98,12 @@ export interface ImportReport {
     matched: number;
     mismatches: BalanceMismatch[];
   };
+}
+
+/** A PDF to store once the transaction has committed. */
+interface PlannedFile {
+  certificateId: number;
+  base64: string;
 }
 
 const emptyCounts = (): EntityCounts => ({ inserted: 0, updated: 0, skipped: 0 });
@@ -104,19 +132,31 @@ const startOfLocalDay = (date: IsoDate) => new Date(`${date}T00:00:00-03:00`);
  * per client in chronological order, only when newly inserted.
  */
 export async function importLegacy(db: Db, data: LegacyExport, options: ImportOptions = {}): Promise<ImportReport> {
+  if (options.files && !options.filesDir) throw new Error('importLegacy: filesDir is required with a files bundle');
   const dryRun = options.dryRun ?? false;
+  const plan: PlannedFile[] = [];
+  let report: ImportReport;
   try {
-    return await db.transaction(async (tx) => {
-      const report = await runImport(tx as unknown as Db, data, options);
-      const rollBack = dryRun || (report.reconciliation.mismatches.length > 0 && !options.allowMismatches);
-      if (rollBack) throw new RollbackSignal(report);
-      report.committed = true;
-      return report;
+    report = await db.transaction(async (tx) => {
+      const result = await runImport(tx as unknown as Db, data, options, plan);
+      const rollBack = dryRun || (result.reconciliation.mismatches.length > 0 && !options.allowMismatches);
+      if (rollBack) throw new RollbackSignal(result);
+      result.committed = true;
+      return result;
     });
   } catch (error) {
     if (error instanceof RollbackSignal) return error.report;
     throw error;
   }
+  // Files are written only after the commit, so a rolled-back run leaves the disk untouched. A crash between the commit
+  // and the writes is harmless: `file_key` is set per file after its bytes are on disk, and a re-run finishes the rest.
+  for (const item of plan) {
+    const key = `certificates/${item.certificateId}.pdf`;
+    const bytes = Buffer.from(item.base64, 'base64');
+    await writeStoredFile(options.filesDir as string, key, bytes);
+    await db.update(certificates).set({ fileKey: key, fileSize: bytes.length }).where(eq(certificates.id, item.certificateId));
+  }
+  return report;
 }
 
 async function legacyIdMap(db: Db, table: typeof clients | typeof clientContacts | typeof visits | typeof certificates | typeof invoices | typeof payments) {
@@ -124,7 +164,7 @@ async function legacyIdMap(db: Db, table: typeof clients | typeof clientContacts
   return new Map(rows.map((r) => [r.legacyId as number, r.id]));
 }
 
-async function runImport(db: Db, data: LegacyExport, options: ImportOptions): Promise<ImportReport> {
+async function runImport(db: Db, data: LegacyExport, options: ImportOptions, filePlan: PlannedFile[]): Promise<ImportReport> {
   const report: ImportReport = {
     dryRun: options.dryRun ?? false,
     committed: false,
@@ -136,6 +176,7 @@ async function runImport(db: Db, data: LegacyExport, options: ImportOptions): Pr
     payments: emptyCounts(),
     serviceTypesCreated: 0,
     allocationsInserted: 0,
+    files: { written: 0, skipped: 0, missing: 0 },
     ledger: { charges: 0, payments: 0, zeroSkipped: 0, negativeCredits: 0, emptyPaymentsSkipped: 0 },
     reconciliation: { clients: 0, matched: 0, mismatches: [] },
   };
@@ -259,6 +300,32 @@ async function runImport(db: Db, data: LegacyExport, options: ImportOptions): Pr
   }
   for (const batch of chunks(newCertificates)) await db.insert(certificates).values(batch);
   report.certificates.inserted = newCertificates.length;
+
+  // ---------- certificate files: planned here (the ids exist inside the transaction), written after the commit ----------
+  if (options.files) {
+    const stored = new Map(
+      (await db.select({ id: certificates.id, legacyId: certificates.legacyId, fileKey: certificates.fileKey }).from(certificates).where(isNotNull(certificates.legacyId))).map(
+        (r) => [r.legacyId as number, r],
+      ),
+    );
+    const seen = new Set<number>();
+    for (const entry of Object.values(options.files.files)) {
+      const cert = stored.get(entry.certificateId);
+      if (!cert) {
+        report.files.missing += 1;
+        continue;
+      }
+      const size = Buffer.byteLength(entry.base64, 'base64');
+      const onDisk = cert.fileKey ? await storedFileSize(options.filesDir as string, cert.fileKey) : null;
+      if (seen.has(cert.id) || onDisk === size) {
+        report.files.skipped += 1;
+        continue;
+      }
+      seen.add(cert.id);
+      report.files.written += 1;
+      filePlan.push({ certificateId: cert.id, base64: entry.base64 });
+    }
+  }
 
   // ---------- invoices (charges) and payments: insert-only ----------
   const invoiceIds = await legacyIdMap(db, invoices);

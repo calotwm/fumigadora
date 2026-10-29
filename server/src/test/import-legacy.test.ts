@@ -1,9 +1,12 @@
 import { count, eq } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDb, type DbHandle } from '../db/client.js';
 import { allocations, certificates, clientContacts, clients, invoices, payments, serviceTypes, visits } from '../db/schema.js';
-import { importLegacy, type LegacyCustomer, type LegacyExport } from '../services/legacyImport.js';
+import { importLegacy, type LegacyCustomer, type LegacyExport, type LegacyFilesBundle } from '../services/legacyImport.js';
 
 // Invented data only: nothing here comes from the real export.
 const charge = (id: number, date: string, amount: number) => ({
@@ -209,5 +212,48 @@ describe('legacy import', () => {
     const allowed = await importLegacy(handle.db, data, { today: '2024-06-01', allowMismatches: true });
     expect(allowed.committed).toBe(true);
     expect((await tableCounts(handle)).clients).toBe(3);
+  });
+
+  describe('certificate files', () => {
+    let filesDir: string;
+    beforeEach(async () => {
+      filesDir = await mkdtemp(join(tmpdir(), 'fumigadora-import-'));
+    });
+    afterEach(() => rm(filesDir, { recursive: true, force: true }));
+
+    // Invented bytes: a few characters starting with the PDF magic number.
+    const bundle = (): LegacyFilesBundle => ({
+      files: {
+        '900': { certificateId: 21, name: 'oblea', extension: 'pdf', base64: Buffer.from('%PDF-1.4 invented').toString('base64') },
+        '901': { certificateId: 999, name: 'orphan', extension: 'pdf', base64: Buffer.from('%PDF-orphan').toString('base64') },
+      },
+    });
+
+    it('writes PDFs after the commit, links them to the certificate and skips them on a re-run', async () => {
+      const first = await importLegacy(handle.db, fixture(), { today: '2024-06-01', files: bundle(), filesDir });
+      expect(first.files).toEqual({ written: 1, skipped: 0, missing: 1 });
+      const [cert] = await handle.db.select().from(certificates);
+      expect(cert).toMatchObject({ fileKey: `certificates/${cert!.id}.pdf`, fileSize: 17 });
+      expect(await readFile(join(filesDir, cert!.fileKey!), 'utf8')).toBe('%PDF-1.4 invented');
+
+      const second = await importLegacy(handle.db, fixture(), { today: '2024-06-01', files: bundle(), filesDir });
+      expect(second.files).toEqual({ written: 0, skipped: 1, missing: 1 });
+    });
+
+    it('rewrites a file that went missing from disk', async () => {
+      await importLegacy(handle.db, fixture(), { today: '2024-06-01', files: bundle(), filesDir });
+      const [cert] = await handle.db.select().from(certificates);
+      await rm(join(filesDir, cert!.fileKey!));
+      const again = await importLegacy(handle.db, fixture(), { today: '2024-06-01', files: bundle(), filesDir });
+      expect(again.files.written).toBe(1);
+      expect(await readFile(join(filesDir, cert!.fileKey!), 'utf8')).toBe('%PDF-1.4 invented');
+    });
+
+    it('counts but never writes on a dry run', async () => {
+      const report = await importLegacy(handle.db, fixture(), { dryRun: true, today: '2024-06-01', files: bundle(), filesDir });
+      expect(report.files).toEqual({ written: 1, skipped: 0, missing: 1 });
+      await expect(readFile(join(filesDir, 'certificates', '1.pdf'))).rejects.toThrow();
+      expect((await tableCounts(handle)).certificates).toBe(0);
+    });
   });
 });
