@@ -30,8 +30,11 @@ export async function createPayment(
   db: Db,
   today: IsoDate,
   input: z.infer<typeof paymentInput>,
-  /** Set when an employee collected the cash in the field: it stays "a rendir" until the owner confirms. */
-  collected?: { userId: number; visitId?: number | null },
+  /**
+   * Set when an employee collected the payment in the field. Cash stays "a rendir" until the owner confirms it;
+   * pass `handedOver` for money that never passes through the employee's hands (transfer, Mercado Pago).
+   */
+  collected?: { userId: number; visitId?: number | null; handedOver?: boolean },
 ) {
   await requireClient(db, input.clientId);
   const created = await db.transaction(async (rawTx) => {
@@ -51,6 +54,7 @@ export async function createPayment(
         notes: input.notes ?? null,
         collectedByUserId: collected?.userId ?? null,
         visitId: collected?.visitId ?? null,
+        handedOverAt: collected?.handedOver ? new Date() : null,
       })
       .returning();
     if (parts.length > 0) {

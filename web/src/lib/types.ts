@@ -439,7 +439,8 @@ export type NotificationKind =
   | 'visits_today'
   | 'visits_reminder'
   | 'visit_done'
-  | 'cash_collected';
+  | 'cash_collected'
+  | 'extras_added';
 
 export interface NotificationItem {
   id: number;
@@ -459,7 +460,22 @@ export interface NotificationList {
 
 export interface MyVisit extends Visit {
   clientBalanceCents: number;
+  /** Everything the employee registered as paid at this visit (any method). */
+  paidCents: number;
+  /** The cash part of it: the one that is "a rendir". */
   cashCollectedCents: number;
+}
+
+export type PaymentStatus = 'full' | 'partial' | 'none';
+export type FieldPaymentMethod = 'cash' | 'transfer' | 'mercadopago';
+
+export interface MyDoneBody {
+  paymentStatus: PaymentStatus;
+  method?: FieldPaymentMethod;
+  /** Amount received when the payment is partial. */
+  amountCents?: number;
+  extras?: ExtraSelection[];
+  notes?: string;
 }
 
 export interface MyVisits {

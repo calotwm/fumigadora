@@ -11,6 +11,7 @@ import type {
   EmailStatus,
   ReminderPreview,
   RouteView,
+  MyDoneBody,
   MyVisits,
   NotificationList,
   UserInput,
@@ -552,8 +553,7 @@ export function useMyVisits(date: string) {
 export function useMarkMyVisitDone() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, cashCollectedCents }: { id: number; cashCollectedCents?: number }) =>
-      api<CompleteVisitResult>(`/me/visits/${id}/done`, { body: { cashCollectedCents } }),
+    mutationFn: ({ id, body }: { id: number; body: MyDoneBody }) => api<CompleteVisitResult>(`/me/visits/${id}/done`, { body }),
     onSuccess: () => invalidateData(queryClient),
   });
 }

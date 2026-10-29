@@ -188,7 +188,12 @@ function VisitItem({ visit, onMark }: { visit: MyVisit; onMark: () => void }) {
             <Check size={16} aria-hidden />
           </span>
           Hecho
-          {visit.cashCollectedCents > 0 ? <span className="num font-normal">· Efectivo {money(visit.cashCollectedCents)}</span> : null}
+          {visit.paidCents > 0 ? (
+            <span className="num font-normal">
+              · Cobrado {money(visit.paidCents)}
+              {visit.cashCollectedCents > 0 ? ` (efectivo ${money(visit.cashCollectedCents)})` : ''}
+            </span>
+          ) : null}
         </p>
       ) : (
         <div className="mt-3 flex flex-col gap-2 pl-[72px]">

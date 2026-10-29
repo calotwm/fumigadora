@@ -35,7 +35,7 @@ export async function cashHandover(db: Db) {
       .where(and(isNotNull(payments.collectedByUserId), isNull(payments.handedOverAt)))
       .orderBy(payments.paidOn, payments.id),
     base(db)
-      .where(isNotNull(payments.handedOverAt))
+      .where(and(isNotNull(payments.handedOverAt), eq(payments.method, 'cash')))
       .orderBy(desc(payments.handedOverAt), desc(payments.id))
       .limit(RECENT_LIMIT),
   ]);

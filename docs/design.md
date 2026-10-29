@@ -73,6 +73,7 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 5. **Agendar visita**: from client sheet or agenda empty slot; client autocomplete; frequency defaults to client's last frequency.
 6. **Registrar gasto**: global quick-add (`+` button / `N` key) → amount, category chips, date defaults today.
 7. **Recordatorio WhatsApp**: `wa.me` link with prefilled text (debt reminder or visit reminder). No external API.
+8. **Cerrar visita (empleado, celular)**: "Marcar hecho" opens one sheet: extras from the catalog (+/- steppers), live total, "Pagó todo / Pagó una parte / No pagó", method chips (efectivo, transferencia, Mercado Pago) and the amount for a partial payment. The payment goes to this visit's invoice first, then to older debt; only cash is "a rendir". Admins get one alert with the payment outcome and, if any, another with the extras.
 
 ## 5. Navigation
 

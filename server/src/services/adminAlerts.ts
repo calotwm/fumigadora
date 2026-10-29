@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, isNull } from 'drizzle-orm';
-import { formatMoney } from '@fumigadora/shared';
+import { formatMoney, type PaymentMethod } from '@fumigadora/shared';
 import { clients, notifications, users } from '../db/schema.js';
 import type { Deps } from '../http.js';
 import { createNotification, pushNotification } from './notifications.js';
@@ -12,7 +12,7 @@ export const ALERT_GROUP_WINDOW_MS = 10 * 60 * 1000;
  * Hook for new alert kinds (e.g. F6 extras): add the kind to `NOTIFICATION_KINDS` and AlertKind, a case in
  * `alertCopy`, and call `alertAdmins` from the employee flow.
  */
-export type AlertKind = 'visit_done' | 'cash_collected';
+export type AlertKind = 'visit_done' | 'cash_collected' | 'extras_added';
 
 export interface EmployeeAlert {
   kind: AlertKind;
@@ -20,8 +20,10 @@ export interface EmployeeAlert {
   employeeName: string;
   clientId: number;
   clientName: string;
-  /** Money involved (cash alerts). Summed when alerts are grouped. */
+  /** Money involved (cash and extras alerts). Summed when alerts are grouped. */
   amountCents?: number;
+  /** Kind-specific sentence fragment shown in the single-alert body (payment outcome, extras list...). */
+  detail?: string;
   /** Id of the visit (or other record) behind the alert; makes a retried request idempotent. */
   entityId: number;
 }
@@ -33,12 +35,16 @@ export function alertCopy(alert: EmployeeAlert, count: number, totalCents: numbe
   switch (alert.kind) {
     case 'visit_done':
       return count === 1
-        ? { title: 'Visita completada', body: `${who} completó la visita de ${alert.clientName}.`, ...single }
+        ? { title: 'Visita completada', body: `${who} completó la visita de ${alert.clientName}.${alert.detail ? ` ${alert.detail}.` : ''}`, ...single }
         : { title: 'Visitas completadas', body: `${who} completó ${count} visitas.`, link: '/agenda' };
     case 'cash_collected':
       return count === 1
         ? { title: 'Cobro en efectivo', body: `${who} cobró ${formatMoney(totalCents ?? 0)} en efectivo de ${alert.clientName}.`, ...single }
         : { title: 'Cobros en efectivo', body: `${who} registró ${count} cobros en efectivo por ${formatMoney(totalCents ?? 0)}.`, link: '/finanzas' };
+    case 'extras_added':
+      return count === 1
+        ? { title: 'Extras agregados', body: `${who} agregó extras en ${alert.clientName}: ${alert.detail ?? ''} (${formatMoney(totalCents ?? 0)}).`, ...single }
+        : { title: 'Extras agregados', body: `${who} agregó extras en ${count} visitas por ${formatMoney(totalCents ?? 0)}.`, link: '/agenda' };
   }
 }
 
@@ -94,13 +100,45 @@ export async function alertAdmins(deps: Deps, alert: EmployeeAlert) {
   return { created, grouped };
 }
 
-/** Alert for an employee that just completed a visit, optionally with cash collected there. Never throws. */
-export async function alertVisitDone(deps: Deps, input: { employeeId: number; employeeName: string; clientId: number; visitId: number; cashCents?: number }) {
+const METHOD_LABELS: Partial<Record<PaymentMethod, string>> = { cash: 'efectivo', transfer: 'transferencia', mercadopago: 'Mercado Pago' };
+
+export interface VisitDoneAlertInput {
+  employeeId: number;
+  employeeName: string;
+  clientId: number;
+  visitId: number;
+  /** Payment outcome the employee reported; omitted for the legacy cash-only request. */
+  payment?: { status: 'full' | 'partial' | 'none'; method: PaymentMethod; amountCents: number };
+  /** Cash that stays "a rendir" (cash payments only). */
+  cashCents?: number;
+  extras?: { name: string; quantity: number; amountCents: number }[];
+}
+
+/** "Pagó todo ($ 50.000, transferencia)", "Pagó una parte (...)" or "No pagó". */
+export function paymentSummary(payment: NonNullable<VisitDoneAlertInput['payment']>): string {
+  if (payment.status === 'none') return 'No pagó';
+  const how = `${formatMoney(payment.amountCents)}, ${METHOD_LABELS[payment.method] ?? payment.method}`;
+  return payment.status === 'full' ? `Pagó todo (${how})` : `Pagó una parte (${how})`;
+}
+
+/**
+ * Alerts for an employee that just completed a visit: the visit itself (with the payment outcome), the cash that is
+ * now "a rendir" and any extras billed. Never throws.
+ */
+export async function alertVisitDone(deps: Deps, input: VisitDoneAlertInput) {
   try {
     const [client] = await deps.db.select({ name: clients.name }).from(clients).where(eq(clients.id, input.clientId));
     const base = { employeeId: input.employeeId, employeeName: input.employeeName, clientId: input.clientId, clientName: client?.name ?? 'un cliente', entityId: input.visitId };
-    await alertAdmins(deps, { ...base, kind: 'visit_done' });
+    await alertAdmins(deps, { ...base, kind: 'visit_done', ...(input.payment ? { detail: paymentSummary(input.payment) } : {}) });
     if (input.cashCents) await alertAdmins(deps, { ...base, kind: 'cash_collected', amountCents: input.cashCents });
+    if (input.extras && input.extras.length > 0) {
+      await alertAdmins(deps, {
+        ...base,
+        kind: 'extras_added',
+        amountCents: input.extras.reduce((sum, e) => sum + e.amountCents, 0),
+        detail: input.extras.map((e) => `${e.quantity} × ${e.name}`).join(', '),
+      });
+    }
   } catch (error) {
     console.error('[alerts] could not alert the admins', error);
   }

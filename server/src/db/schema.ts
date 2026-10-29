@@ -54,6 +54,7 @@ export const NOTIFICATION_KINDS = [
   'visits_reminder',
   'visit_done',
   'cash_collected',
+  'extras_added',
 ] as const;
 export const notificationKindEnum = pgEnum('notification_kind', NOTIFICATION_KINDS);
 export const emailStatusEnum = pgEnum('email_status', EMAIL_STATUSES);

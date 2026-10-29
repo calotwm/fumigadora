@@ -34,12 +34,24 @@ export function meRoutes(deps: Deps) {
       // Admins hear about field work right away; what the owner or an admin does themselves is not an alert.
       const session = c.get('session');
       if (session.role === 'employee') {
+        const body = c.req.valid('json');
+        const cashCents = result.paymentMethod === 'cash' ? (result.payment?.payment.amountCents ?? 0) : 0;
         await alertVisitDone(deps, {
           employeeId: userId,
           employeeName: session.name,
           clientId: result.visit.clientId,
           visitId: result.visit.id,
-          ...(c.req.valid('json').cashCollectedCents ? { cashCents: c.req.valid('json').cashCollectedCents! } : {}),
+          ...(body.paymentStatus
+            ? {
+                payment: {
+                  status: body.paymentStatus,
+                  method: body.method,
+                  amountCents: result.payment?.payment.amountCents ?? 0,
+                },
+              }
+            : {}),
+          ...(cashCents > 0 ? { cashCents } : {}),
+          extras: result.extras,
         });
       }
       return c.json(result);
