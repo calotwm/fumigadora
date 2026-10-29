@@ -19,7 +19,7 @@ Today the owner logs in with `ADMIN_PASSWORD` only and has no user row (session 
 - Admin users with username + password; role selectable in Ajustes > Empleados; optional email on users.
 - `ADMIN_PASSWORD` kept as emergency owner access only.
 - Notifications: storage, API, bell UI (admin shell and employee app), generators, email copy for admins.
-- Out of scope: client role and client portal (F3, needs magic-link design), WhatsApp.
+- Out of scope: client role and client portal (F3, needs magic-link design), WhatsApp, employee app work (extras with prices, ordered daily route, postpone/cancel, partial payment status: F6).
 
 ## Decisions (accepted by the user 2026-10-29)
 - Login screen: username + password for everyone; a secondary "Acceso de emergencia" link keeps the password-only `ADMIN_PASSWORD` login. Emergency session stays userless (`name 'Dueño'`), has no bell, and should prompt to create an admin user if none exists.
@@ -44,9 +44,11 @@ Mode: off (project convention). Runner: Vitest (`npm test`). Ordinary functional
 Branch `feat/roles-notifications` (from main b01f5ae). Strategy: ask-on-risk; forecast above 400 lines; single PR with work-unit commits (same as legacy-import, accepted by the user). RDD disabled globally by user.
 
 ## Tasks
-- [ ] R1 Admin users: migration (users.email, users.assignable), role + email + assignable in user CRUD (server + EmployeesSection), unified login form with emergency link, `/api/me` acting as the admin user, assignee filtering, dev seed admin, tests and docs (README, docs/design.md, docs/api.md). Route: delegated (one writer for R1, N1, N2; 2+ non-trivial files).
-- [ ] N1 Notifications core: `notifications` table + migration, service (create with dedupe, list, unread count, mark read / mark all read), `/api/me/notifications` endpoints, bell with unread badge and dropdown in admin `Shell` and `EmployeeApp`, tests. Route: delegated.
-- [ ] N2 Generators: time-slotted jobs (morning, 17:00, 20:00 Buenos Aires) for the notifications listed above, failed-client-email hook, admin email copy via `sendLogged` (new email kind), tests with injectable today/time. Route: delegated.
+- [x] R1 Admin users: migration (users.email, users.assignable), role + email + assignable in user CRUD (server + EmployeesSection), unified login form with emergency link, `/api/me` acting as the admin user, assignee filtering, dev seed admin, tests and docs (README, docs/design.md, docs/api.md). Route: delegated (one writer for R1, N1, N2; 2+ non-trivial files).
+- [x] N1 Notifications core: `notifications` table + migration, service (create with dedupe, list, unread count, mark read / mark all read), `/api/me/notifications` endpoints, bell with unread badge and dropdown in admin `Shell` and `EmployeeApp`, tests. Route: delegated.
+- [x] N2 Generators: time-slotted jobs (morning, 17:00, 20:00 Buenos Aires) for the notifications listed above, failed-client-email hook, admin email copy via `sendLogged` (new email kind), tests with injectable today/time. Route: delegated.
+- [ ] N3 Installable PWA + Web Push (added by the user 2026-10-29): web app manifest with Plagamix icon/colors, service worker, Web Push with VAPID keys (env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; inactive when unset), `push_subscriptions` table per user/device, "Activar notificaciones" button in admin shell and employee app, every notification also delivered as push to the user's devices (expired subscriptions removed). iOS needs the PWA added to the home screen (16.4+). Route: delegated.
+- [ ] N4 Live admin alerts (added by the user 2026-10-29): when an employee marks a visit done, records cash collected (and extras once F6 exists), every active admin gets a notification + push right away; bursts from the same employee within a few minutes are grouped into one notification. Route: delegated.
 
 ## Acceptance criteria
 - Lucas logs in with username + password and sees the full admin UI; emergency password login still works.
@@ -59,8 +61,12 @@ Branch `feat/roles-notifications` (from main b01f5ae). Strategy: ask-on-risk; fo
 
 ## Progress / evidence
 - Mapping: delegated explorer (auth, users, notifications, owner assumptions).
+- R1 (delegated, one writer): 2bce3f8. Migration 0007 (users.email unique nullable, users.assignable, admins backfilled false). Server login already accepted username; UI unified with "Acceso de emergencia". Assignee lists filter assignable. Seed admin `lucas`.
+- N1 (delegated): a517fb2. Migration 0008 `notifications` (kinds day_summary, visits_overdue, client_email_failed, visits_today, visits_reminder; dedupe `userId:kind:refType:refId:day`), `/api/me/notifications`, bell polling every 60s in Shell rail, mobile top bar and EmployeeApp.
+- N2 (delegated): cc79723. Migration 0009 (email kind owner_notification). Job keys notify_morning (09:00), notify_afternoon (17:00-20:00), notify_evening (20:00) in job_runs, catch-up after restart. Failed client email -> admins once per client/kind/day. Evening summary skipped on empty days.
+- Checks: typecheck 0 errors; `npm test` 260/260 (re-run by parent: 260 passed); build ok; API smoke on throwaway PGlite: seed admin login (userId 1), notifications list with a visits_overdue item, emergency login userless with empty list. Not verified: browser QA of login, bell, banner, Ajustes; real Resend; Postgres run of migration 0009.
 
 ## Next step
-R1, N1, N2 with one delegated writer.
+N3 and N4 with the same delegated writer, then browser QA of the whole feature.
 
 Engram mirror: `odd/roles-notifications/tasks`.
