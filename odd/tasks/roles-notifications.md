@@ -47,8 +47,8 @@ Branch `feat/roles-notifications` (from main b01f5ae). Strategy: ask-on-risk; fo
 - [x] R1 Admin users: migration (users.email, users.assignable), role + email + assignable in user CRUD (server + EmployeesSection), unified login form with emergency link, `/api/me` acting as the admin user, assignee filtering, dev seed admin, tests and docs (README, docs/design.md, docs/api.md). Route: delegated (one writer for R1, N1, N2; 2+ non-trivial files).
 - [x] N1 Notifications core: `notifications` table + migration, service (create with dedupe, list, unread count, mark read / mark all read), `/api/me/notifications` endpoints, bell with unread badge and dropdown in admin `Shell` and `EmployeeApp`, tests. Route: delegated.
 - [x] N2 Generators: time-slotted jobs (morning, 17:00, 20:00 Buenos Aires) for the notifications listed above, failed-client-email hook, admin email copy via `sendLogged` (new email kind), tests with injectable today/time. Route: delegated.
-- [ ] N3 Installable PWA + Web Push (added by the user 2026-10-29): web app manifest with Plagamix icon/colors, service worker, Web Push with VAPID keys (env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; inactive when unset), `push_subscriptions` table per user/device, "Activar notificaciones" button in admin shell and employee app, every notification also delivered as push to the user's devices (expired subscriptions removed). iOS needs the PWA added to the home screen (16.4+). Route: delegated.
-- [ ] N4 Live admin alerts (added by the user 2026-10-29): when an employee marks a visit done, records cash collected (and extras once F6 exists), every active admin gets a notification + push right away; bursts from the same employee within a few minutes are grouped into one notification. Route: delegated.
+- [x] N3 Installable PWA + Web Push (added by the user 2026-10-29): web app manifest with Plagamix icon/colors, service worker, Web Push with VAPID keys (env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`; inactive when unset), `push_subscriptions` table per user/device, "Activar notificaciones" button in admin shell and employee app, every notification also delivered as push to the user's devices (expired subscriptions removed). iOS needs the PWA added to the home screen (16.4+). Route: delegated.
+- [x] N4 Live admin alerts (added by the user 2026-10-29): when an employee marks a visit done, records cash collected (and extras once F6 exists), every active admin gets a notification + push right away; bursts from the same employee within a few minutes are grouped into one notification. Route: delegated.
 
 ## Acceptance criteria
 - Lucas logs in with username + password and sees the full admin UI; emergency password login still works.
@@ -66,7 +66,14 @@ Branch `feat/roles-notifications` (from main b01f5ae). Strategy: ask-on-risk; fo
 - N2 (delegated): cc79723. Migration 0009 (email kind owner_notification). Job keys notify_morning (09:00), notify_afternoon (17:00-20:00), notify_evening (20:00) in job_runs, catch-up after restart. Failed client email -> admins once per client/kind/day. Evening summary skipped on empty days.
 - Checks: typecheck 0 errors; `npm test` 260/260 (re-run by parent: 260 passed); build ok; API smoke on throwaway PGlite: seed admin login (userId 1), notifications list with a visits_overdue item, emergency login userless with empty list. Not verified: browser QA of login, bell, banner, Ajustes; real Resend; Postgres run of migration 0009.
 
+- N3 (delegated, same writer): 31284f4. Manifest + icons (generated yellow/black "P", no square logo asset), `sw.js` (no caching, push + notificationclick, renotify), `web-push` with VAPID env (off when unset: `/api/me/push` enabled:false, subscribe 409), migration 0010 `push_subscriptions`, `npm run push:keys`, toggle in the bell dropdown with iOS/denied/unsupported hints. Every `createNotification` also pushes; 404/410 subscriptions deleted.
+- N4 (delegated): 254dada. Migration 0011 (kinds visit_done, cash_collected; group_key/count/amount). `POST /api/me/visits/:id/done` by an employee alerts every active admin (bell + push, no email); bursts merge within 10 min while unread. Hook `alertAdmins`/`alertCopy` for F6 extras.
+- Deviation: `.env.example` not updated (writer sandbox denied access); VAPID vars documented in README, docs/api.md, docs/design.md. Pending user action.
+- Checks: typecheck 0 errors; `npm test` 275/275; build ok.
+- Browser QA by parent (built app, seeded throwaway PGlite, test VAPID keys): login form with "Acceso de emergencia"; seed admin `lucas` lands on admin UI; bell shows unread badge and dropdown; service worker registered; push toggle shows the blocked-permission hint (pane denies notifications); employee `juan` marked a visit done with cash in /app and `lucas` received `cash_collected` + `visit_done` with Spanish copy and client link; Ajustes > Empleados lists role, email and "No recibe visitas". QA data deleted.
+- Not verified: real push delivery on a phone, PWA install on Android/iPhone, real Resend, Postgres run of migrations 0009-0011.
+
 ## Next step
-N3 and N4 with the same delegated writer, then browser QA of the whole feature.
+PR to main; then real-device push test after deploy with VAPID keys set.
 
 Engram mirror: `odd/roles-notifications/tasks`.
