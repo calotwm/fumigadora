@@ -29,7 +29,8 @@ Invoice = {
   id, clientId, visitId: number|null, number: 'YYYY-NNNN', issuedOn, dueOn,
   amountCents, description, periodMonth: 'YYYY-MM'|null, voided: boolean,
   status: 'pending'|'partial'|'overdue'|'paid'|'void',   // overdue wins over partial
-  paidCents, balanceCents, isPartial: boolean, daysOverdue
+  paidCents, balanceCents, isPartial: boolean, daysOverdue,
+  items: { description, quantity, unitPriceCents, amountCents }[]   // invoice lines; amountCents = their sum
 }
 Visit = {
   id, clientId, serviceTypeId, date, time: 'HH:MM'|null,
@@ -75,6 +76,7 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/me/visits` | query `date?=today` | `{ date, visits: (Visit & { clientBalanceCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, ordered by time. `cashCollectedCents` = cash this employee registered for that visit; `cashPending` = all cash of the caller not yet confirmed by the owner |
+| GET | `/api/me/extras` | - | Active extras (`{ id, name, priceCents, active, createdAt }[]`) the caller can add when closing a visit |
 | POST | `/api/me/visits/:id/done` | `{ cashCollectedCents? (> 0), notes? }` | `{ visit, invoice, certificate, nextVisit, payment: <POST /api/payments response>\|null }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
 
 **Notifications** (the bell; every signed-in user, always the caller's own). The emergency owner session has no user: it gets an empty list and `404` on a single id.
@@ -133,6 +135,17 @@ Statement:
 
 Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servicios, Otros.
 
+### Extras (owner only)
+
+Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. "Cebo" or "Estación cebadera". Employees read the active ones through `GET /api/me/extras`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/extras` | - | `{ id, name, priceCents, active, createdAt }[]` by name (inactive included) |
+| POST | `/api/extras` | `{ name, priceCents (>0), active?=true }` | `201` row |
+| PATCH | `/api/extras/:id` | subset | row (a price change never touches lines already billed) |
+| DELETE | `/api/extras/:id` | - | `{ ok: true }`; `409` once used by a visit (deactivate instead) |
+
 ## Visits and agenda
 
 | Method | Path | Body / query | Response |
@@ -146,9 +159,11 @@ Seeded categories: Nafta, Productos, Herramientas, Mantenimiento, Sueldos, Servi
 | GET | `/api/agenda/summary` | - | `{ today, tomorrow, thisWeek, overdueScheduled }`: scheduled visit counts; `thisWeek` = today through Sunday of the current Mon-Sun week; `overdueScheduled` = scheduled with date < today |
 
 `POST /api/visits/:id/complete` body (all optional, booleans default false):
-`{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate, certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes? }`.
-One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
-Errors (`400`): price <= 0 when invoicing, service does not issue certificates, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
+`{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate? (default: what the service type does), certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes?, extras?: { extraId, quantity (1-99) }[] }`.
+One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`, 30 days when the type has none), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, extras: { extraId, name, quantity, unitPriceCents, amountCents }[], certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
+**Invoice lines and extras.** The invoice gets one line for the base service (when its price is > 0) plus one line per extra at the catalog price of that moment (the same extra twice is merged); `amountCents` is the total of the lines, so ARCA still sees one total. The extras are also stored per visit (`visit_extras`, name and price snapshot). Extras need `createInvoice`; an unknown extra is `404`, an inactive one `400`.
+**Oblea rule.** A service type with `issuesCertificate` always issues the oblea on completion (the owner may pass `issueCertificate: false` explicitly; the employee flow cannot). Its base invoice line reads `"<service> (incluye desinfección y oblea)"`.
+Errors (`400`): total <= 0 when invoicing, extras without invoice, `issueCertificate: true` for a service that does not issue them, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
 
 ## Monthly service tracking
 

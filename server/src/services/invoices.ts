@@ -2,9 +2,9 @@ import { and, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { addDays, INVOICE_STATUSES, monthLabelEs, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { allocations, clients, invoices } from '../db/schema.js';
+import { allocations, clients, invoiceItems, invoices } from '../db/schema.js';
 import { badRequest, conflict, notFound, zDate, zId, zMonth, zOptText, zPositiveCents } from '../http.js';
-import { selectInvoices, toInvoiceView, type InvoiceRow } from './accounts.js';
+import { selectInvoices, toInvoiceView, withInvoiceItems, type InvoiceRow } from './accounts.js';
 import { clientNames, requireClient } from './clients.js';
 
 export const DEFAULT_DUE_DAYS = 10;
@@ -41,6 +41,13 @@ async function nextInvoiceNumber(db: Db, year: string): Promise<string> {
   return `${year}-${String(seq).padStart(4, '0')}`;
 }
 
+export interface InvoiceItemArgs {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  extraId?: number | null | undefined;
+}
+
 export interface CreateInvoiceArgs {
   clientId: number;
   amountCents: number;
@@ -49,12 +56,18 @@ export interface CreateInvoiceArgs {
   description?: string | null | undefined;
   visitId?: number | null | undefined;
   periodMonth?: string | null | undefined;
+  /** Optional lines; their sum must equal `amountCents`. */
+  items?: InvoiceItemArgs[] | undefined;
 }
 
 /** Inserts an invoice with an auto-assigned `YYYY-NNNN` number. Call inside a transaction. */
 export async function insertInvoice(db: Db, args: CreateInvoiceArgs): Promise<InvoiceRow> {
   const dueOn = args.dueOn ?? addDays(args.issuedOn, DEFAULT_DUE_DAYS);
   if (dueOn < args.issuedOn) throw badRequest('El vencimiento no puede ser anterior a la emisión');
+  const items = args.items ?? [];
+  if (items.length > 0 && items.reduce((s, i) => s + i.quantity * i.unitPriceCents, 0) !== args.amountCents) {
+    throw new RangeError('The invoice lines must add up to the invoice amount');
+  }
   const number = await nextInvoiceNumber(db, args.issuedOn.slice(0, 4));
   const [row] = await db
     .insert(invoices)
@@ -69,6 +82,19 @@ export async function insertInvoice(db: Db, args: CreateInvoiceArgs): Promise<In
       periodMonth: args.periodMonth ?? null,
     })
     .returning();
+  if (items.length > 0) {
+    await db.insert(invoiceItems).values(
+      items.map((item, position) => ({
+        invoiceId: row!.id,
+        position,
+        description: item.description,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        amountCents: item.quantity * item.unitPriceCents,
+        extraId: item.extraId ?? null,
+      })),
+    );
+  }
   return { ...row!, paidCents: 0 };
 }
 
@@ -77,7 +103,8 @@ export async function createInvoice(db: Db, today: IsoDate, input: InvoiceInput)
   const row = await db.transaction((tx) =>
     insertInvoice(tx as unknown as Db, { ...input, issuedOn: input.issuedOn ?? today }),
   );
-  return toInvoiceView(row, today);
+  const [view] = await withInvoiceItems(db, [toInvoiceView(row, today)]);
+  return view!;
 }
 
 export async function listInvoices(db: Db, today: IsoDate, q: z.infer<typeof invoiceListQuery>) {
@@ -91,9 +118,10 @@ export async function listInvoices(db: Db, today: IsoDate, q: z.infer<typeof inv
     db,
     rows.map((r) => r.clientId),
   );
-  const views = rows
+  const filtered = rows
     .map((r) => ({ ...toInvoiceView(r, today), clientName: names.get(r.clientId) ?? '' }))
     .filter((i) => (q.status ? i.status === q.status : true));
+  const views = await withInvoiceItems(db, filtered);
   views.sort((a, b) => b.issuedOn.localeCompare(a.issuedOn) || b.id - a.id);
   return views;
 }
@@ -102,7 +130,8 @@ export async function getInvoice(db: Db, today: IsoDate, id: number) {
   const [row] = await selectInvoices(db, eq(invoices.id, id));
   if (!row) throw notFound('Factura');
   const names = await clientNames(db, [row.clientId]);
-  return { ...toInvoiceView(row, today), clientName: names.get(row.clientId) ?? '' };
+  const [view] = await withInvoiceItems(db, [{ ...toInvoiceView(row, today), clientName: names.get(row.clientId) ?? '' }]);
+  return view!;
 }
 
 /** Voids an invoice. Payments allocated to it are released back as client credit. */
@@ -179,7 +208,7 @@ export async function monthlyBatchCreate(db: Db, today: IsoDate, input: z.infer<
     }
     return {
       month: input.month,
-      created: created.map((r) => toInvoiceView(r, today)),
+      created: await withInvoiceItems(tx, created.map((r) => toInvoiceView(r, today))),
       skipped,
       totalCents: created.reduce((s, r) => s + r.amountCents, 0),
     };

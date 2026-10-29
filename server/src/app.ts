@@ -12,6 +12,7 @@ import { jobRoutes, reminderRoutes } from './routes/automation.js';
 import { routePlanRoutes } from './routes/routePlans.js';
 import { settingsRoutes } from './routes/settings.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
+import { extraRoutes } from './routes/extras.js';
 import { handoverRoutes } from './routes/handover.js';
 import { meRoutes } from './routes/me.js';
 import { userRoutes } from './routes/users.js';
@@ -66,6 +67,7 @@ export function createApp(options: AppOptions) {
   api.route('/clients', clientRoutes(deps));
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));
+  api.route('/extras', extraRoutes(deps));
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
   api.route('/tracking', trackingRoutes(deps));

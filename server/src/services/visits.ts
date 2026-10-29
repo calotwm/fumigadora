@@ -9,7 +9,7 @@ import {
   type IsoDate,
 } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { certificates, clients, serviceTypes, users, visits } from '../db/schema.js';
+import { certificates, clients, serviceTypes, users, visitExtras, visits } from '../db/schema.js';
 import {
   badRequest,
   conflict,
@@ -23,9 +23,10 @@ import {
   zOptText,
   zTime,
 } from '../http.js';
-import { toInvoiceView } from './accounts.js';
+import { toInvoiceView, withInvoiceItems } from './accounts.js';
 import { requireClient } from './clients.js';
-import { insertInvoice } from './invoices.js';
+import { extraLineInput, resolveExtraLines } from './extras.js';
+import { insertInvoice, type InvoiceItemArgs } from './invoices.js';
 import { requireAssignee } from './users.js';
 
 export const visitInput = z.object({
@@ -52,13 +53,19 @@ export const completeInput = z.object({
   completedOn: zDate.optional(),
   priceCents: zCents.optional(),
   createInvoice: zBool.default(false),
-  issueCertificate: zBool.default(false),
+  /** Defaults to what the service type does: a type that issues certificates always issues the oblea. */
+  issueCertificate: zBool.optional(),
   certificateNumber: z.string().trim().min(1).max(40).optional(),
   scheduleNext: zBool.default(false),
   nextDate: zDate.optional(),
   nextTime: zTime.nullish(),
   notes: zOptText(2000),
+  /** Add-ons billed on the invoice next to the base service. */
+  extras: z.array(extraLineInput).max(30).optional(),
 });
+
+/** Validity of the oblea when the service type does not define one. */
+export const DEFAULT_CERTIFICATE_VALIDITY_DAYS = 30;
 
 const visitSelect = {
   id: visits.id,
@@ -169,8 +176,9 @@ async function nextCertificateNumber(db: Db): Promise<string> {
 }
 
 /**
- * Completes a visit in ONE transaction: marks it done and optionally creates the invoice,
- * the certificate and the next visit.
+ * Completes a visit in ONE transaction: marks it done and optionally creates the invoice (base service line plus one
+ * line per extra), the certificate and the next visit. The base service includes disinfection and oblea when the
+ * service type issues certificates.
  */
 export async function completeVisit(db: Db, today: IsoDate, id: number, input: z.infer<typeof completeInput>) {
   const visit = await getVisit(db, id);
@@ -178,11 +186,18 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
   const serviceType = await requireServiceType(db, visit.serviceTypeId);
   const completedOn = input.completedOn ?? today;
   const priceCents = input.priceCents ?? visit.priceCents ?? serviceType.defaultPriceCents;
+  const extraLines = await resolveExtraLines(db, input.extras);
+  const extrasCents = extraLines.reduce((sum, l) => sum + l.amountCents, 0);
+  const totalCents = Math.max(priceCents, 0) + extrasCents;
+  const issueCertificate = input.issueCertificate ?? serviceType.issuesCertificate;
 
-  if (input.createInvoice && priceCents <= 0) {
+  if (extraLines.length > 0 && !input.createInvoice) {
+    throw badRequest('Los extras se cobran en la factura: activá "Crear factura"');
+  }
+  if (input.createInvoice && totalCents <= 0) {
     throw badRequest('Indicá un precio mayor a cero para generar la factura');
   }
-  if (input.issueCertificate && !serviceType.certificateValidityDays) {
+  if (input.issueCertificate && !serviceType.issuesCertificate) {
     throw badRequest('Este servicio no emite oblea');
   }
   let nextDate: IsoDate | null = null;
@@ -205,18 +220,33 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
       })
       .where(eq(visits.id, id));
 
+    const lines: InvoiceItemArgs[] = [];
+    if (priceCents > 0) {
+      lines.push({
+        description: serviceType.issuesCertificate ? `${serviceType.name} (incluye desinfección y oblea)` : serviceType.name,
+        quantity: 1,
+        unitPriceCents: priceCents,
+      });
+    }
+    for (const l of extraLines) lines.push({ description: l.name, quantity: l.quantity, unitPriceCents: l.unitPriceCents, extraId: l.extraId });
     const invoice = input.createInvoice
       ? await insertInvoice(tx, {
           clientId: visit.clientId,
           visitId: id,
-          amountCents: priceCents,
+          amountCents: totalCents,
           issuedOn: completedOn,
           description: serviceType.name,
+          items: lines,
         })
       : null;
+    if (extraLines.length > 0) {
+      await tx.insert(visitExtras).values(
+        extraLines.map((l) => ({ visitId: id, extraId: l.extraId, name: l.name, quantity: l.quantity, unitPriceCents: l.unitPriceCents })),
+      );
+    }
 
     let certificate: typeof certificates.$inferSelect | null = null;
-    if (input.issueCertificate) {
+    if (issueCertificate) {
       const [inserted] = await tx
         .insert(certificates)
         .values({
@@ -224,7 +254,7 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
           visitId: id,
           number: input.certificateNumber ?? (await nextCertificateNumber(tx)),
           issuedOn: completedOn,
-          expiresOn: addDays(completedOn, serviceType.certificateValidityDays!),
+          expiresOn: addDays(completedOn, serviceType.certificateValidityDays ?? DEFAULT_CERTIFICATE_VALIDITY_DAYS),
         })
         .returning();
       certificate = inserted ?? null;
@@ -249,9 +279,11 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
     return { invoice, certificate, nextVisitId };
   });
 
+  const [invoice] = created.invoice ? await withInvoiceItems(db, [toInvoiceView(created.invoice, today)]) : [];
   return {
     visit: await getVisit(db, id),
-    invoice: created.invoice ? toInvoiceView(created.invoice, today) : null,
+    invoice: invoice ?? null,
+    extras: extraLines,
     certificate: created.certificate,
     nextVisit: created.nextVisitId ? await getVisit(db, created.nextVisitId) : null,
   };

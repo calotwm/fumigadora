@@ -32,6 +32,7 @@ import type {
   TrackingStatus,
   Receivables,
   ExpenseCategory,
+  Extra,
   Invoice,
   PaymentResult,
   SearchClient,
@@ -427,6 +428,40 @@ export function useDeleteCategory() {
   return useMutation({
     mutationFn: (id: number) => api(`/expense-categories/${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expense-categories'] }),
+  });
+}
+
+// Extras catalog ---------------------------------------------------------------
+
+export function useExtras() {
+  return useQuery({ queryKey: ['extras'], queryFn: () => api<Extra[]>('/extras'), staleTime: 60_000 });
+}
+
+/** Active extras, as the employee sees them. */
+export function useMyExtras() {
+  return useQuery({ queryKey: ['extras', 'mine'], queryFn: () => api<Extra[]>('/me/extras'), staleTime: 60_000 });
+}
+
+export interface ExtraInput {
+  name: string;
+  priceCents: number;
+  active: boolean;
+}
+
+export function useSaveExtra() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: ExtraInput }) =>
+      id === undefined ? api<Extra>('/extras', { body }) : api<Extra>(`/extras/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['extras'] }),
+  });
+}
+
+export function useDeleteExtra() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/extras/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['extras'] }),
   });
 }
 

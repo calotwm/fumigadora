@@ -146,6 +146,15 @@ export const serviceTypes = pgTable('service_types', {
   certificateValidityDays: integer('certificate_validity_days'),
 });
 
+/** Catalog of add-ons the employee can bill when closing a visit (bait, bait stations...). Never deleted once used: deactivate instead. */
+export const extras = pgTable('extras', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  priceCents: cents('price_cents').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+});
+
 export const visits = pgTable(
   'visits',
   {
@@ -244,6 +253,43 @@ export const invoices = pgTable(
     index('invoices_due_idx').on(t.dueOn),
     index('invoices_period_idx').on(t.periodMonth),
   ],
+);
+
+/** Lines of an invoice. `invoices.amountCents` is always their sum; invoices without rows (legacy, manual, monthly fee) are one implicit line. */
+export const invoiceItems = pgTable(
+  'invoice_items',
+  {
+    id: serial('id').primaryKey(),
+    invoiceId: integer('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    description: text('description').notNull(),
+    quantity: integer('quantity').notNull().default(1),
+    unitPriceCents: cents('unit_price_cents').notNull(),
+    amountCents: cents('amount_cents').notNull(),
+    /** Catalog extra the line came from; null for the base service line. */
+    extraId: integer('extra_id').references(() => extras.id),
+  },
+  (t) => [index('invoice_items_invoice_idx').on(t.invoiceId)],
+);
+
+/** Extras added to a visit when it was completed (name and price are a snapshot of the catalog at that moment). */
+export const visitExtras = pgTable(
+  'visit_extras',
+  {
+    id: serial('id').primaryKey(),
+    visitId: integer('visit_id')
+      .notNull()
+      .references(() => visits.id),
+    extraId: integer('extra_id')
+      .notNull()
+      .references(() => extras.id),
+    name: text('name').notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPriceCents: cents('unit_price_cents').notNull(),
+  },
+  (t) => [index('visit_extras_visit_idx').on(t.visitId)],
 );
 
 export const payments = pgTable(
@@ -455,6 +501,7 @@ export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ClientContact = typeof clientContacts.$inferSelect;
 export type ServiceType = typeof serviceTypes.$inferSelect;
+export type Extra = typeof extras.$inferSelect;
 export type Visit = typeof visits.$inferSelect;
 export type Certificate = typeof certificates.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;

@@ -70,6 +70,26 @@ export interface ClientDetail extends ClientRow {
   summary: ClientSummary;
 }
 
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  amountCents: number;
+}
+
+export interface Extra {
+  id: number;
+  name: string;
+  priceCents: number;
+  active: boolean;
+}
+
+/** One extra picked on a visit: `extraId` -> quantity. */
+export interface ExtraSelection {
+  extraId: number;
+  quantity: number;
+}
+
 export interface Invoice {
   id: number;
   clientId: number;
@@ -94,6 +114,8 @@ export interface Invoice {
   caeDueOn: IsoDate | null;
   arcaObservations: { observations: { code: number; msg: string }[]; errors: { code: number; msg: string }[]; message?: string } | null;
   arcaAttemptedAt: string | null;
+  /** Always at least one line; invoices without stored lines come as a single line from description and amount. */
+  items: InvoiceItem[];
 }
 
 export interface Visit {
@@ -245,6 +267,7 @@ export interface CompleteVisitBody {
   nextDate?: IsoDate;
   nextTime?: string | null;
   notes?: string;
+  extras?: ExtraSelection[];
 }
 
 export interface CompleteVisitResult {

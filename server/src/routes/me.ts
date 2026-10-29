@@ -5,6 +5,7 @@ import { badRequest, conflict, idParam, notFound, v, type Deps } from '../http.j
 import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsubscribeInput } from '../services/push.js';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
 import { alertVisitDone } from '../services/adminAlerts.js';
+import { listExtras } from '../services/extras.js';
 import { markMyVisitDone, myDoneInput, myVisits, myVisitsQuery } from '../services/employee.js';
 
 /**
@@ -24,6 +25,8 @@ export function meRoutes(deps: Deps) {
       const q = c.req.valid('query');
       return c.json(await myVisits(db, today(), actingUser(c.get('session'), q.userId), q.date ?? today()));
     })
+    // Active extras the employee can add when closing a visit.
+    .get('/extras', async (c) => c.json(await listExtras(db, true)))
     .post('/visits/:id/done', v('param', idParam), v('json', myDoneInput), v('query', myVisitsQuery), async (c) => {
       const userId = actingUser(c.get('session'), c.req.valid('query').userId);
       const result = await markMyVisitDone(db, today(), userId, c.req.valid('param').id, c.req.valid('json'));

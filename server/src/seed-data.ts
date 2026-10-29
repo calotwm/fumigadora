@@ -20,6 +20,7 @@ import {
   certificates,
   clients,
   expenseCategories,
+  extras,
   invoices,
   payments,
   serviceTypes,
@@ -150,7 +151,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoices, certificates, visits, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
+      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoice_items, invoices, certificates, visit_extras, visits, extras, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
 
@@ -187,6 +188,10 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
     { name: 'Control de palomas', defaultPriceCents: 85_000_00, issuesCertificate: false, certificateValidityDays: null },
     { name: 'Limpieza de tanque', defaultPriceCents: 70_000_00, issuesCertificate: true, certificateValidityDays: 180 },
   ];
+  await db.insert(extras).values([
+    { name: 'Cebo', priceCents: 4_500_00 },
+    { name: 'Estación cebadera', priceCents: 8_000_00 },
+  ]);
   const serviceRows = await db.insert(serviceTypes).values(serviceDefs).returning();
   const SVC = { insects: 0, rodents: 1, disinfection: 2, pigeons: 3, tank: 4 };
 

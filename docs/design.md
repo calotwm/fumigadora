@@ -43,9 +43,10 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 
 - **Client**: id, name, kind (`business` | `home` | `building`), contactName, phone, email, address, area, notes, taxId, monthlyFeeCents (nullable — recurring "abono"), archivedAt, createdAt.
 - **ServiceType**: id, name (Desinsectación, Desratización, Desinfección, Control de palomas, Limpieza de tanque…), defaultPriceCents, issuesCertificate (bool), certificateValidityDays.
+- **Extra**: id, name, priceCents, active. Add-ons (bait, bait stations...) billed when a visit is closed; deactivated, never deleted, once used. **VisitExtra**: visitId, extraId, name/quantity/unitPriceCents snapshot.
 - **Visit**: id, clientId, serviceTypeId, date, time (nullable), status (`scheduled` | `done` | `cancelled`), frequency (`none` | `weekly` | `biweekly` | `monthly` | `bimonthly` | `quarterly` | `semiannual` | `yearly`), notes, completedAt, priceCents (nullable).
 - **Certificate** (oblea): id, clientId, visitId, number, issuedOn, expiresOn.
-- **Invoice**: id, clientId, visitId (nullable), number (auto, per-year sequence), issuedOn, dueOn, amountCents, description, voidedAt.
+- **Invoice**: id, clientId, visitId (nullable), number (auto, per-year sequence), issuedOn, dueOn, amountCents, description, voidedAt. **InvoiceItem**: invoiceId, position, description, quantity, unitPriceCents, amountCents, extraId (null for the base service). `amountCents` is always the sum of the lines; invoices without rows (legacy, manual, monthly fee) render as one line from description and amount.
 - **Payment**: id, clientId, paidOn, amountCents, method (`cash` | `transfer` | `mercadopago` | `check` | `other`), notes.
 - **Allocation**: id, paymentId, invoiceId, amountCents. Payments auto-allocate FIFO to oldest open invoices unless a specific invoice is chosen. Unallocated remainder = client credit.
 - **Notification**: id, userId (cascade), kind, title, body, link (in-app route), refType/refId, dedupeKey (unique: `userId:kind:refType:refId:businessDate`, so a job rerun never repeats one), groupKey/groupCount/groupAmountCents (live alerts: a burst of the same employee and kind updates one unread notification), readAt, createdAt. Addressed to one user and shown in the bell (admin shell and employee app, polled every 60 s); the emergency owner session has none.
@@ -68,7 +69,7 @@ All money columns are integer cents (`bigint`). Dates are `date`; visit time is 
 2. **Facturar**: from client sheet; amount pre-filled from monthlyFee or service price; dueOn defaults issuedOn + 10 days.
 3. **Facturar abonos del mes** (batch): lists all clients with monthlyFee and no invoice this month → one confirm generates all invoices.
 4. **Completar visita** (from agenda/today): one sheet with checkboxes, all on by default when applicable:
-   - mark done, - create invoice for price, - issue certificate (if service issues one; number + expiry auto), - schedule next visit per frequency.
+   - mark done, - create invoice for price (base service line plus one line per extra picked from the catalog), - issue certificate (always, when the service type issues one: the base service includes disinfection and oblea; number + expiry auto), - schedule next visit per frequency.
 5. **Agendar visita**: from client sheet or agenda empty slot; client autocomplete; frequency defaults to client's last frequency.
 6. **Registrar gasto**: global quick-add (`+` button / `N` key) → amount, category chips, date defaults today.
 7. **Recordatorio WhatsApp**: `wa.me` link with prefilled text (debt reminder or visit reminder). No external API.

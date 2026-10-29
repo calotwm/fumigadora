@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { payments, serviceTypes } from '../db/schema.js';
+import { payments } from '../db/schema.js';
 import { notFound, zDate, zOptText, zPositiveCents } from '../http.js';
 import { clientFinancials } from './accounts.js';
 import { createPayment } from './payments.js';
@@ -74,16 +74,14 @@ export async function markMyVisitDone(
   const visit = await getVisit(db, visitId);
   // Same answer for "does not exist" and "belongs to someone else": do not leak other employees' agenda.
   if (visit.assignedUserId !== userId) throw notFound('Visita');
-  const [serviceType] = await db.select().from(serviceTypes).where(eq(serviceTypes.id, visit.serviceTypeId));
 
   return db.transaction(async (rawTx) => {
     const tx = rawTx as unknown as Db;
     // Same defaults as the owner's completion sheet: invoice only when the visit has an agreed price,
-    // follow-up per the visit's frequency, certificate per the service type.
+    // follow-up per the visit's frequency; the service type decides the oblea.
     const result = await completeVisit(tx, today, visitId, {
       createInvoice: (visit.priceCents ?? 0) > 0,
       scheduleNext: visit.frequency !== 'none',
-      issueCertificate: Boolean(serviceType?.certificateValidityDays),
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
     });
     const payment = input.cashCollectedCents
