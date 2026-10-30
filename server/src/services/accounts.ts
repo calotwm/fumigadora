@@ -1,7 +1,9 @@
 import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   clientBalance,
+  debtByMonth,
   type ArcaStatus,
+  type DebtByMonth,
   invoiceState,
   type ClientBalance,
   type InvoiceStatus,
@@ -156,6 +158,12 @@ export async function openInvoicesForAllocation(db: Db, clientId: number): Promi
     dueOn: r.dueOn,
     issuedOn: r.issuedOn,
   }));
+}
+
+/** Debt broken down by month (open invoices grouped by period or issue month, credit netted oldest first). */
+export async function clientDebtMonths(db: Db, clientId: number): Promise<DebtByMonth> {
+  const [open, credits] = await Promise.all([openInvoiceRows(db, clientId), clientCredits(db, clientId)]);
+  return debtByMonth(open, credits.get(clientId) ?? 0);
 }
 
 /** Unallocated payment remainder per client (payments - allocations). */

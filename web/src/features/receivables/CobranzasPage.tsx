@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { MessageCircle } from 'lucide-react';
 import { useReceivables } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
-import { daysAgoLabel, fullDate, money, overdueLabel } from '../../lib/format';
+import { daysAgoLabel, fullDate, money, monthLabel, overdueLabel } from '../../lib/format';
 import { debtReminderText, whatsappLink } from '../../lib/whatsapp';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading, PageHeader, SectionHead, Stat, Table, Tabs, type Column } from '../../ui/display';
@@ -130,7 +130,16 @@ function DebtorsList({ debtors, sort, onSortChange }: { debtors: Debtor[]; sort:
       key: 'balance',
       header: 'Saldo',
       align: 'right',
-      cell: (d) => <span className="num font-extrabold">{money(d.balanceCents)}</span>,
+      cell: (d) => (
+        <span className="num font-extrabold whitespace-nowrap">
+          {money(d.balanceCents)}
+          {d.oldestOwedMonth ? (
+            <span className="block text-xs font-normal text-muted">
+              Desde {monthLabel(d.oldestOwedMonth)} · {d.owedMonthCount === 1 ? '1 mes' : `${d.owedMonthCount} meses`}
+            </span>
+          ) : null}
+        </span>
+      ),
     },
     {
       key: 'age',

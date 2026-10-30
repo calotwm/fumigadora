@@ -45,7 +45,7 @@ import type {
   Statement,
   Visit,
 } from './types';
-import type { Frequency, PaymentMethod } from '@fumigadora/shared';
+import type { DebtByMonth, Frequency, PaymentMethod } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -95,6 +95,15 @@ export function useStatement(id: number | null) {
   return useQuery({
     queryKey: ['statement', id],
     queryFn: () => api<Statement>(`/clients/${id}/statement`),
+    enabled: id !== null,
+  });
+}
+
+/** Open debt grouped by month (oldest first), with the open invoices of each month. */
+export function useClientMonths(id: number | null) {
+  return useQuery({
+    queryKey: ['client-months', id],
+    queryFn: () => api<DebtByMonth>(`/clients/${id}/months`),
     enabled: id !== null,
   });
 }

@@ -305,6 +305,9 @@ export interface Debtor extends BalanceFields {
   phone: string | null;
   /** Due date of the oldest overdue invoice; null when nothing is overdue. */
   overdueSince: IsoDate | null;
+  /** Oldest month that still has debt (credit netted); null when none. */
+  oldestOwedMonth: IsoMonth | null;
+  owedMonthCount: number;
 }
 
 export interface Receivables {
@@ -678,6 +681,7 @@ export interface PortalSummary {
   creditCents: number;
   daysOverdue: number;
   overdueInvoiceCount: number;
+  months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number }[];
   nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
   lastVisitDate: IsoDate | null;
   certificate: PortalCertificate | null;

@@ -70,7 +70,7 @@ Clients sign in with an emailed magic link. The session cookie is the same signe
 | POST | `/api/portal/verify` | `{ token }` | One matching client: `{ status: 'ok', client: { id, name } }` + session cookie, token spent. Several clients share the email: `{ status: 'choose', clients: { id, name }[] }` (only those that matched this token), no cookie, token **not** spent. `400 invalid_link` for an unknown, expired (30 min) or used token. POST instead of GET so mail scanners that prefetch links cannot burn the token |
 | POST | `/api/portal/select` | `{ token, clientId }` | Picker step: same checks as `verify`; `clientId` must be one of the clients that matched the token, else `400 invalid_link` (and the token stays usable). Spends the token and binds the session to that client |
 | GET | `/api/portal/me` | - | `{ client: { id, name } }` |
-| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
+| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, months: { month, billedCents, paidCents, owedCents }[] (same rules as `GET /api/clients/:id/months`), nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
 | GET | `/api/portal/visits` | - | `{ id, date, time, status, serviceTypeName }[]`, newest first (no notes, prices, cancel reasons or employee names) |
 | GET | `/api/portal/invoices` | - | Non-voided invoices, newest first: `{ id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents, status, daysOverdue, items: { description, quantity, unitPriceCents, amountCents }[] }[]` (no ARCA data) |
 | GET | `/api/portal/payments` | - | `{ id, paidOn, amountCents, method, allocations: { invoiceNumber, amountCents }[] }[]`, newest first |
@@ -139,6 +139,7 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 | POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName? }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
 | GET | `/api/clients/placards` | query `area?` (exact zone) | `{ zones: string[], items: { id, name, address, area, token, url }[] }`: active clients (all, or one zone) with their public link for printing, ordered by zone then name; `zones` = zones with at least one active client. Missing tokens are created |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
+| GET | `/api/clients/:id/months` | - | `DebtByMonth` (below): the client's open debt grouped by month, oldest first. `404` for an unknown client |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
 | POST | `/api/clients/:id/archive` | - | client row (soft archive; archived clients drop out of lists, batch billing, search) |
@@ -159,6 +160,22 @@ Statement:
 - `invoices[]`: `Invoice` newest first (including voided, flagged `voided`).
 - `payments[]`: `{ id, clientId, paidOn, amountCents, method, notes, createdAt, allocations: Allocation[], unallocatedCents }` newest first.
 - `visits[]`: `Visit` newest first. `certificates[]`: `Certificate` by expiry desc.
+
+`DebtByMonth`:
+
+```ts
+{
+  months: {
+    month: 'YYYY-MM',           // invoice periodMonth, or the month of issuedOn when it has none
+    billedCents, paidCents,     // amounts and allocations of the month's open invoices
+    creditAppliedCents,         // unallocated client credit netted here (oldest month first)
+    owedCents,                  // billed - paid - creditApplied
+    invoices: { id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents }[]  // oldest due first
+  }[],                          // only months with at least one open (non-voided, unpaid) invoice
+  totalOwedCents,               // sum of owedCents = balanceCents whenever the balance is not negative
+  creditCents                   // credit left after netting every month
+}
+```
 
 ## Service types and expense categories
 
@@ -313,7 +330,7 @@ Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone } & BalanceFields)[] }` debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
+| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone, overdueSince, oldestOwedMonth: 'YYYY-MM'\|null, owedMonthCount } & BalanceFields)[] }` (`oldestOwedMonth`/`owedMonthCount`: months that still owe after netting credit, see `DebtByMonth`) debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
 | GET | `/api/certificates?expiringWithinDays=15&clientId=` | `Certificate[]` by expiry asc. With `expiringWithinDays`: only non-superseded certificates of active clients with `expiresOn <= today + N` (already expired included, `daysLeft < 0`). A certificate is superseded when the client has a newer one for the same service type. Each item has `hasFile` (a PDF is stored) |
 | GET | `/api/certificates/:id/file` | - | The certificate PDF (`application/pdf`, `Content-Disposition: inline; filename="oblea-<number>.pdf"`). `404` when the certificate has no stored file. Owner only (`401` without session, `403` for employees) |
 | GET | `/api/dashboard` | see below |

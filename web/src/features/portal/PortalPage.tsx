@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { ApiError, api, errorMessage } from '../../lib/api';
-import { METHOD_LABELS, daysLeftLabel, fullDate, longDate, money, overdueLabel } from '../../lib/format';
+import { METHOD_LABELS, daysLeftLabel, fullDate, longDate, money, monthLabel, overdueLabel } from '../../lib/format';
 import type {
   PortalCertificate,
   PortalClient,
@@ -209,6 +209,21 @@ function Overview({ summary }: { summary: PortalSummary }) {
         )}
         {summary.lastVisitDate ? <p className="mt-3 text-xs text-muted">Última visita: {fullDate(summary.lastVisitDate)}</p> : null}
       </div>
+      {summary.months.some((m) => m.owedCents > 0) ? (
+        <div className="md:col-span-2">
+          <p className="label-caps">Deuda por mes</p>
+          <ul className="mt-2 border-t border-ink">
+            {summary.months
+              .filter((m) => m.owedCents > 0)
+              .map((m) => (
+                <li key={m.month} className="flex items-baseline justify-between gap-4 border-b border-rule py-2 text-sm">
+                  <span className="font-semibold">{monthLabel(m.month)}</span>
+                  <span className="num whitespace-nowrap font-bold text-red">{money(m.owedCents)}</span>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
       {cert ? (
         <div className="border border-ink p-4 md:col-span-2">
           <p className="label-caps">Oblea vigente</p>
