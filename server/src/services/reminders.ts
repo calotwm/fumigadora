@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, max } from 'drizzle-orm';
-import { reminderDecision, type IsoDate, type ReminderSkipReason } from '@fumigadora/shared';
+import { addDays, reminderDecision, type IsoDate, type ReminderSkipReason } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { clients, emailLog } from '../db/schema.js';
 import type { Deps } from '../http.js';
@@ -79,6 +79,8 @@ export async function sendDebtReminders(deps: Deps, force = false): Promise<Remi
   const today = deps.today();
   const summary: ReminderSummary = { sent: 0, simulated: 0, failed: 0 };
   const { recipients } = await reminderPlan(db, today, force);
+  const current = await getSettings(db);
+  const interestFrom = current.ipcWarningEnabled ? addDays(today, current.ipcWarningGraceDays) : null;
   for (const r of recipients) {
     const overdue = (await openInvoiceRows(db, r.clientId))
       .map((i) => ({ number: i.number, dueOn: i.dueOn, balanceCents: i.amountCents - i.paidCents }))
@@ -89,7 +91,7 @@ export async function sendDebtReminders(deps: Deps, force = false): Promise<Remi
       kind: 'debt_reminder',
       clientId: r.clientId,
       to: r.email,
-      email: debtReminderEmail({ clientName: r.name, invoices: overdue, totalCents: overdue.reduce((s, i) => s + i.balanceCents, 0) }),
+      email: debtReminderEmail({ clientName: r.name, invoices: overdue, totalCents: overdue.reduce((s, i) => s + i.balanceCents, 0), interestFrom }),
       refType: 'debt_reminder',
       refId: today,
       today,

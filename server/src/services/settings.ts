@@ -18,6 +18,9 @@ export interface AppSettings {
   companyLongitude: number | null;
   /** Shown on the public client page so residents can reach the company. */
   companyPhone: string | null;
+  /** Debt reminders also warn that IPC interest will start if the debt is not paid within `ipcWarningGraceDays`. */
+  ipcWarningEnabled: boolean;
+  ipcWarningGraceDays: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +34,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyLatitude: null,
   companyLongitude: null,
   companyPhone: null,
+  ipcWarningEnabled: false,
+  ipcWarningGraceDays: 10,
 };
 
 export const settingsPatch = z
@@ -45,6 +50,8 @@ export const settingsPatch = z
     companyLatitude: z.number().min(-90, 'Latitud inválida').max(90, 'Latitud inválida').nullable(),
     companyLongitude: z.number().min(-180, 'Longitud inválida').max(180, 'Longitud inválida').nullable(),
     companyPhone: z.string().trim().max(60).nullable(),
+    ipcWarningEnabled: z.boolean(),
+    ipcWarningGraceDays: z.number().int().min(1, 'Debe ser al menos 1 día').max(90, 'Como máximo 90 días'),
   })
   .partial();
 

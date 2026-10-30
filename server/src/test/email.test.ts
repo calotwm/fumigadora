@@ -97,11 +97,15 @@ describe('email and settings API', () => {
       companyLatitude: null,
       companyLongitude: null,
       companyPhone: null,
+      ipcWarningEnabled: false,
+      ipcWarningGraceDays: 10,
     });
     const put = await t.call('PUT', '/api/settings', { debtRemindersEnabled: true, debtReminderEveryDays: 20, noticeMode: 'days_before' });
     expect(put.status).toBe(200);
     expect(put.body).toMatchObject({ debtRemindersEnabled: true, debtReminderEveryDays: 20, debtReminderMinDaysOverdue: 10, noticeMode: 'days_before' });
     expect((await t.get('/api/settings')).body).toEqual(put.body);
     expect((await t.call('PUT', '/api/settings', { debtReminderEveryDays: 0 })).status).toBe(400);
+    expect((await t.call('PUT', '/api/settings', { ipcWarningGraceDays: 0 })).status).toBe(400);
+    expect((await t.call('PUT', '/api/settings', { ipcWarningGraceDays: 91 })).status).toBe(400);
   });
 });
