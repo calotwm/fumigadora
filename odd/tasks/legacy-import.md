@@ -47,7 +47,7 @@ Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast
 - [x] I3 Ledger semantics verified against legacy balances (see above). Route: inline (analysis only).
 - [x] I4 `server/src/import-legacy.ts` + `npm run db:import-legacy` (`--dry-run`, `--file`), transactional, idempotent, reconciliation report (per-client computed debt vs legacy balance). Route: delegated.
 - [x] I5 Oblea PDFs on a Railway volume (decided 2026-10-29). Legacy serves files only through the authenticated API (`/files/byIdNoHeader/:fileId`, base64), so the 273 PDFs were fetched from the logged-in browser into `server/.data/legacy/plagamix-legacy-files.json` (gitignored, 116 MB, `{exportedAt, files: {<legacyFileId>: {certificateId, name, extension, base64}}}`, all verified `%PDF`). Build: `FILES_DIR` config (default `server/.data/files`; production = volume mount path), certificate file column, importer `--files <bundle>` writes PDFs idempotently, authenticated download endpoint, "Ver PDF" link in the client's certificates, deploy docs for the volume. Route: delegated (one writer, 2+ non-trivial files).
-- [ ] I6 Run the import on production after the first Railway deploy.
+- [x] I6 Run the import on production after the first Railway deploy.
 
 ## Acceptance criteria
 - Dry-run on the real export reports 303 clients, 957 visits (959 minus 2 legacy appointments without date, reported as skipped), 279 certificates, and 0 clients whose computed debt differs from the legacy balance.
@@ -65,7 +65,10 @@ Branch `feat/legacy-import` (from main b849b2a). Strategy: ask-on-risk; forecast
 - Checks: typecheck exit 0; `npm test` 224/224 (re-run by parent: 224 passed); build ok. Real export on throwaway PGlite: 303 clients, 98 contacts, 957 visits (2 skipped undated), 279 certificates, 5003 invoices (3 zero charges skipped, 0 negative), 4289 payments, 5219 allocations, 4 service types created, 0/303 reconciliation mismatches. Second real run: 0 inserted, 0 mismatches (idempotent).
 - I5 (delegated, one writer): `FILES_DIR` config, migration 0006 (`certificates.file_key`, `file_size`), `services/files.ts` (key escape rejected), importer `--files` (plans inside the transaction, writes after commit, sets `file_key` per file, skips same-size files, dry run only counts), owner-only `GET /api/certificates/:id/file`, `hasFile` in the certificate payload, "Ver PDF" link, deploy docs. typecheck ok; `npm test` 241/241; build ok. Real export + bundle on throwaway PGlite/FILES_DIR: dry run 273 to write; real run 273 written, 0 missing; second run 273 skipped, 0 written; 273 PDFs on disk, `%PDF` header; 0/303 mismatches; scratch deleted.
 
+- I6 (parent, 2026-10-29): Railway service already auto-deploys `main` (b1237ec); all 15 migrations ran on Postgres without errors, `/api/health` ok. Added app volume `/data` and `FILES_DIR=/data/files` via CLI. Postgres stays private: import ran from the dev machine through `railway connect Postgres --tunnel-only` (SSH tunnel opened by the user), credentials injected by `railway run`. Prod was empty (15 migrations, 0 rows). Dry run then real run: 303 clients, 98 contacts, 957 visits (2 skipped), 279 certificates, 5003 invoices, 4289 payments, 5219 allocations, 273 PDFs; reconciliation 303/303, 0 mismatches. PDFs uploaded with `railway volume files upload` to `/files/certificates`; 273 DB file keys = 273 files in the volume. Local copies deleted.
+- Follow-ups for the user: close the tunnel; rotate the Postgres password (it was pasted in chat); set VAPID vars; log in with the emergency password and create the owner admin user.
+
 ## Next step
-PR slicing decision with the user. I6 after the first Railway deploy.
+Feature complete. Phone tests (PWA install, push, Ver PDF, Maps) on production.
 
 Engram mirror: `odd/legacy-import/tasks`.
