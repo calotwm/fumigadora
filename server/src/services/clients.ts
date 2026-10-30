@@ -6,6 +6,7 @@ import type { Db } from '../db/client.js';
 import { certificates, clients, invoices, payments, serviceTypes, visits, type Client } from '../db/schema.js';
 import { badRequest, definedOnly, hhmm, likePattern, notFound, zCents, zId, zOptText } from '../http.js';
 import { clientFinancial, clientFinancials, emptyBalance } from './accounts.js';
+import { newPublicToken } from './publicLink.js';
 
 export const clientInput = z.object({
   name: z.string().trim().min(1, 'El nombre es obligatorio').max(200),
@@ -59,7 +60,7 @@ export interface NextVisit {
 }
 
 /** Earliest scheduled visit from `today` on, per client. */
-async function nextVisitsByClient(db: Db, today: IsoDate, limitPerClient: number, clientId?: number) {
+export async function nextVisitsByClient(db: Db, today: IsoDate, limitPerClient: number, clientId?: number) {
   const rows = await db
     .select({
       id: visits.id,
@@ -90,7 +91,7 @@ async function nextVisitsByClient(db: Db, today: IsoDate, limitPerClient: number
   return map;
 }
 
-async function lastVisitDates(db: Db, today: IsoDate, clientId?: number) {
+export async function lastVisitDates(db: Db, today: IsoDate, clientId?: number) {
   const rows = await db
     .select({ clientId: visits.clientId, last: sql<string>`max(${visits.date})` })
     .from(visits)
@@ -221,7 +222,7 @@ export async function createClient(db: Db, input: ClientInput) {
   const fiscal = { taxDocType: input.taxDocType ?? 'none', taxDocNumber: normalizeFiscal(input.taxDocType ?? 'none', input.taxDocNumber) };
   const [row] = await db
     .insert(clients)
-    .values({ ...(definedOnly(input) as typeof clients.$inferInsert), ...fiscal })
+    .values({ ...(definedOnly(input) as typeof clients.$inferInsert), ...fiscal, publicToken: newPublicToken() })
     .returning();
   return row!;
 }

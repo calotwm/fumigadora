@@ -561,6 +561,7 @@ export interface AppSettings {
   companyAddress: string | null;
   companyLatitude: number | null;
   companyLongitude: number | null;
+  companyPhone: string | null;
 }
 
 export interface ArcaStatusInfo {
@@ -628,4 +629,20 @@ export interface ReminderPreview {
   minDaysOverdue: number;
   recipients: { clientId: number; name: string; email: string; overdueCents: number; daysOverdue: number; overdueInvoiceCount: number; lastReminderOn: IsoDate | null }[];
   skipped: Record<'disabled' | 'no_email' | 'not_overdue' | 'not_late_enough' | 'too_recent', number>;
+}
+
+// Public link and client portal ----------------------------------------------
+
+/** What the public page `/c/:token` shows: no amounts, no tax id, no client contact data. */
+export interface PublicClientView {
+  name: string;
+  nextVisit: { date: IsoDate; time: string | null; serviceTypeName: string } | null;
+  lastVisitDate: IsoDate | null;
+  certificate: { number: string; issuedOn: IsoDate; expiresOn: IsoDate; valid: boolean; daysLeft: number } | null;
+  company: { name: string; phone: string | null };
+}
+
+export interface PublicLink {
+  token: string;
+  url: string;
 }

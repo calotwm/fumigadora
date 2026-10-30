@@ -18,6 +18,9 @@ export type Frequency = (typeof FREQUENCIES)[number];
 
 export const USER_ROLES = ['admin', 'employee'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+/** Roles a session can carry: staff accounts plus `client` (portal login, bound to one client). */
+export const SESSION_ROLES = [...USER_ROLES, 'client'] as const;
+export type SessionRole = (typeof SESSION_ROLES)[number];
 
 export const PAYMENT_METHODS = ['cash', 'transfer', 'mercadopago', 'check', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];

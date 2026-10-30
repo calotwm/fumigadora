@@ -9,6 +9,7 @@ import type {
   EmailLogItem,
   EmailLogPage,
   EmailStatus,
+  PublicLink,
   ReminderPreview,
   RouteView,
   CancelResult,
@@ -376,6 +377,22 @@ export function useDeleteCashEntry() {
   return useMutation({
     mutationFn: (id: number) => api(`/cash-entries/${id}`, { method: 'DELETE' }),
     onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function usePublicLink(clientId: number | null) {
+  return useQuery({
+    queryKey: ['public-link', clientId],
+    queryFn: () => api<PublicLink>(`/clients/${clientId}/public-link`),
+    enabled: clientId !== null,
+  });
+}
+
+export function useRegeneratePublicLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: number) => api<PublicLink>(`/clients/${clientId}/public-link/regenerate`, { method: 'POST', body: {} }),
+    onSuccess: (link, clientId) => queryClient.setQueryData(['public-link', clientId], link),
   });
 }
 

@@ -16,6 +16,8 @@ export interface AppSettings {
   companyAddress: string | null;
   companyLatitude: number | null;
   companyLongitude: number | null;
+  /** Shown on the public client page so residents can reach the company. */
+  companyPhone: string | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyAddress: null,
   companyLatitude: null,
   companyLongitude: null,
+  companyPhone: null,
 };
 
 export const settingsPatch = z
@@ -41,6 +44,7 @@ export const settingsPatch = z
     companyAddress: z.string().trim().max(300).nullable(),
     companyLatitude: z.number().min(-90, 'Latitud inválida').max(90, 'Latitud inválida').nullable(),
     companyLongitude: z.number().min(-180, 'Longitud inválida').max(180, 'Longitud inválida').nullable(),
+    companyPhone: z.string().trim().max(60).nullable(),
   })
   .partial();
 

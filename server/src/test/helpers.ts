@@ -15,6 +15,7 @@ export const testConfig: Config = {
   adminPassword: TEST_PASSWORD,
   sessionSecret: 'test-secret-test-secret-test-secret-1234',
   sessionTtlSeconds: 3600,
+  publicBaseUrl: undefined,
   mail: { resendApiKey: undefined, from: undefined, replyTo: undefined },
   arca: loadArcaConfig({}),
   push: loadPushConfig({}),

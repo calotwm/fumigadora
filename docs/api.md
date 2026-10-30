@@ -123,6 +123,16 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
 | POST | `/api/clients/:id/archive` | - | client row (soft archive; archived clients drop out of lists, batch billing, search) |
 | POST | `/api/clients/:id/unarchive` | - | client row |
+| GET | `/api/clients/:id/public-link` | - | `{ token, url }`: the client's public link (`<base>/c/<token>`). Every client has a token (created with the client; existing ones were backfilled by migration 0015; a missing one is created on the spot). `<base>` is `PUBLIC_BASE_URL` or, if unset, the origin of the request |
+| POST | `/api/clients/:id/public-link/regenerate` | - | `{ token, url }` with a new token; the previous link answers `404` from then on |
+
+### Public link (no login)
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/api/public/clients/:token` | `{ name, nextVisit: { date, time, serviceTypeName }\|null, lastVisitDate, certificate: { number, issuedOn, expiresOn, valid, daysLeft }\|null, company: { name, phone } }`. `404 not_found` for an unknown, malformed or archived-client token. `cache-control: no-store`, `x-robots-tag: noindex`. **Deliberately has no amounts, tax id, email, phone, address, notes or employee names**: it is printed on building walls |
+
+The token is 192 random bits (base64url, 32 chars), stored in `clients.public_token` (unique). The SPA page `/c/:token` renders this payload. `company.phone` comes from the setting `companyPhone` (Ajustes > Base de la empresa).
 
 Statement:
 - `ledger[]`: chronological `{ date, type: 'invoice'\|'payment', id, reference (invoice number or payment method), description, debitCents, creditCents, balanceCents (running; positive = owes) }`. Voided invoices are excluded. Same day: invoices before payments.
@@ -197,7 +207,7 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
-| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180), companyPhone?: string\|null }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
 
 **Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
 Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.

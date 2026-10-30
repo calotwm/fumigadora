@@ -113,11 +113,17 @@ export const clients = pgTable(
     postalCode: text('postal_code'),
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
+    /** Unguessable token of the public link `/c/<token>` (QR placard). Regenerating it kills the old link. */
+    publicToken: text('public_token'),
     legacyId: legacyId(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('clients_name_idx').on(t.name), uniqueIndex('clients_legacy_id_uq').on(t.legacyId)],
+  (t) => [
+    index('clients_name_idx').on(t.name),
+    uniqueIndex('clients_legacy_id_uq').on(t.legacyId),
+    uniqueIndex('clients_public_token_uq').on(t.publicToken),
+  ],
 );
 
 /** Extra contact people of a client (administrator, doorman...), in addition to the main contact on the client. */

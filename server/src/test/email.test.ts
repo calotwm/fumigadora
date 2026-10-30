@@ -96,6 +96,7 @@ describe('email and settings API', () => {
       companyAddress: null,
       companyLatitude: null,
       companyLongitude: null,
+      companyPhone: null,
     });
     const put = await t.call('PUT', '/api/settings', { debtRemindersEnabled: true, debtReminderEveryDays: 20, noticeMode: 'days_before' });
     expect(put.status).toBe(200);

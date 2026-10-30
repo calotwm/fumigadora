@@ -20,6 +20,7 @@ import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
 import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
+import { publicRoutes } from './routes/public.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
 import { createPushService, registerPush, type PushSender } from './services/push.js';
@@ -58,6 +59,8 @@ export function createApp(options: AppOptions) {
   const api = new Hono<AuthEnv>();
   api.get('/health', (c) => c.json({ ok: true }));
   api.route('/auth', authRoutes(deps.config, deps.db));
+  // Unauthenticated: everything mounted before `requireSession` below.
+  api.route('/public', publicRoutes(deps));
   api.use('*', requireSession(deps.config, deps.db));
   // Employee routes sit before the admin guard; everything below is owner-only.
   api.route('/me', meRoutes(deps));
