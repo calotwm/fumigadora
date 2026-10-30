@@ -230,6 +230,16 @@ function Movements({ month }: { month: string }) {
                 </span>
                 {manual ? (
                   <div className="col-start-2 col-span-2 flex gap-1">
+                    {m.hasReceipt ? (
+                      <a
+                        href={`/api/cash-entries/${m.id}/receipt`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="-ml-3 inline-flex min-h-9 items-center px-3 text-sm font-semibold underline"
+                      >
+                        Ver ticket
+                      </a>
+                    ) : null}
                     <Button size="sm" variant="ghost" className="-ml-3" onClick={() => setEditing(m)} aria-label="Editar movimiento">
                       Editar
                     </Button>

@@ -362,6 +362,9 @@ export const cashEntries = pgTable(
     employeeId: integer('employee_id').references(() => users.id),
     /** Set only on payments to an employee (salary, advance, other). */
     payKind: employeePayKindEnum('pay_kind'),
+    /** Photo of the receipt under FILES_DIR (fuel loads from the employee app) and its media type. */
+    receiptKey: text('receipt_key'),
+    receiptType: text('receipt_type'),
     createdAt: createdAt(),
   },
   (t) => [index('cash_entries_date_idx').on(t.date), index('cash_entries_employee_idx').on(t.employeeId, t.date)],

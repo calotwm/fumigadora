@@ -755,3 +755,17 @@ export function useDeleteEmployeePay() {
     onSuccess: () => invalidateData(queryClient),
   });
 }
+
+/** Employee app: fuel load with the ticket photo (multipart). */
+export function useLoadFuel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ amountCents, photo }: { amountCents: number; photo: File }) => {
+      const body = new FormData();
+      body.set('amountCents', String(amountCents));
+      body.set('photo', photo);
+      return api<{ id: number; date: string; amountCents: number }>('/me/fuel', { body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}

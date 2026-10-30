@@ -368,6 +368,8 @@ export interface Movement {
   /** Employee the expense belongs to (payment to them, or fuel they loaded). */
   employeeId: number | null;
   employeeName: string | null;
+  /** A receipt photo is stored: `GET /api/cash-entries/:id/receipt`. */
+  hasReceipt: boolean;
 }
 
 export type TrackingStatus = 'pending' | 'scheduled' | 'complete';

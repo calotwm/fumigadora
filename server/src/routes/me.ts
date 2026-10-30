@@ -6,6 +6,8 @@ import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsu
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
 import { alertVisitChanged, alertVisitDone } from '../services/adminAlerts.js';
 import { listExtras } from '../services/extras.js';
+import { createFuelLoad, fuelInput } from '../services/cash.js';
+import { checkUpload, IMAGE_TYPES, parseFields, readForm, uploadLimit } from '../services/uploads.js';
 import {
   cancelMyVisit,
   markMyVisitDone,
@@ -33,6 +35,17 @@ export function meRoutes(deps: Deps) {
     .get('/visits', v('query', myVisitsQuery), async (c) => {
       const q = c.req.valid('query');
       return c.json(await myVisits(db, today(), actingUser(c.get('session'), q.userId), q.date ?? today()));
+    })
+    // Fuel load: multipart `amountCents`, `date?` and the ticket `photo`. Stored as a fuel expense of the caller.
+    .post('/fuel', uploadLimit(), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const { fields, files } = await readForm(c);
+      const input = parseFields(fuelInput, fields);
+      const photo = await checkUpload(files.photo, IMAGE_TYPES, {
+        missing: 'Adjuntá la foto del ticket',
+        wrongType: 'La foto debe ser una imagen JPG, PNG, WEBP o HEIC',
+      });
+      return c.json(await createFuelLoad(db, deps.config.filesDir, today(), userId, input, photo), 201);
     })
     // Active extras the employee can add when closing a visit.
     .get('/extras', async (c) => c.json(await listExtras(db, true)))

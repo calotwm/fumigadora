@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, LogOut, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Fuel, LogOut, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
 import { addDays, directionsLinks, today as todayIso } from '@fumigadora/shared';
 import { useLogout, useCurrentUser } from '../auth/auth';
 import { useMyVisits } from '../../lib/queries';
@@ -13,6 +13,7 @@ import { EmptyState, ErrorNote, Loading, ProgressBar } from '../../ui/display';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { ClientCancelledSheet } from './ClientCancelledSheet';
 import { DoneSheet } from './DoneSheet';
+import { FuelSheet } from './FuelSheet';
 import plagamixWhite from '../../assets/plagamix-white.png';
 
 function dayLabel(date: string, today: string): string {
@@ -34,6 +35,7 @@ export function EmployeeApp() {
   const [marking, setMarking] = useState<MyVisit | null>(null);
   const [cancelling, setCancelling] = useState<MyVisit | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [fueling, setFueling] = useState(false);
   const { data, error, isLoading, refetch } = useMyVisits(date);
 
   const visits = data?.visits ?? [];
@@ -143,6 +145,9 @@ export function EmployeeApp() {
             </div>
           </div>
         ) : null}
+        <Button variant="outline" className="mt-3 w-full" onClick={() => setFueling(true)} icon={<Fuel size={16} aria-hidden />}>
+          Cargar nafta
+        </Button>
       </div>
 
       <main className="flex-1 px-4 pb-32 pt-4">
@@ -211,6 +216,7 @@ export function EmployeeApp() {
       </footer>
 
       {marking ? <DoneSheet visit={marking} onClose={() => setMarking(null)} /> : null}
+      {fueling ? <FuelSheet onClose={() => setFueling(false)} /> : null}
       {cancelling ? <ClientCancelledSheet visit={cancelling} onClose={() => setCancelling(null)} /> : null}
     </div>
   );

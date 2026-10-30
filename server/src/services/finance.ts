@@ -123,6 +123,7 @@ export async function financeMovements(db: Db, month: IsoMonth) {
         categoryName: expenseCategories.name,
         employeeId: cashEntries.employeeId,
         employeeName: users.name,
+        hasReceipt: sql<boolean>`${cashEntries.receiptKey} is not null`,
       })
       .from(cashEntries)
       .leftJoin(expenseCategories, eq(expenseCategories.id, cashEntries.categoryId))
@@ -145,6 +146,7 @@ export async function financeMovements(db: Db, month: IsoMonth) {
       categoryName: null as string | null,
       employeeId: null as number | null,
       employeeName: null as string | null,
+      hasReceipt: false,
     })),
     ...cashRows.map((c) => ({
       type: c.kind,
@@ -160,6 +162,7 @@ export async function financeMovements(db: Db, month: IsoMonth) {
       categoryName: c.categoryName,
       employeeId: c.employeeId,
       employeeName: c.employeeName,
+      hasReceipt: c.hasReceipt,
     })),
   ];
   movements.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
