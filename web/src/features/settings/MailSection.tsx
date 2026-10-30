@@ -42,9 +42,10 @@ export function MailSection() {
             <div className="border-l-4 border-yellow bg-paper-2 px-3 py-3 text-sm">
               <p className="font-bold">Envío simulado</p>
               <p className="mt-1 text-muted">
-                Los mails se arman y quedan en el registro, pero no se envían. Para activar el envío real, configure en el servidor las variables{' '}
-                <code className="font-semibold text-ink">RESEND_API_KEY</code> y <code className="font-semibold text-ink">MAIL_FROM</code> (y, si lo desea,{' '}
-                <code className="font-semibold text-ink">MAIL_REPLY_TO</code>).
+                Los mails se arman y quedan en el registro, pero no se envían. Para activar el envío real, configure en el servidor{' '}
+                <code className="font-semibold text-ink">SMTP_USER</code> y <code className="font-semibold text-ink">SMTP_PASS</code> (una cuenta de
+                Gmail con contraseña de aplicación), o <code className="font-semibold text-ink">RESEND_API_KEY</code> y{' '}
+                <code className="font-semibold text-ink">MAIL_FROM</code> para un dominio propio.
               </p>
             </div>
           ) : (
