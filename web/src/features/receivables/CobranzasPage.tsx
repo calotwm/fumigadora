@@ -135,7 +135,7 @@ function DebtorsList({ debtors, sort, onSortChange }: { debtors: Debtor[]; sort:
           {money(d.balanceCents)}
           {d.oldestOwedMonth ? (
             <span className="block text-xs font-normal text-muted">
-              Desde {monthLabel(d.oldestOwedMonth)} · {d.owedMonthCount === 1 ? '1 mes' : `${d.owedMonthCount} meses`}
+              Desde {monthLabel(d.oldestOwedMonth).toLowerCase()} · {d.owedMonthCount === 1 ? '1 mes' : `${d.owedMonthCount} meses`}
             </span>
           ) : null}
         </span>

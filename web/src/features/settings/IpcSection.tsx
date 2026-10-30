@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { PRICE_SCOPES, type PriceRounding, type PriceScope } from '@fumigadora/shared';
+import { PRICE_ROUNDINGS, PRICE_SCOPES, type PriceRounding, type PriceScope } from '@fumigadora/shared';
 import { Button } from '../../ui/Button';
 import { Confirm } from '../../ui/Confirm';
 import { Checkbox, Chips, Input } from '../../ui/form';
@@ -118,7 +118,7 @@ export function IpcSection() {
               setRounding(value);
               reset();
             }}
-            options={(Object.keys(ROUNDING_LABELS) as PriceRounding[]).map((value) => ({ value, label: ROUNDING_LABELS[value] }))}
+            options={PRICE_ROUNDINGS.map((value) => ({ value, label: ROUNDING_LABELS[value] }))}
           />
         </div>
         <fieldset>
