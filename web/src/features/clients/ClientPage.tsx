@@ -5,7 +5,7 @@ import { useClient, useStatement, useUnarchiveClient } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, money, overdueLabel } from '../../lib/format';
 import { debtReminderText, mapsLink, whatsappLink } from '../../lib/whatsapp';
-import { AnchorButton, Button } from '../../ui/Button';
+import { AnchorButton, Button, LinkButton } from '../../ui/Button';
 import { ErrorNote, Loading, Stat, Tabs } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
@@ -155,6 +155,9 @@ function ClientView({
           <Button variant="outline" onClick={() => setLinkOpen(true)}>
             Link público
           </Button>
+          <LinkButton variant="outline" to={`/clientes/${client.id}/cartel`}>
+            Imprimir QR
+          </LinkButton>
           <Button variant="outline" onClick={() => open({ type: 'clientEdit', clientId: client.id })}>
             Editar
           </Button>

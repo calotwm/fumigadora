@@ -709,3 +709,18 @@ export interface PortalClient {
 }
 
 export type PortalVerifyResult = { status: 'ok'; client: PortalClient } | { status: 'choose'; clients: PortalClient[] };
+
+export interface PlacardItem {
+  id: number;
+  name: string;
+  address: string | null;
+  area: string | null;
+  token: string;
+  url: string;
+}
+
+export interface PlacardList {
+  /** Zones with at least one active client. */
+  zones: string[];
+  items: PlacardItem[];
+}

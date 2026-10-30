@@ -9,6 +9,7 @@ import type {
   EmailLogItem,
   EmailLogPage,
   EmailStatus,
+  PlacardList,
   PublicLink,
   ReminderPreview,
   RouteView,
@@ -393,6 +394,13 @@ export function useRegeneratePublicLink() {
   return useMutation({
     mutationFn: (clientId: number) => api<PublicLink>(`/clients/${clientId}/public-link/regenerate`, { method: 'POST', body: {} }),
     onSuccess: (link, clientId) => queryClient.setQueryData(['public-link', clientId], link),
+  });
+}
+
+export function usePlacards(area: string) {
+  return useQuery({
+    queryKey: ['placards', area],
+    queryFn: () => api<PlacardList>('/clients/placards', { query: { area } }),
   });
 }
 

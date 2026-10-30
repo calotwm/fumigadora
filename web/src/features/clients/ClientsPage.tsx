@@ -4,7 +4,7 @@ import { Plus, Search } from 'lucide-react';
 import { useClients, useUnarchiveClient, type ClientListParams } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, dayMonth } from '../../lib/format';
-import { Button } from '../../ui/Button';
+import { Button, LinkButton } from '../../ui/Button';
 import { Chips } from '../../ui/form';
 import { EmptyState, ErrorNote, Loading, PageHeader, Table, type Column } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
@@ -142,9 +142,14 @@ export function ClientsPage() {
         eyebrow={data ? `${data.length} ${data.length === 1 ? 'cliente' : 'clientes'}` : undefined}
         title="Clientes"
         actions={
-          <Button icon={<Plus size={16} aria-hidden />} onClick={() => open({ type: 'client' })}>
-            Nuevo cliente
-          </Button>
+          <>
+            <LinkButton variant="outline" to="/carteles">
+              Carteles QR
+            </LinkButton>
+            <Button icon={<Plus size={16} aria-hidden />} onClick={() => open({ type: 'client' })}>
+              Nuevo cliente
+            </Button>
+          </>
         }
       />
       <div className="mb-6 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">

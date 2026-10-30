@@ -28,6 +28,7 @@ import {
   users,
   visits,
 } from './db/schema.js';
+import { newPublicToken } from './services/publicLink.js';
 
 /** Deterministic PRNG so seeds are reproducible for a given date. */
 function mulberry32(seed: number) {
@@ -314,7 +315,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
       null,
     );
   });
-  const clientRows = await db.insert(clients).values(clientDefs).returning({ id: clients.id });
+  const clientRows = await db.insert(clients).values(clientDefs.map((c) => ({ ...c, publicToken: newPublicToken() }))).returning({ id: clients.id });
   const clientPlans: ClientPlan[] = plans.map((p, i) => ({ ...p, id: clientRows[i]!.id }));
 
   // ~70% of the clients have an email (example.com addresses, so a demo never mails a real person).
