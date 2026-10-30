@@ -264,6 +264,32 @@ describe('allocatePayment', () => {
     expect(r.allocations).toEqual([{ invoiceId: 2, amountCents: 10_00 }]);
   });
 
+  it('pays the selected invoices first in chronological order, leaving older ones owed', () => {
+    const r = allocatePayment(80_00, invoices, [3, 2]);
+    expect(r.allocations).toEqual([
+      { invoiceId: 2, amountCents: 50_00 },
+      { invoiceId: 3, amountCents: 30_00 },
+    ]);
+    expect(r.creditCents).toBe(0);
+  });
+
+  it('sends the remainder over the selected invoices FIFO to the others, then to credit', () => {
+    const r = allocatePayment(100_00, invoices, [3]);
+    expect(r.allocations).toEqual([
+      { invoiceId: 3, amountCents: 30_00 },
+      { invoiceId: 1, amountCents: 70_00 },
+    ]);
+    expect(allocatePayment(200_00, invoices, [2]).creditCents).toBe(20_00);
+  });
+
+  it('keeps plain FIFO for an empty selection', () => {
+    expect(allocatePayment(120_00, invoices, [])).toEqual(allocatePayment(120_00, invoices));
+  });
+
+  it('rejects a selection with an invoice that is not open', () => {
+    expect(() => allocatePayment(10_00, invoices, [2, 99])).toThrow();
+  });
+
   it('is all credit when there are no open invoices', () => {
     expect(allocatePayment(10_00, [])).toEqual({ allocations: [], creditCents: 10_00 });
   });

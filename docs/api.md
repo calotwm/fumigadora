@@ -70,7 +70,7 @@ Clients sign in with an emailed magic link. The session cookie is the same signe
 | POST | `/api/portal/verify` | `{ token }` | One matching client: `{ status: 'ok', client: { id, name } }` + session cookie, token spent. Several clients share the email: `{ status: 'choose', clients: { id, name }[] }` (only those that matched this token), no cookie, token **not** spent. `400 invalid_link` for an unknown, expired (30 min) or used token. POST instead of GET so mail scanners that prefetch links cannot burn the token |
 | POST | `/api/portal/select` | `{ token, clientId }` | Picker step: same checks as `verify`; `clientId` must be one of the clients that matched the token, else `400 invalid_link` (and the token stays usable). Spends the token and binds the session to that client |
 | GET | `/api/portal/me` | - | `{ client: { id, name } }` |
-| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
+| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, months: { month, billedCents, paidCents, owedCents }[] (same rules as `GET /api/clients/:id/months`), nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
 | GET | `/api/portal/visits` | - | `{ id, date, time, status, serviceTypeName }[]`, newest first (no notes, prices, cancel reasons or employee names) |
 | GET | `/api/portal/invoices` | - | Non-voided invoices, newest first: `{ id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents, status, daysOverdue, items: { description, quantity, unitPriceCents, amountCents }[] }[]` (no ARCA data) |
 | GET | `/api/portal/payments` | - | `{ id, paidOn, amountCents, method, allocations: { invoiceNumber, amountCents }[] }[]`, newest first |
@@ -139,6 +139,7 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 | POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName? }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
 | GET | `/api/clients/placards` | query `area?` (exact zone) | `{ zones: string[], items: { id, name, address, area, token, url }[] }`: active clients (all, or one zone) with their public link for printing, ordered by zone then name; `zones` = zones with at least one active client. Missing tokens are created |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
+| GET | `/api/clients/:id/months` | - | `DebtByMonth` (below): the client's open debt grouped by month, oldest first. `404` for an unknown client |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
 | POST | `/api/clients/:id/archive` | - | client row (soft archive; archived clients drop out of lists, batch billing, search) |
@@ -159,6 +160,22 @@ Statement:
 - `invoices[]`: `Invoice` newest first (including voided, flagged `voided`).
 - `payments[]`: `{ id, clientId, paidOn, amountCents, method, notes, createdAt, allocations: Allocation[], unallocatedCents }` newest first.
 - `visits[]`: `Visit` newest first. `certificates[]`: `Certificate` by expiry desc.
+
+`DebtByMonth`:
+
+```ts
+{
+  months: {
+    month: 'YYYY-MM',           // invoice periodMonth, or the month of issuedOn when it has none
+    billedCents, paidCents,     // amounts and allocations of the month's open invoices
+    creditAppliedCents,         // unallocated client credit netted here (oldest month first)
+    owedCents,                  // billed - paid - creditApplied
+    invoices: { id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents }[]  // oldest due first
+  }[],                          // only months with at least one open (non-voided, unpaid) invoice
+  totalOwedCents,               // sum of owedCents = balanceCents whenever the balance is not negative
+  creditCents                   // credit left after netting every month
+}
+```
 
 ## Service types and expense categories
 
@@ -184,6 +201,20 @@ Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. 
 | POST | `/api/extras` | `{ name, priceCents (>0), active?=true }` | `201` row |
 | PATCH | `/api/extras/:id` | subset | row (a price change never touches lines already billed) |
 | DELETE | `/api/extras/:id` | - | `{ ok: true }`; `409` once used by a visit (deactivate instead) |
+
+### IPC price update (owner only)
+
+A forward-looking price update: raises list prices by a percentage entered by hand (no automatic INDEC fetch). Invoices already issued, allocations and client balances are never touched.
+
+Body `PriceAdjustment = { percent (> 0, <= 100, at most 2 decimals, e.g. 3.2), rounding?='none'|'100'|'1000' (to the cent, to $100, to $1.000), scopes: ('serviceTypes'|'extras'|'visits'|'monthlyFees')[] (at least one) }`. Each price is raised and rounded half up to the cent, then rounded half up to the chosen step (integer cents throughout). Scopes: `serviceTypes` = `defaultPriceCents` of every service type; `extras` = `priceCents` of active extras; `visits` = `priceCents` of `scheduled` visits dated today or later that have their own price (visits without one keep using the service type default); `monthlyFees` = `monthlyFeeCents` of active clients with a fee.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/price-adjustments/preview` | `PriceAdjustment` | `{ percent, percentBasisPoints (320 = 3.2 %), rounding, scopes, itemCount, items: { scope, id, name, detail: string\|null (service of a visit), date: IsoDate\|null (visit date), oldCents, newCents }[] }`: every price that would change (unchanged ones are left out). Changes nothing |
+| POST | `/api/price-adjustments` | `PriceAdjustment` | `201 { adjustment: PriceAdjustmentRecord, ...same as preview }`: applies the update in one transaction (the items are the ones the preview returns for the same body and data) and records it. `400 nothing_to_adjust` when no price changes |
+| GET | `/api/price-adjustments` | - | `PriceAdjustmentRecord[]` newest first: `{ id, createdAt, percent, percentBasisPoints, rounding, scopes, userName, itemCount }` (`userName` is `Dueño` for the emergency owner session). Rows live in `price_adjustments` (migration 0017) with a snapshot of the changed items |
+
+Employees get `403` on all three.
 
 ## Visits and agenda
 
@@ -290,7 +321,7 @@ Emissions are serialized in-process (numbering is sequential per point of sale a
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId? }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; any remainder is credit. `400` if `invoiceId` is not an open invoice of the client |
+| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId?, invoiceIds?: number[] }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; with `invoiceIds` (the months chosen in the payment form, see `GET /api/clients/:id/months`) those invoices are paid first in chronological order (due date), then FIFO over the other open invoices; any remainder is credit. An empty `invoiceIds` is plain FIFO. `400` if `invoiceId` or any of `invoiceIds` is not an open invoice of the client, or when both are sent |
 | GET | `/api/payments` | query `from?`, `to?`, `clientId?` | `{ ...payment, clientName, allocations, unallocatedCents }[]` newest first |
 | DELETE | `/api/payments/:id` | - | `{ ok: true, client: { id } & BalanceFields }` (allocations removed; invoices reopen) |
 
@@ -313,7 +344,7 @@ Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone } & BalanceFields)[] }` debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
+| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone, overdueSince, oldestOwedMonth: 'YYYY-MM'\|null, owedMonthCount } & BalanceFields)[] }` (`oldestOwedMonth`/`owedMonthCount`: months that still owe after netting credit, see `DebtByMonth`) debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
 | GET | `/api/certificates?expiringWithinDays=15&clientId=` | `Certificate[]` by expiry asc. With `expiringWithinDays`: only non-superseded certificates of active clients with `expiresOn <= today + N` (already expired included, `daysLeft < 0`). A certificate is superseded when the client has a newer one for the same service type. Each item has `hasFile` (a PDF is stored) |
 | GET | `/api/certificates/:id/file` | - | The certificate PDF (`application/pdf`, `Content-Disposition: inline; filename="oblea-<number>.pdf"`). `404` when the certificate has no stored file. Owner only (`401` without session, `403` for employees) |
 | GET | `/api/dashboard` | see below |

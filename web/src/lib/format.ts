@@ -1,4 +1,4 @@
-import { formatMoney, isoWeekday, type Frequency, type PaymentMethod, type TaxDocType } from '@fumigadora/shared';
+import { formatMoney, isoWeekday, monthLabelEs, type Frequency, type PaymentMethod, type TaxDocType } from '@fumigadora/shared';
 
 /**
  * es-AR money without trailing ",00": `$ 1.234.567`. Cents are shown only when present.
@@ -48,6 +48,11 @@ export function longDate(iso: string): string {
   const weekday = WEEKDAYS[isoWeekday(iso) - 1] ?? '';
   const month = MONTHS[Number(iso.slice(5, 7)) - 1] ?? '';
   return `${cap(weekday)} ${Number(iso.slice(8, 10))} de ${month}`;
+}
+
+/** `2025-03` -> `Marzo 2025`. */
+export function monthLabel(month: string): string {
+  return cap(monthLabelEs(month));
 }
 
 export function overdueLabel(days: number): string {

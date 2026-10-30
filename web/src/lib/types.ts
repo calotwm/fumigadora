@@ -10,6 +10,8 @@ import type {
   IsoDate,
   IsoMonth,
   PaymentMethod,
+  PriceRounding,
+  PriceScope,
   VisitStatus,
 } from '@fumigadora/shared';
 
@@ -305,6 +307,9 @@ export interface Debtor extends BalanceFields {
   phone: string | null;
   /** Due date of the oldest overdue invoice; null when nothing is overdue. */
   overdueSince: IsoDate | null;
+  /** Oldest month that still has debt (credit netted); null when none. */
+  oldestOwedMonth: IsoMonth | null;
+  owedMonthCount: number;
 }
 
 export interface Receivables {
@@ -678,6 +683,7 @@ export interface PortalSummary {
   creditCents: number;
   daysOverdue: number;
   overdueInvoiceCount: number;
+  months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number }[];
   nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
   lastVisitDate: IsoDate | null;
   certificate: PortalCertificate | null;
@@ -725,4 +731,46 @@ export interface PlacardList {
   /** Zones with at least one active client. */
   zones: string[];
   items: PlacardItem[];
+}
+
+export interface PriceChange {
+  scope: PriceScope;
+  id: number;
+  name: string;
+  /** Service of a scheduled visit. */
+  detail: string | null;
+  /** Date of a scheduled visit. */
+  date: IsoDate | null;
+  oldCents: number;
+  newCents: number;
+}
+
+export interface PriceAdjustmentBody {
+  percent: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+}
+
+export interface PriceAdjustmentPreview {
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  itemCount: number;
+  items: PriceChange[];
+}
+
+export interface PriceAdjustmentRecord {
+  id: number;
+  createdAt: string;
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  userName: string;
+  itemCount: number;
+}
+
+export interface PriceAdjustmentResult extends PriceAdjustmentPreview {
+  adjustment: PriceAdjustmentRecord;
 }

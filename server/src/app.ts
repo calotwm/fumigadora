@@ -21,6 +21,7 @@ import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
 import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
 import { portalRoutes } from './routes/portal.js';
+import { priceAdjustmentRoutes } from './routes/priceAdjust.js';
 import { publicRoutes } from './routes/public.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
@@ -75,6 +76,7 @@ export function createApp(options: AppOptions) {
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));
   api.route('/extras', extraRoutes(deps));
+  api.route('/price-adjustments', priceAdjustmentRoutes(deps));
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
   api.route('/tracking', trackingRoutes(deps));
