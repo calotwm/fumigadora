@@ -202,6 +202,20 @@ Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. 
 | PATCH | `/api/extras/:id` | subset | row (a price change never touches lines already billed) |
 | DELETE | `/api/extras/:id` | - | `{ ok: true }`; `409` once used by a visit (deactivate instead) |
 
+### IPC price update (owner only)
+
+A forward-looking price update: raises list prices by a percentage entered by hand (no automatic INDEC fetch). Invoices already issued, allocations and client balances are never touched.
+
+Body `PriceAdjustment = { percent (> 0, <= 100, at most 2 decimals, e.g. 3.2), rounding?='none'|'100'|'1000' (to the cent, to $100, to $1.000), scopes: ('serviceTypes'|'extras'|'visits'|'monthlyFees')[] (at least one) }`. Each price is raised and rounded half up to the cent, then rounded half up to the chosen step (integer cents throughout). Scopes: `serviceTypes` = `defaultPriceCents` of every service type; `extras` = `priceCents` of active extras; `visits` = `priceCents` of `scheduled` visits dated today or later that have their own price (visits without one keep using the service type default); `monthlyFees` = `monthlyFeeCents` of active clients with a fee.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/price-adjustments/preview` | `PriceAdjustment` | `{ percent, percentBasisPoints (320 = 3.2 %), rounding, scopes, itemCount, items: { scope, id, name, detail: string\|null (service of a visit), date: IsoDate\|null (visit date), oldCents, newCents }[] }`: every price that would change (unchanged ones are left out). Changes nothing |
+| POST | `/api/price-adjustments` | `PriceAdjustment` | `201 { adjustment: PriceAdjustmentRecord, ...same as preview }`: applies the update in one transaction (the items are the ones the preview returns for the same body and data) and records it. `400 nothing_to_adjust` when no price changes |
+| GET | `/api/price-adjustments` | - | `PriceAdjustmentRecord[]` newest first: `{ id, createdAt, percent, percentBasisPoints, rounding, scopes, userName, itemCount }` (`userName` is `Dueño` for the emergency owner session). Rows live in `price_adjustments` (migration 0017) with a snapshot of the changed items |
+
+Employees get `403` on all three.
+
 ## Visits and agenda
 
 | Method | Path | Body / query | Response |

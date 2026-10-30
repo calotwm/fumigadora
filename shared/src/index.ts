@@ -5,6 +5,7 @@ export * from './invoice.js';
 export * from './aging.js';
 export * from './allocation.js';
 export * from './debtMonths.js';
+export * from './priceAdjust.js';
 export * from './recurrence.js';
 export * from './tracking.js';
 export * from './routePlan.js';

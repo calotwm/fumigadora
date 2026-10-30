@@ -184,7 +184,7 @@ export async function runSeed(db: Db, today: IsoDate): Promise<SeedSummary> {
 
   await db.execute(
     sql.raw(
-      'truncate table push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoice_items, invoices, certificates, visit_extras, visits, extras, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
+      'truncate table price_adjustments, push_subscriptions, notifications, route_plan_items, route_plans, email_log, settings, job_runs, allocations, payments, invoice_items, invoices, certificates, visit_extras, visits, extras, cash_entries, expense_categories, service_types, clients, users restart identity cascade',
     ),
   );
 

@@ -10,6 +10,8 @@ import type {
   IsoDate,
   IsoMonth,
   PaymentMethod,
+  PriceRounding,
+  PriceScope,
   VisitStatus,
 } from '@fumigadora/shared';
 
@@ -729,4 +731,46 @@ export interface PlacardList {
   /** Zones with at least one active client. */
   zones: string[];
   items: PlacardItem[];
+}
+
+export interface PriceChange {
+  scope: PriceScope;
+  id: number;
+  name: string;
+  /** Service of a scheduled visit. */
+  detail: string | null;
+  /** Date of a scheduled visit. */
+  date: IsoDate | null;
+  oldCents: number;
+  newCents: number;
+}
+
+export interface PriceAdjustmentBody {
+  percent: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+}
+
+export interface PriceAdjustmentPreview {
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  itemCount: number;
+  items: PriceChange[];
+}
+
+export interface PriceAdjustmentRecord {
+  id: number;
+  createdAt: string;
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  userName: string;
+  itemCount: number;
+}
+
+export interface PriceAdjustmentResult extends PriceAdjustmentPreview {
+  adjustment: PriceAdjustmentRecord;
 }

@@ -40,6 +40,10 @@ import type {
   Extra,
   Invoice,
   PaymentResult,
+  PriceAdjustmentBody,
+  PriceAdjustmentPreview,
+  PriceAdjustmentRecord,
+  PriceAdjustmentResult,
   SearchClient,
   ServiceType,
   Statement,
@@ -696,4 +700,24 @@ export function useRouteActions(month: string) {
       onSuccess: done,
     }),
   };
+}
+
+/** IPC price updates applied so far, newest first. */
+export function usePriceAdjustments() {
+  return useQuery({ queryKey: ['price-adjustments'], queryFn: () => api<PriceAdjustmentRecord[]>('/price-adjustments') });
+}
+
+export function usePreviewPriceAdjustment() {
+  return useMutation({
+    mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentPreview>('/price-adjustments/preview', { body }),
+  });
+}
+
+export function useApplyPriceAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentResult>('/price-adjustments', { body }),
+    // Service type prices are reference data (not refreshed by invalidateData).
+    onSuccess: () => Promise.all([invalidateData(queryClient), queryClient.invalidateQueries({ queryKey: ['service-types'] })]),
+  });
 }
