@@ -241,6 +241,8 @@ describe('debt reminders and the daily job', () => {
     const html = (await t.get(`/api/email/log/${log.items[0].id}`)).body.html as string;
     expect(html).toContain('2025-');
     expect(html).toContain('desestime este mensaje');
+    // Without the IPC warning switched on, the reminder says nothing about interest.
+    expect(html).not.toContain('IPC');
   });
 
   it('waits the configured days before the next reminder and includes newly eligible clients', async () => {
@@ -258,6 +260,20 @@ describe('debt reminders and the daily job', () => {
     expect((await t.post('/api/jobs/run-daily')).body.reminders.simulated).toBe(0);
     const manual = await t.post('/api/reminders/send');
     expect(manual.body.simulated).toBe(3); // Moroso, Reciente and the now-overdue "Al dia"
+  });
+
+  it('warns that IPC interest will start after the grace days when the warning is on', async () => {
+    const put = await t.call('PUT', '/api/settings', { ipcWarningEnabled: true, ipcWarningGraceDays: 10 });
+    expect(put.body).toMatchObject({ ipcWarningEnabled: true, ipcWarningGraceDays: 10 });
+    t.setToday('2025-09-20');
+    const owedBefore = (await t.get('/api/receivables')).body.owedCents;
+    expect((await t.post('/api/reminders/send')).body.simulated).toBe(3);
+    const latest = (await reminders()).items[0];
+    const html = (await t.get(`/api/email/log/${latest.id}`)).body.html as string;
+    expect(html).toContain('30/09/2025'); // 2025-09-20 + 10 days
+    expect(html).toContain('Índice de Precios al Consumidor (IPC)');
+    // Debts are not changed by the warning.
+    expect((await t.get('/api/receivables')).body.owedCents).toBe(owedBefore);
   });
 });
 

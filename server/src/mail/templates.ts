@@ -121,6 +121,8 @@ export interface DebtReminderInput {
   clientName: string;
   invoices: { number: string; dueOn: IsoDate; balanceCents: number }[];
   totalCents: number;
+  /** When set, the reminder warns that IPC interest starts if the debt is still unpaid on this date. */
+  interestFrom?: IsoDate | null;
 }
 
 export function debtReminderEmail(input: DebtReminderInput): RenderedEmail {
@@ -134,6 +136,14 @@ export function debtReminderEmail(input: DebtReminderInput): RenderedEmail {
       total: ['Total adeudado', formatMoney(input.totalCents)],
     },
     { type: 'p', text: 'Le agradeceremos regularizar el pago a la brevedad. Si necesita los datos para realizar la transferencia o desea coordinar otra forma de pago, responda a este mensaje.' },
+    ...(input.interestFrom
+      ? [
+          {
+            type: 'p',
+            text: `Le informamos que, si el saldo vencido no se regulariza antes del ${shortDateEs(input.interestFrom)}, a partir de esa fecha comenzará a aplicarse sobre él un interés calculado según la variación del Índice de Precios al Consumidor (IPC) publicado por el INDEC.`,
+          } satisfies Block,
+        ]
+      : []),
     { type: 'p', text: 'Si ya realizó el pago, desestime este mensaje.' },
     { type: 'p', text: 'Muchas gracias.' },
   ]);
