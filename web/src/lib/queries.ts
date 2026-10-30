@@ -5,6 +5,15 @@ import type {
   ArcaCheckResult,
   ArcaStatusInfo,
   CashHandover,
+  EmployeePayMonth,
+  BaitStation,
+  ClientBaitStations,
+  ClientDocument,
+  MyVisitStations,
+  Product,
+  ProductOption,
+  StockMovement,
+  StockUsage,
   EmailKind,
   EmailLogItem,
   EmailLogPage,
@@ -49,7 +58,7 @@ import type {
   Statement,
   Visit,
 } from './types';
-import type { DebtByMonth, Frequency, PaymentMethod } from '@fumigadora/shared';
+import type { DebtByMonth, EmployeePayKind, Frequency, PaymentMethod, ProductUnit, StockMovementKind } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -719,5 +728,189 @@ export function useApplyPriceAdjustment() {
     mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentResult>('/price-adjustments', { body }),
     // Service type prices are reference data (not refreshed by invalidateData).
     onSuccess: () => Promise.all([invalidateData(queryClient), queryClient.invalidateQueries({ queryKey: ['service-types'] })]),
+  });
+}
+
+export function useEmployeePay(month: string) {
+  return useQuery({
+    queryKey: ['employee-pay', month],
+    queryFn: () => api<EmployeePayMonth>('/employee-pay', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface EmployeePayInput {
+  userId: number;
+  date: string;
+  amountCents: number;
+  kind: EmployeePayKind;
+  note?: string;
+  method: PaymentMethod;
+}
+
+export function useCreateEmployeePay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EmployeePayInput) => api('/employee-pay', { body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteEmployeePay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/employee-pay/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Employee app: fuel load with the ticket photo (multipart). */
+export function useLoadFuel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ amountCents, photo }: { amountCents: number; photo: File }) => {
+      const body = new FormData();
+      body.set('amountCents', String(amountCents));
+      body.set('photo', photo);
+      return api<{ id: number; date: string; amountCents: number }>('/me/fuel', { body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+// Stock ---------------------------------------------------------------------
+
+export function useProducts() {
+  return useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
+}
+
+export interface ProductBody {
+  name?: string;
+  unit?: ProductUnit;
+  minQuantity?: number | null;
+  active?: boolean;
+}
+
+export function useSaveProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: ProductBody }) =>
+      id === undefined ? api<Product>('/products', { body }) : api<Product>(`/products/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useStockMovements(month: string) {
+  return useQuery({
+    queryKey: ['stock', 'movements', month],
+    queryFn: () => api<StockMovement[]>('/stock/movements', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useStockUsage(month: string) {
+  return useQuery({
+    queryKey: ['stock', 'usage', month],
+    queryFn: () => api<StockUsage>('/stock/usage', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface StockMovementBody {
+  productId: number;
+  kind: StockMovementKind;
+  quantity: number;
+  date: string;
+  note?: string;
+}
+
+export function useCreateStockMovement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StockMovementBody) => api<StockMovement>('/stock/movements', { body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteStockMovement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/stock/movements/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Employee app: active products to report as used when closing a visit. */
+export function useMyProducts() {
+  return useQuery({ queryKey: ['me', 'products'], queryFn: () => api<ProductOption[]>('/me/products'), staleTime: 60_000 });
+}
+
+// Bait stations ("cebaderos") ----------------------------------------------
+
+export function useBaitStations(clientId: number) {
+  return useQuery({
+    queryKey: ['bait-stations', clientId],
+    queryFn: () => api<ClientBaitStations>('/bait-stations', { query: { clientId } }),
+  });
+}
+
+export function useSaveBaitStation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: { clientId: number; code: string; reference: string } }) =>
+      id === undefined
+        ? api<BaitStation>('/bait-stations', { body })
+        : api<BaitStation>(`/bait-stations/${id}`, { method: 'PATCH', body: { code: body.code, reference: body.reference } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteBaitStation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/bait-stations/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useUploadStationPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, photo }: { id: number; photo: File }) => {
+      const body = new FormData();
+      body.set('photo', photo);
+      return api<BaitStation>(`/bait-stations/${id}/photo`, { method: 'PUT', body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useUploadClientDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ clientId, name, file }: { clientId: number; name?: string; file: File }) => {
+      const body = new FormData();
+      body.set('clientId', String(clientId));
+      if (name) body.set('name', name);
+      body.set('file', file);
+      return api<ClientDocument>('/client-documents', { body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteClientDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/client-documents/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Employee app: stations of the client of one of the caller's visits. */
+export function useMyVisitStations(visitId: number) {
+  return useQuery({
+    queryKey: ['me', 'bait-stations', visitId],
+    queryFn: () => api<MyVisitStations>(`/me/visits/${visitId}/bait-stations`),
   });
 }

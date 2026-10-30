@@ -13,7 +13,10 @@ import { useActions } from '../actions/ActionsProvider';
 import type { FinanceSummary, Movement } from '../../lib/types';
 import { CashEntrySheet } from './CashEntrySheet';
 import { CashHandoverPanel } from './CashHandoverPanel';
+import { EmployeePayPanel } from './EmployeePayPanel';
 import { MonthChart } from './MonthChart';
+
+type Tab = 'resumen' | 'efectivo' | 'empleados';
 
 function cap(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -27,10 +30,11 @@ export function FinanzasPage() {
   const { open } = useActions();
   const summary = useFinanceSummary(month);
   const handover = useCashHandover();
-  const tab = params.get('tab') === 'efectivo' ? 'efectivo' : 'resumen';
+  const rawTab = params.get('tab');
+  const tab: Tab = rawTab === 'efectivo' || rawTab === 'empleados' ? rawTab : 'resumen';
   const pendingCount = handover.data?.pendingCount ?? 0;
 
-  function goTab(next: 'resumen' | 'efectivo') {
+  function goTab(next: Tab) {
     setParams(
       (cur) => {
         const copy = new URLSearchParams(cur);
@@ -54,11 +58,36 @@ export function FinanzasPage() {
     );
   }
 
+  const monthNav = (
+    <div className="mb-6 flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Mes anterior"
+        onClick={() => go(addMonthsToMonth(month, -1))}
+        className="grid size-11 place-items-center border border-ink hover:bg-paper-2"
+      >
+        <ChevronLeft size={18} aria-hidden />
+      </button>
+      <Button variant="outline" onClick={() => go(current)} disabled={month === current}>
+        Este mes
+      </Button>
+      <button
+        type="button"
+        aria-label="Mes siguiente"
+        disabled={month >= current}
+        onClick={() => go(addMonthsToMonth(month, 1))}
+        className="grid size-11 place-items-center border border-ink hover:bg-paper-2 disabled:opacity-30"
+      >
+        <ChevronRight size={18} aria-hidden />
+      </button>
+    </div>
+  );
+
   return (
     <>
       <PageHeader
         eyebrow="Finanzas"
-        title={tab === 'efectivo' ? 'Efectivo a rendir' : cap(monthLabelEs(month))}
+        title={tab === 'efectivo' ? 'Efectivo a rendir' : tab === 'empleados' ? `Empleados · ${monthLabelEs(month)}` : cap(monthLabelEs(month))}
         actions={
           <>
             <Button variant="outline" onClick={() => open({ type: 'income' })}>
@@ -74,38 +103,19 @@ export function FinanzasPage() {
           tabs={[
             { id: 'resumen', label: 'Resumen' },
             { id: 'efectivo', label: pendingCount > 0 ? `Efectivo a rendir (${pendingCount})` : 'Efectivo a rendir' },
+            { id: 'empleados', label: 'Pagos a empleados' },
           ]}
           value={tab}
           onChange={goTab}
         />
       </div>
+      {tab === 'efectivo' ? null : monthNav}
       {tab === 'efectivo' ? (
         <CashHandoverPanel />
+      ) : tab === 'empleados' ? (
+        <EmployeePayPanel month={month} />
       ) : (
         <>
-      <div className="mb-6 flex items-center gap-1">
-        <button
-          type="button"
-          aria-label="Mes anterior"
-          onClick={() => go(addMonthsToMonth(month, -1))}
-          className="grid size-11 place-items-center border border-ink hover:bg-paper-2"
-        >
-          <ChevronLeft size={18} aria-hidden />
-        </button>
-        <Button variant="outline" onClick={() => go(current)} disabled={month === current}>
-          Este mes
-        </Button>
-        <button
-          type="button"
-          aria-label="Mes siguiente"
-          disabled={month >= current}
-          onClick={() => go(addMonthsToMonth(month, 1))}
-          className="grid size-11 place-items-center border border-ink hover:bg-paper-2 disabled:opacity-30"
-        >
-          <ChevronRight size={18} aria-hidden />
-        </button>
-      </div>
-
       {summary.isLoading ? (
         <Loading />
       ) : summary.error || !summary.data ? (
@@ -211,6 +221,7 @@ function Movements({ month }: { month: string }) {
                   <p className="truncate text-xs text-muted">
                     {m.type === 'payment' ? 'Cobro' : m.type === 'income' ? 'Ingreso' : 'Gasto'}
                     {m.method ? ` · ${METHOD_LABELS[m.method]}` : ''}
+                    {m.employeeName ? ` · ${m.employeeName}` : ''}
                     {m.description ? ` · ${m.description}` : ''}
                   </p>
                 </div>
@@ -219,6 +230,16 @@ function Movements({ month }: { month: string }) {
                 </span>
                 {manual ? (
                   <div className="col-start-2 col-span-2 flex gap-1">
+                    {m.hasReceipt ? (
+                      <a
+                        href={`/api/cash-entries/${m.id}/receipt`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="-ml-3 inline-flex min-h-9 items-center px-3 text-sm font-semibold underline"
+                      >
+                        Ver ticket
+                      </a>
+                    ) : null}
                     <Button size="sm" variant="ghost" className="-ml-3" onClick={() => setEditing(m)} aria-label="Editar movimiento">
                       Editar
                     </Button>

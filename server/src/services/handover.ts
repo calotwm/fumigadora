@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import type { IsoDate } from '@fumigadora/shared';
 import { z } from 'zod';
 import type { Db } from '../db/client.js';
 import { clients, payments, users } from '../db/schema.js';
@@ -106,4 +107,20 @@ export async function cashPendingTotals(db: Db) {
     .from(payments)
     .where(and(isNotNull(payments.collectedByUserId), isNull(payments.handedOverAt)));
   return { cents: rows.reduce((s, r) => s + r.amountCents, 0), count: rows.length };
+}
+
+/** Cash each employee collected between two dates (by `paidOn`), split into handed over and still pending. */
+export async function cashCollectedByEmployee(db: Db, from: IsoDate, to: IsoDate) {
+  const rows = await db
+    .select({
+      userId: payments.collectedByUserId,
+      collectedCents: sql<number>`coalesce(sum(${payments.amountCents}), 0)`.mapWith(Number),
+      handedOverCents: sql<number>`coalesce(sum(${payments.amountCents}) filter (where ${payments.handedOverAt} is not null), 0)`.mapWith(Number),
+    })
+    .from(payments)
+    .where(and(isNotNull(payments.collectedByUserId), eq(payments.method, 'cash'), gte(payments.paidOn, from), lte(payments.paidOn, to)))
+    .groupBy(payments.collectedByUserId);
+  return new Map(
+    rows.map((r) => [r.userId!, { collectedCents: r.collectedCents, handedOverCents: r.handedOverCents, pendingCents: r.collectedCents - r.handedOverCents }]),
+  );
 }

@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 
 /** Thrown for keys that are absolute or would resolve outside the files directory. */
@@ -47,4 +47,9 @@ export async function storedFileSize(baseDir: string, key: string): Promise<numb
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
   }
+}
+
+/** Removes the file stored under `key`; a missing file is not an error. */
+export async function deleteStoredFile(baseDir: string, key: string): Promise<void> {
+  await rm(resolveFilePath(baseDir, key), { force: true });
 }

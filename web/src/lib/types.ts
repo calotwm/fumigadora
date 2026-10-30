@@ -9,7 +9,10 @@ import type {
   InvoiceStatus,
   IsoDate,
   IsoMonth,
+  EmployeePayKind,
   PaymentMethod,
+  ProductUnit,
+  StockMovementKind,
   PriceRounding,
   PriceScope,
   VisitStatus,
@@ -364,6 +367,11 @@ export interface Movement {
   clientName: string | null;
   categoryId: number | null;
   categoryName: string | null;
+  /** Employee the expense belongs to (payment to them, or fuel they loaded). */
+  employeeId: number | null;
+  employeeName: string | null;
+  /** A receipt photo is stored: `GET /api/cash-entries/:id/receipt`. */
+  hasReceipt: boolean;
 }
 
 export type TrackingStatus = 'pending' | 'scheduled' | 'complete';
@@ -497,7 +505,78 @@ export interface MyDoneBody {
   /** Amount received when the payment is partial. */
   amountCents?: number;
   extras?: ExtraSelection[];
+  /** Product used at the visit (optional). */
+  products?: ProductUse[];
   notes?: string;
+}
+
+export interface ProductUse {
+  productId: number;
+  quantity: number;
+}
+
+/** What the employee app gets to pick a product: no stock figures. */
+export interface ProductOption {
+  id: number;
+  name: string;
+  unit: ProductUnit;
+}
+
+export interface Product extends ProductOption {
+  minQuantity: number | null;
+  active: boolean;
+  stock: number;
+  belowMin: boolean;
+}
+
+export interface StockMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  unit: ProductUnit;
+  kind: StockMovementKind;
+  date: IsoDate;
+  /** Signed: purchases positive, uses negative. */
+  quantity: number;
+  visitId: number | null;
+  clientName: string | null;
+  userId: number | null;
+  userName: string | null;
+  note: string | null;
+}
+
+export interface StockUsage {
+  month: IsoMonth;
+  products: { productId: number; name: string; unit: ProductUnit; used: number }[];
+  days: { date: IsoDate; items: { productId: number; used: number }[] }[];
+}
+
+export interface BaitStation {
+  id: number;
+  clientId: number;
+  code: string;
+  reference: string;
+  hasPhoto: boolean;
+}
+
+export interface ClientDocument {
+  id: number;
+  clientId: number;
+  name: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface ClientBaitStations {
+  stations: BaitStation[];
+  documents: ClientDocument[];
+}
+
+/** Employee app: stations of the client of a visit (read-only). */
+export interface MyVisitStations {
+  clientId: number;
+  clientName: string;
+  stations: Omit<BaitStation, 'clientId'>[];
 }
 
 export interface MyVisits {
@@ -522,6 +601,32 @@ export interface CashHandover {
   pendingCount: number;
   employees: { userId: number; name: string; pendingCents: number; count: number; items: HandoverItem[] }[];
   recent: (HandoverItem & { userId: number; userName: string; handedOverAt: string })[];
+}
+
+export interface EmployeePayItem {
+  id: number;
+  date: IsoDate;
+  userId: number;
+  userName: string;
+  amountCents: number;
+  kind: EmployeePayKind;
+  note: string | null;
+  method: PaymentMethod;
+}
+
+export interface EmployeePayMonth {
+  month: IsoMonth;
+  totalPaidCents: number;
+  employees: {
+    userId: number;
+    name: string;
+    paidCents: number;
+    byKind: Record<EmployeePayKind, number>;
+    cashCollectedCents: number;
+    cashHandedOverCents: number;
+    cashPendingCents: number;
+  }[];
+  payments: EmployeePayItem[];
 }
 
 // Emails, route planner and reminders --------------------------------------
