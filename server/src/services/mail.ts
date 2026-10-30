@@ -31,7 +31,7 @@ export interface SendRequest {
 
 /** Sends through the provider and always stores the attempt; a provider failure is recorded, never thrown. */
 export async function sendLogged(db: Db, mail: MailProvider, request: SendRequest): Promise<EmailLog> {
-  let status: EmailLog['status'] = mail.mode === 'resend' ? 'sent' : 'simulated';
+  let status: EmailLog['status'] = mail.mode === 'simulated' ? 'simulated' : 'sent';
   let error: string | null = null;
   let providerId: string | null = null;
   try {

@@ -1,4 +1,5 @@
-import type { MailConfig } from '../config.js';
+import nodemailer from 'nodemailer';
+import type { MailConfig, SmtpConfig } from '../config.js';
 
 export interface OutgoingEmail {
   to: string;
@@ -16,7 +17,7 @@ export interface SendResult {
 
 /** Transport adapter: the only place that knows how an email leaves the system. */
 export interface MailProvider {
-  mode: 'resend' | 'simulated';
+  mode: 'resend' | 'smtp' | 'simulated';
   from: string;
   sendEmail(message: OutgoingEmail): Promise<SendResult>;
 }
@@ -73,8 +74,45 @@ export function createResendProvider(apiKey: string, from: string, replyTo?: str
   };
 }
 
-/** Real provider when `RESEND_API_KEY` and `MAIL_FROM` are both set, simulated otherwise. */
-export function createMailProvider(config: MailConfig, fetchImpl?: FetchLike): MailProvider {
+/** What the SMTP provider needs from nodemailer (tests inject a fake). */
+export type SmtpTransportFactory = (options: {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth: { user: string; pass: string };
+}) => { sendMail(message: { from: string; to: string; subject: string; html: string; text: string; replyTo?: string }): Promise<{ messageId?: string }> };
+
+/** SMTP account, e.g. a Gmail address with an app password. The sender defaults to that address. */
+export function createSmtpProvider(
+  smtp: SmtpConfig,
+  from: string,
+  replyTo?: string,
+  createTransport: SmtpTransportFactory = nodemailer.createTransport as unknown as SmtpTransportFactory,
+): MailProvider {
+  const transport = createTransport({ host: smtp.host, port: smtp.port, secure: smtp.port === 465, auth: { user: smtp.user, pass: smtp.pass } });
+  return {
+    mode: 'smtp',
+    from,
+    async sendEmail(message) {
+      const info = await transport.sendMail({
+        from,
+        to: message.to,
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+        ...(replyTo ? { replyTo } : {}),
+      });
+      return { providerId: info.messageId ?? null };
+    },
+  };
+}
+
+/**
+ * Resend when `RESEND_API_KEY` and `MAIL_FROM` are both set; otherwise SMTP when `SMTP_USER` and `SMTP_PASS` are set;
+ * otherwise simulated.
+ */
+export function createMailProvider(config: MailConfig, fetchImpl?: FetchLike, createTransport?: SmtpTransportFactory): MailProvider {
   if (config.resendApiKey && config.from) return createResendProvider(config.resendApiKey, config.from, config.replyTo, fetchImpl);
+  if (config.smtp) return createSmtpProvider(config.smtp, config.from ?? `Plagamix <${config.smtp.user}>`, config.replyTo, createTransport);
   return createSimulatedProvider(config.from);
 }

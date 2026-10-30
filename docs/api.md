@@ -219,7 +219,7 @@ Expected services per month: `weekly` = number of Mondays in the month (4 or 5);
 
 ## Emails, month route, settings and reminders (owner only)
 
-Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FROM` are set, **simulated** otherwise (logged to the console and to `email_log`, nothing leaves the server). Every attempt is stored; a provider failure is recorded as `failed` and never raised to the caller.
+Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FROM` are set, else **SMTP** when `SMTP_USER` and `SMTP_PASS` are set (e.g. Gmail with an app password; `GET /api/email/status` then reports `mode: 'smtp'`), **simulated** otherwise (logged to the console and to `email_log`, nothing leaves the server). Every attempt is stored; a provider failure is recorded as `failed` and never raised to the caller.
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|

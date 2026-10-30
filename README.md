@@ -47,7 +47,9 @@ See `.env.example`.
 | `SESSION_SECRET` | in production | Signs the session cookie; the server refuses to start in production without it |
 | `DATABASE_URL` | in production | Postgres connection string; unset = embedded PGlite |
 | `RESEND_API_KEY` | no | With `MAIL_FROM`, enables real email through Resend. Without them emails are simulated: stored in the mail log, not sent |
-| `MAIL_FROM` | no | Sender, e.g. `Plagamix <avisos@your-domain.com>` (domain verified in Resend) |
+| `MAIL_FROM` | no | Sender, e.g. `Plagamix <avisos@your-domain.com>` (domain verified in Resend). With SMTP it defaults to `Plagamix <SMTP_USER>` |
+| `SMTP_USER`, `SMTP_PASS` | no | Real email through an SMTP account when Resend is not configured, e.g. a Gmail address and an app password (Google account > Security > 2-Step Verification > App passwords). Gmail allows about 500 emails a day |
+| `SMTP_HOST`, `SMTP_PORT` | no | Default to `smtp.gmail.com` and `465` (TLS) |
 | `MAIL_REPLY_TO` | no | Optional reply-to address |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | no | Turn on push notifications on phones (Web Push). All three are needed; without them push stays off and nothing else changes. Generate the pair with `npm run push:keys`; the subject is a contact like `mailto:owner@your-domain.com`. Keep the private key secret and do not rotate it casually: devices subscribed with the old key must subscribe again |
 | `PUBLIC_BASE_URL` | production | Public origin of the site, e.g. `https://app.your-domain.com`. Used for the QR/public links and the client-portal magic links. Without it the links fall back to the request origin, except the magic links in production, which are not sent (a forged `Host` header must not decide where they point) |

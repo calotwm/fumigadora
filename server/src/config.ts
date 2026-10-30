@@ -10,6 +10,15 @@ export interface MailConfig {
   /** Sender, e.g. `Plagamix <avisos@dominio.com>`. */
   from: string | undefined;
   replyTo: string | undefined;
+  /** SMTP account (e.g. Gmail with an app password); used when Resend is not configured. */
+  smtp?: SmtpConfig;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
 }
 
 export type ArcaEnv = 'homologacion' | 'produccion';
@@ -149,8 +158,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       resendApiKey: env.RESEND_API_KEY?.trim() || undefined,
       from: env.MAIL_FROM?.trim() || undefined,
       replyTo: env.MAIL_REPLY_TO?.trim() || undefined,
+      smtp: loadSmtpConfig(env),
     },
     arca: loadArcaConfig(env),
     push: loadPushConfig(env),
   };
+}
+
+/** `SMTP_USER` + `SMTP_PASS` turn SMTP on; host and port default to Gmail (smtp.gmail.com:465, TLS). */
+function loadSmtpConfig(env: Record<string, string | undefined>): SmtpConfig | undefined {
+  const user = env.SMTP_USER?.trim();
+  const pass = env.SMTP_PASS?.trim();
+  if (!user || !pass) return undefined;
+  return { host: env.SMTP_HOST?.trim() || 'smtp.gmail.com', port: Number(env.SMTP_PORT?.trim() || 465), user, pass };
 }
