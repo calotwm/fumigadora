@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm';
-import { AGING_BUCKETS, agingBucket, diffDays, type AgingBucket, type IsoDate } from '@fumigadora/shared';
+import { AGING_BUCKETS, addDays, agingBucket, diffDays, type AgingBucket, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { clients } from '../db/schema.js';
 import { clientFinancials, openInvoiceRows } from './accounts.js';
@@ -12,6 +12,8 @@ export interface Debtor {
   balanceCents: number;
   overdueCents: number;
   daysOverdue: number;
+  /** Due date of the oldest overdue invoice; null when nothing is overdue. */
+  overdueSince: IsoDate | null;
   agingBucket: AgingBucket;
   overdueInvoiceCount: number;
   creditCents: number;
@@ -38,6 +40,7 @@ export async function listDebtors(db: Db, today: IsoDate): Promise<Debtor[]> {
     name: info.get(id)?.name ?? '',
     phone: info.get(id)?.phone ?? null,
     ...balanceFields(b),
+    overdueSince: b.daysOverdue > 0 ? addDays(today, -b.daysOverdue) : null,
   }));
   debtors.sort((a, b) => b.daysOverdue - a.daysOverdue || b.balanceCents - a.balanceCents || a.name.localeCompare(b.name, 'es'));
   return debtors;

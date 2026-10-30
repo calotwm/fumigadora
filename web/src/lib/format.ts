@@ -1,13 +1,16 @@
 import { formatMoney, isoWeekday, type Frequency, type PaymentMethod, type TaxDocType } from '@fumigadora/shared';
 
-/** es-AR money without trailing ",00": `$ 1.234.567`. Cents are shown only when present. */
+/**
+ * es-AR money without trailing ",00": `$ 1.234.567`. Cents are shown only when present.
+ * The space after `$` is non-breaking so an amount never wraps between the symbol and the digits.
+ */
 export function money(cents: number): string {
-  return formatMoney(cents, { showCents: Math.round(cents) % 100 !== 0 });
+  return formatMoney(cents, { showCents: Math.round(cents) % 100 !== 0 }).replace('$ ', '$ ');
 }
 
 /** Money without the currency symbol, for input fields: `1.234.567`. */
 export function moneyPlain(cents: number): string {
-  return money(cents).replace('$ ', '');
+  return money(cents).replace('$ ', '');
 }
 
 const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
