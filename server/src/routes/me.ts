@@ -7,6 +7,7 @@ import { listNotifications, markAllNotificationsRead, markNotificationRead } fro
 import { alertVisitChanged, alertVisitDone } from '../services/adminAlerts.js';
 import { listExtras } from '../services/extras.js';
 import { createFuelLoad, fuelInput } from '../services/cash.js';
+import { activeProductsForPicking } from '../services/stock.js';
 import { checkUpload, IMAGE_TYPES, parseFields, readForm, uploadLimit } from '../services/uploads.js';
 import {
   cancelMyVisit,
@@ -47,6 +48,8 @@ export function meRoutes(deps: Deps) {
       });
       return c.json(await createFuelLoad(db, deps.config.filesDir, today(), userId, input, photo), 201);
     })
+    // Active products the employee can report as used when closing a visit (names and units only).
+    .get('/products', async (c) => c.json(await activeProductsForPicking(db)))
     // Active extras the employee can add when closing a visit.
     .get('/extras', async (c) => c.json(await listExtras(db, true)))
     .post('/visits/:id/done', v('param', idParam), v('json', myDoneInput), v('query', myVisitsQuery), async (c) => {

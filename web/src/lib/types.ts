@@ -11,6 +11,8 @@ import type {
   IsoMonth,
   EmployeePayKind,
   PaymentMethod,
+  ProductUnit,
+  StockMovementKind,
   PriceRounding,
   PriceScope,
   VisitStatus,
@@ -503,7 +505,50 @@ export interface MyDoneBody {
   /** Amount received when the payment is partial. */
   amountCents?: number;
   extras?: ExtraSelection[];
+  /** Product used at the visit (optional). */
+  products?: ProductUse[];
   notes?: string;
+}
+
+export interface ProductUse {
+  productId: number;
+  quantity: number;
+}
+
+/** What the employee app gets to pick a product: no stock figures. */
+export interface ProductOption {
+  id: number;
+  name: string;
+  unit: ProductUnit;
+}
+
+export interface Product extends ProductOption {
+  minQuantity: number | null;
+  active: boolean;
+  stock: number;
+  belowMin: boolean;
+}
+
+export interface StockMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  unit: ProductUnit;
+  kind: StockMovementKind;
+  date: IsoDate;
+  /** Signed: purchases positive, uses negative. */
+  quantity: number;
+  visitId: number | null;
+  clientName: string | null;
+  userId: number | null;
+  userName: string | null;
+  note: string | null;
+}
+
+export interface StockUsage {
+  month: IsoMonth;
+  products: { productId: number; name: string; unit: ProductUnit; used: number }[];
+  days: { date: IsoDate; items: { productId: number; used: number }[] }[];
 }
 
 export interface MyVisits {

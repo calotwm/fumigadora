@@ -6,6 +6,10 @@ import type {
   ArcaStatusInfo,
   CashHandover,
   EmployeePayMonth,
+  Product,
+  ProductOption,
+  StockMovement,
+  StockUsage,
   EmailKind,
   EmailLogItem,
   EmailLogPage,
@@ -50,7 +54,7 @@ import type {
   Statement,
   Visit,
 } from './types';
-import type { DebtByMonth, EmployeePayKind, Frequency, PaymentMethod } from '@fumigadora/shared';
+import type { DebtByMonth, EmployeePayKind, Frequency, PaymentMethod, ProductUnit, StockMovementKind } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -768,4 +772,71 @@ export function useLoadFuel() {
     },
     onSuccess: () => invalidateData(queryClient),
   });
+}
+
+// Stock ---------------------------------------------------------------------
+
+export function useProducts() {
+  return useQuery({ queryKey: ['products'], queryFn: () => api<Product[]>('/products') });
+}
+
+export interface ProductBody {
+  name?: string;
+  unit?: ProductUnit;
+  minQuantity?: number | null;
+  active?: boolean;
+}
+
+export function useSaveProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: ProductBody }) =>
+      id === undefined ? api<Product>('/products', { body }) : api<Product>(`/products/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useStockMovements(month: string) {
+  return useQuery({
+    queryKey: ['stock', 'movements', month],
+    queryFn: () => api<StockMovement[]>('/stock/movements', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useStockUsage(month: string) {
+  return useQuery({
+    queryKey: ['stock', 'usage', month],
+    queryFn: () => api<StockUsage>('/stock/usage', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface StockMovementBody {
+  productId: number;
+  kind: StockMovementKind;
+  quantity: number;
+  date: string;
+  note?: string;
+}
+
+export function useCreateStockMovement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: StockMovementBody) => api<StockMovement>('/stock/movements', { body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteStockMovement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/stock/movements/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Employee app: active products to report as used when closing a visit. */
+export function useMyProducts() {
+  return useQuery({ queryKey: ['me', 'products'], queryFn: () => api<ProductOption[]>('/me/products'), staleTime: 60_000 });
 }

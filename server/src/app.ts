@@ -24,6 +24,7 @@ import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overv
 import { portalRoutes } from './routes/portal.js';
 import { priceAdjustmentRoutes } from './routes/priceAdjust.js';
 import { publicRoutes } from './routes/public.js';
+import { productRoutes, stockRoutes } from './routes/stock.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
 import { createPushService, registerPush, type PushSender } from './services/push.js';
@@ -79,6 +80,8 @@ export function createApp(options: AppOptions) {
   api.route('/expense-categories', expenseCategoryRoutes(deps));
   api.route('/extras', extraRoutes(deps));
   api.route('/price-adjustments', priceAdjustmentRoutes(deps));
+  api.route('/products', productRoutes(deps));
+  api.route('/stock', stockRoutes(deps));
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
   api.route('/tracking', trackingRoutes(deps));

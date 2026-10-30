@@ -23,6 +23,8 @@ import {
   FREQUENCIES,
   IVA_CONDITIONS,
   PAYMENT_METHODS,
+  PRODUCT_UNITS,
+  STOCK_MOVEMENT_KINDS,
   TAX_DOC_TYPES,
   USER_ROLES,
   VISIT_STATUSES,
@@ -39,6 +41,8 @@ export const visitStatusEnum = pgEnum('visit_status', VISIT_STATUSES);
 export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
+export const productUnitEnum = pgEnum('product_unit', PRODUCT_UNITS);
+export const stockMovementKindEnum = pgEnum('stock_movement_kind', STOCK_MOVEMENT_KINDS);
 export const employeePayKindEnum = pgEnum('employee_pay_kind', EMPLOYEE_PAY_KINDS);
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
 export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
@@ -549,6 +553,40 @@ export const priceAdjustments = pgTable('price_adjustments', {
   items: jsonb('items').notNull(),
   createdAt: createdAt(),
 });
+
+/** Quantity in thousandths of the product's unit (2.5 litros = 2500). */
+const milli = (name: string) => bigint(name, { mode: 'number' });
+
+/** Products used in the field (insecticides, baits...). Stock is the sum of their movements. */
+export const products = pgTable('products', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  unit: productUnitEnum('unit').notNull(),
+  /** Low-stock mark below this quantity; null = no minimum. */
+  minQuantityMilli: milli('min_quantity_milli'),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Stock movement: signed quantity (purchase +, use -, adjustment either way). */
+export const stockMovements = pgTable(
+  'stock_movements',
+  {
+    id: serial('id').primaryKey(),
+    productId: integer('product_id')
+      .notNull()
+      .references(() => products.id),
+    kind: stockMovementKindEnum('kind').notNull(),
+    date: isoDate('date').notNull(),
+    quantityMilli: milli('quantity_milli').notNull(),
+    /** Visit the product was used at, when registered while closing it. */
+    visitId: integer('visit_id').references(() => visits.id),
+    userId: integer('user_id').references(() => users.id),
+    note: text('note'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('stock_movements_product_idx').on(t.productId, t.date), index('stock_movements_date_idx').on(t.date)],
+);
 
 export type User = typeof users.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;

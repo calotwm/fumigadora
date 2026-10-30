@@ -13,3 +13,4 @@ export * from './dayRoute.js';
 export * from './reminders.js';
 export * from './arca.js';
 export * from './legacy.js';
+export * from './stock.js';
