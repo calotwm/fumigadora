@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { MessageCircle } from 'lucide-react';
 import { useReceivables } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
-import { money, overdueLabel } from '../../lib/format';
+import { daysAgoLabel, fullDate, money, overdueLabel } from '../../lib/format';
 import { debtReminderText, whatsappLink } from '../../lib/whatsapp';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading, PageHeader, SectionHead, Stat, Table, Tabs, type Column } from '../../ui/display';
@@ -138,8 +138,11 @@ function DebtorsList({ debtors, sort, onSortChange }: { debtors: Debtor[]; sort:
       cell: (d) =>
         d.daysOverdue > 0 ? (
           <span className="font-semibold text-red">
-            {overdueLabel(d.daysOverdue)}
-            <span className="block text-xs font-normal text-muted">{BUCKET_LABELS[d.agingBucket]}</span>
+            {d.overdueSince ? `Vencido el ${fullDate(d.overdueSince)}` : overdueLabel(d.daysOverdue)}
+            <span className="block text-xs font-normal text-muted">
+              {d.overdueSince ? `${daysAgoLabel(d.daysOverdue)} · ` : ''}
+              {BUCKET_LABELS[d.agingBucket]}
+            </span>
           </span>
         ) : (
           <span className="text-muted">Al día</span>

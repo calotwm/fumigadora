@@ -303,6 +303,8 @@ export interface Debtor extends BalanceFields {
   clientId: number;
   name: string;
   phone: string | null;
+  /** Due date of the oldest overdue invoice; null when nothing is overdue. */
+  overdueSince: IsoDate | null;
 }
 
 export interface Receivables {
