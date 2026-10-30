@@ -1,9 +1,9 @@
-import { and, count, eq, lt, min, sql } from 'drizzle-orm';
+import { and, count, eq, lt, min } from 'drizzle-orm';
 import { formatMoney } from '@fumigadora/shared';
-import { payments, users, visits } from '../db/schema.js';
+import { users, visits } from '../db/schema.js';
 import { hhmm, type Deps } from '../http.js';
 import { notifyAdmins } from './adminNotifications.js';
-import { cashHandover } from './handover.js';
+import { daySummary } from './dayClose.js';
 import { createNotification } from './notifications.js';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -71,39 +71,46 @@ export async function runAfternoonNotifications(deps: Deps) {
   return { reminders };
 }
 
-/** End of day: visits done/pending, money collected today and cash employees still have to hand over. */
+/**
+ * End of day: the headline numbers of the "Cierre del día" (visits, money collected, invoices, debt that fell due,
+ * expenses and cash employees still have to hand over), with a link to the full view of that date.
+ */
 export async function runEveningNotifications(deps: Deps) {
   const day = deps.today();
-  const visitRows = await deps.db
-    .select({ status: visits.status, n: count() })
-    .from(visits)
-    .where(eq(visits.date, day))
-    .groupBy(visits.status);
-  const done = visitRows.find((r) => r.status === 'done')?.n ?? 0;
-  const pending = visitRows.find((r) => r.status === 'scheduled')?.n ?? 0;
-  const [collected] = await deps.db
-    .select({ cents: sql<number>`coalesce(sum(${payments.amountCents}), 0)::float8` })
-    .from(payments)
-    .where(eq(payments.paidOn, day));
-  const collectedCents = collected?.cents ?? 0;
-  const handover = await cashHandover(deps.db);
+  const summary = await daySummary(deps.db, day);
+  const { done, pending, postponed, cancelled } = summary.visits.totals;
+  const collectedCents = summary.collections.totalCents;
+  const handover = summary.collections.cashToHandOver;
 
   // A day with nothing to report is not worth a notice.
-  if (done + pending === 0 && collectedCents === 0 && handover.pendingCount === 0) return { sent: false as const };
+  const quiet =
+    done + pending + postponed + cancelled === 0 &&
+    collectedCents === 0 &&
+    handover.totalCount === 0 &&
+    summary.invoices.count === 0 &&
+    summary.expenses.count === 0 &&
+    summary.newOverdue.count === 0;
+  if (quiet) return { sent: false as const };
 
   const lines = [
     `Visitas de hoy: ${plural(done, 'hecha', 'hechas')} y ${plural(pending, 'pendiente', 'pendientes')}.`,
+    ...(postponed + cancelled > 0 ? [`Pospuestas: ${postponed}. Canceladas: ${cancelled}.`] : []),
     `Cobrado hoy: ${formatMoney(collectedCents)}.`,
-    handover.pendingCount > 0
-      ? `Efectivo a rendir por los empleados: ${formatMoney(handover.pendingCents)} (${plural(handover.pendingCount, 'cobro', 'cobros')}).`
+    ...(summary.invoices.count > 0
+      ? [`Facturado hoy: ${formatMoney(summary.invoices.totalCents)} (${plural(summary.invoices.count, 'factura', 'facturas')}).`]
+      : []),
+    ...(summary.newOverdue.count > 0 ? [`Deuda que venció hoy: ${formatMoney(summary.newOverdue.totalCents)}.`] : []),
+    ...(summary.expenses.count > 0 ? [`Gastos de hoy: ${formatMoney(summary.expenses.totalCents)}.`] : []),
+    handover.totalCount > 0
+      ? `Efectivo a rendir por los empleados: ${formatMoney(handover.totalCents)} (${plural(handover.totalCount, 'cobro', 'cobros')}).`
       : 'No hay efectivo pendiente de rendir.',
   ];
   const admins = await notifyAdmins(deps.db, deps.mail, {
     kind: 'day_summary',
     title: 'Resumen del día',
     body: lines.join('\n'),
-    link: '/',
+    link: `/cierre?fecha=${day}`,
     day,
   });
-  return { sent: true as const, done, pending, collectedCents, cashToHandOverCents: handover.pendingCents, admins };
+  return { sent: true as const, done, pending, collectedCents, cashToHandOverCents: handover.totalCents, admins };
 }

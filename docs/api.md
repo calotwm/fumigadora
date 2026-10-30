@@ -257,7 +257,7 @@ An in-process scheduler checks hourly and runs the daily job once per Buenos Air
 |---|---|---|---|
 | `notify_morning` | from 09:00 | assignees; admins | `visits_today` to each active user with `scheduled` visits today (count and first time); `visits_overdue` to every active admin when visits from earlier days are still `scheduled` |
 | `notify_afternoon` | 17:00 to 20:00 | assignees | `visits_reminder` to users that still have unmarked visits today |
-| `notify_evening` | from 20:00 | admins | `day_summary`: visits done / pending today, collected today (all payments by `paidOn`) and cash employees still have to hand over (`/api/cash-handover`). Skipped on a day with nothing to report |
+| `notify_evening` | from 20:00 | admins | `day_summary`: the headline numbers of `GET /api/day-close` for today: visits done / pending (and postponed / cancelled when any), collected today (all payments by `paidOn`), invoiced today, debt that fell due today, expenses of today and cash employees still have to hand over (`/api/cash-handover`). `link` = `/cierre?fecha=<today>`. Skipped on a day with nothing to report |
 
 Admin notifications (`visits_overdue`, `day_summary`, `client_email_failed`) go to every **active admin user** in the bell and, when the admin has an `email`, by email too (`email_log.kind = 'owner_notification'`, no client). A client email that ends `failed` (service notice or debt reminder, where `sendLogged` records it) creates one `client_email_failed` notification per client, email kind and day; a failing admin copy is logged but never notifies again. Employees only get bell notifications.
 
@@ -308,6 +308,34 @@ Emissions are serialized in-process (numbering is sequential per point of sale a
 | GET | `/api/finance/movements?month=` | - | `{ month, movements: { type: 'payment'\|'income'\|'expense', id, date, direction: 'in'\|'out', amountCents (positive), method, description, clientId, clientName, categoryId, categoryName }[] }` date desc. Ids are per type (payment id vs cash entry id) |
 
 Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
+
+### End-of-day summary ("Cierre del día", owner only)
+
+| Method | Path | Query | Response |
+|---|---|---|---|
+| GET | `/api/day-close` | `date?=YYYY-MM-DD` (default today; `400` when invalid) | see below |
+
+```ts
+{
+  date: IsoDate,
+  visits: {
+    totals: { done, pending, postponed, cancelled },
+    // one row per assignee, by name; `userId: null` ("Sin asignar") last
+    byEmployee: { userId: number | null, name, done, pending, postponed, cancelled }[],
+  },
+  collections: {                         // payments with paidOn = date
+    totalCents, count,
+    byMethod: { method, cents, count }[],                                   // cents desc
+    byEmployee: { userId: number | null, name, cents, count, cashCents, toHandOverCents }[],  // collectedByUserId; null = "Oficina"
+    cashToHandOver: { dayCents, dayCount, totalCents, totalCount },         // day = that date's employee collections still a rendir; total = everything pending (as /api/cash-handover)
+  },
+  invoices: { count, totalCents, items: { id, number, clientId, clientName, amountCents }[] },  // issuedOn = date, not voided
+  newOverdue: { count, totalCents, items: { invoiceId, number, clientId, clientName, balanceCents, dueOn }[] },  // open invoices due the day before (overdue from this date on), current balance
+  expenses: { count, totalCents, items: { id, amountCents, categoryName, description, method }[] },  // cash entries kind expense, date = date
+}
+```
+
+Computed from existing records, nothing is stored. `pending` = visits of that date still `scheduled`; `postponed` = visits the employee moved to another day from the app on that date (taken from the `visit_postponed` admin alerts; office reschedules are not counted). For a past date the `newOverdue` balances are today's.
 
 ## Receivables, certificates, dashboard, search
 

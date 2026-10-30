@@ -27,9 +27,14 @@ export function DashboardPage() {
 function DashboardView({ data }: { data: Dashboard }) {
   return (
     <div className="flex flex-col gap-10">
-      <header>
-        <p className="label-caps">Hoy</p>
-        <h1 className="text-2xl font-extrabold tracking-tight md:text-4xl">{longDate(data.today)}</h1>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="label-caps">Hoy</p>
+          <h1 className="text-2xl font-extrabold tracking-tight md:text-4xl">{longDate(data.today)}</h1>
+        </div>
+        <LinkButton to="/cierre" variant="outline">
+          Cierre del día
+        </LinkButton>
       </header>
       <KpiStrip data={data} />
       <div className="grid gap-10 lg:grid-cols-12">

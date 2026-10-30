@@ -28,6 +28,7 @@ import type {
   CompleteVisitResult,
   BatchPreview,
   Dashboard,
+  DaySummary,
   FinanceSummary,
   InvoiceWithClient,
   Movement,
@@ -59,6 +60,14 @@ export function invalidateData(queryClient: QueryClient): Promise<void> {
 
 export function useDashboard() {
   return useQuery({ queryKey: ['dashboard'], queryFn: () => api<Dashboard>('/dashboard') });
+}
+
+export function useDaySummary(date: string) {
+  return useQuery({
+    queryKey: ['day-close', date],
+    queryFn: () => api<DaySummary>('/day-close', { query: { date } }),
+    placeholderData: (previous) => previous,
+  });
 }
 
 export interface ClientListParams {
