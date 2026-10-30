@@ -406,8 +406,10 @@ export interface ScheduleTrackingBody {
 
 export interface AuthUser {
   authenticated: true;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'employee' | 'client';
   userId?: number;
+  /** Client the portal session is bound to (role `client`). */
+  clientId?: number;
   name: string;
 }
 
@@ -517,7 +519,7 @@ export interface CashHandover {
 
 // Emails, route planner and reminders --------------------------------------
 
-export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_notification';
+export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_notification' | 'portal_login';
 export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
 
 export interface EmailStatus {
@@ -561,6 +563,7 @@ export interface AppSettings {
   companyAddress: string | null;
   companyLatitude: number | null;
   companyLongitude: number | null;
+  companyPhone: string | null;
 }
 
 export interface ArcaStatusInfo {
@@ -628,4 +631,96 @@ export interface ReminderPreview {
   minDaysOverdue: number;
   recipients: { clientId: number; name: string; email: string; overdueCents: number; daysOverdue: number; overdueInvoiceCount: number; lastReminderOn: IsoDate | null }[];
   skipped: Record<'disabled' | 'no_email' | 'not_overdue' | 'not_late_enough' | 'too_recent', number>;
+}
+
+// Public link and client portal ----------------------------------------------
+
+/** What the public page `/c/:token` shows: no amounts, no tax id, no client contact data. */
+export interface PublicClientView {
+  name: string;
+  nextVisit: { date: IsoDate; time: string | null; serviceTypeName: string } | null;
+  lastVisitDate: IsoDate | null;
+  certificate: { number: string; issuedOn: IsoDate; expiresOn: IsoDate; valid: boolean; daysLeft: number } | null;
+  company: { name: string; phone: string | null };
+}
+
+export interface PublicLink {
+  token: string;
+  url: string;
+}
+
+export interface PortalVisit {
+  id: number;
+  date: IsoDate;
+  time: string | null;
+  status: VisitStatus;
+  serviceTypeName: string;
+}
+
+export interface PortalCertificate {
+  id: number;
+  number: string;
+  issuedOn: IsoDate;
+  expiresOn: IsoDate;
+  serviceTypeName: string | null;
+  hasFile: boolean;
+  valid: boolean;
+  daysLeft: number;
+  superseded: boolean;
+}
+
+export interface PortalSummary {
+  balanceCents: number;
+  openCents: number;
+  overdueCents: number;
+  creditCents: number;
+  daysOverdue: number;
+  overdueInvoiceCount: number;
+  nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
+  lastVisitDate: IsoDate | null;
+  certificate: PortalCertificate | null;
+}
+
+export interface PortalInvoice {
+  id: number;
+  number: string;
+  issuedOn: IsoDate;
+  dueOn: IsoDate;
+  description: string;
+  amountCents: number;
+  paidCents: number;
+  balanceCents: number;
+  status: InvoiceStatus;
+  daysOverdue: number;
+  items: InvoiceItem[];
+}
+
+export interface PortalPayment {
+  id: number;
+  paidOn: IsoDate;
+  amountCents: number;
+  method: PaymentMethod;
+  allocations: { invoiceNumber: string; amountCents: number }[];
+}
+
+export interface PortalClient {
+  id: number;
+  name: string;
+}
+
+export type PortalVerifyResult = { status: 'ok'; client: PortalClient } | { status: 'choose'; clients: PortalClient[] };
+
+export interface PlacardItem {
+  id: number;
+  name: string;
+  address: string | null;
+  area: string | null;
+  token: string;
+  url: string;
+}
+
+export interface PlacardList {
+  /** Zones with at least one active client. */
+  zones: string[];
+  items: PlacardItem[];
 }

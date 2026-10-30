@@ -21,6 +21,7 @@ import {
 import type { Db } from '../db/client.js';
 import { allocations, certificates, clientContacts, clients, invoices, payments, serviceTypes, visits } from '../db/schema.js';
 import { clientFinancials, openInvoiceRows } from './accounts.js';
+import { newPublicToken } from './publicLink.js';
 import { storedFileSize, writeStoredFile } from './files.js';
 
 /** The part of the legacy export the importer reads. */
@@ -219,7 +220,7 @@ async function runImport(db: Db, data: LegacyExport, options: ImportOptions, fil
   for (const batch of chunks(newClients)) {
     const rows = await db
       .insert(clients)
-      .values(batch.map((c) => c.client))
+      .values(batch.map((c) => ({ ...c.client, publicToken: newPublicToken() })))
       .returning({ id: clients.id, legacyId: clients.legacyId });
     for (const r of rows) clientIds.set(r.legacyId as number, r.id);
   }

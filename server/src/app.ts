@@ -20,6 +20,8 @@ import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
 import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
+import { portalRoutes } from './routes/portal.js';
+import { publicRoutes } from './routes/public.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
 import { createPushService, registerPush, type PushSender } from './services/push.js';
@@ -40,6 +42,7 @@ export interface AppOptions {
   push?: PushSender;
   now?: () => Date;
   alertWindowMs?: number;
+  portalLimits?: { perEmail: number; perIp: number };
 }
 
 export function createApp(options: AppOptions) {
@@ -51,6 +54,7 @@ export function createApp(options: AppOptions) {
     ...(options.fetch ? { fetch: options.fetch } : {}),
     ...(options.now ? { now: options.now } : {}),
     ...(options.alertWindowMs !== undefined ? { alertWindowMs: options.alertWindowMs } : {}),
+    ...(options.portalLimits ? { portalLimits: options.portalLimits } : {}),
   };
   // Every notification created through this db is also pushed to the user's devices.
   registerPush(options.db, createPushService(options.config.push, options.push));
@@ -58,6 +62,9 @@ export function createApp(options: AppOptions) {
   const api = new Hono<AuthEnv>();
   api.get('/health', (c) => c.json({ ok: true }));
   api.route('/auth', authRoutes(deps.config, deps.db));
+  // Unauthenticated: everything mounted before `requireSession` below.
+  api.route('/public', publicRoutes(deps));
+  api.route('/portal', portalRoutes(deps));
   api.use('*', requireSession(deps.config, deps.db));
   // Employee routes sit before the admin guard; everything below is owner-only.
   api.route('/me', meRoutes(deps));

@@ -58,6 +58,8 @@ export interface Config {
   sessionSecret: string;
   /** Session lifetime in seconds. */
   sessionTtlSeconds: number;
+  /** Public origin of the site (`https://app.example.com`), used for QR links and magic-link emails. Falls back to the request origin. */
+  publicBaseUrl: string | undefined;
   mail: MailConfig;
   arca: ArcaConfig;
   push: PushConfig;
@@ -105,6 +107,18 @@ export function loadArcaConfig(env: NodeJS.ProcessEnv = process.env): ArcaConfig
   return { ...values, missing, configured: missing.length === 0 };
 }
 
+/** Origin without trailing slash, or undefined when unset or not an http(s) URL. */
+export function parseBaseUrl(value: string | undefined): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const prod = env.NODE_ENV === 'production' || isProduction;
   let adminPassword = env.ADMIN_PASSWORD;
@@ -130,6 +144,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     adminPassword,
     sessionSecret,
     sessionTtlSeconds: 60 * 60 * 24 * 30,
+    publicBaseUrl: parseBaseUrl(env.PUBLIC_BASE_URL),
     mail: {
       resendApiKey: env.RESEND_API_KEY?.trim() || undefined,
       from: env.MAIL_FROM?.trim() || undefined,

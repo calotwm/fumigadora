@@ -106,6 +106,20 @@
       "when": 1793299591679,
       "tag": "0014_visit_cancel_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793333438421,
+      "tag": "0015_client_public_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793333802589,
+      "tag": "0016_client_portal",
+      "breakpoints": true
     }
   ]
 }

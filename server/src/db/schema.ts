@@ -42,7 +42,7 @@ export const userRoleEnum = pgEnum('user_role', USER_ROLES);
 export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
 export const ivaConditionEnum = pgEnum('iva_condition', IVA_CONDITIONS);
 export const arcaStatusEnum = pgEnum('arca_status', ARCA_STATUSES);
-export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test', 'owner_notification'] as const;
+export const EMAIL_KINDS = ['service_notice', 'debt_reminder', 'test', 'owner_notification', 'portal_login'] as const;
 export const EMAIL_STATUSES = ['sent', 'simulated', 'failed'] as const;
 export const ROUTE_PLAN_STATUSES = ['draft', 'approved'] as const;
 export const emailKindEnum = pgEnum('email_kind', EMAIL_KINDS);
@@ -113,11 +113,17 @@ export const clients = pgTable(
     postalCode: text('postal_code'),
     latitude: doublePrecision('latitude'),
     longitude: doublePrecision('longitude'),
+    /** Unguessable token of the public link `/c/<token>` (QR placard). Regenerating it kills the old link. */
+    publicToken: text('public_token'),
     legacyId: legacyId(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('clients_name_idx').on(t.name), uniqueIndex('clients_legacy_id_uq').on(t.legacyId)],
+  (t) => [
+    index('clients_name_idx').on(t.name),
+    uniqueIndex('clients_legacy_id_uq').on(t.legacyId),
+    uniqueIndex('clients_public_token_uq').on(t.publicToken),
+  ],
 );
 
 /** Extra contact people of a client (administrator, doorman...), in addition to the main contact on the client. */
@@ -422,6 +428,23 @@ export const pushSubscriptions = pgTable(
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   },
   (t) => [uniqueIndex('push_subscriptions_endpoint_uq').on(t.endpoint), index('push_subscriptions_user_idx').on(t.userId)],
+);
+
+/**
+ * Magic-link tokens of the client portal. Only the sha256 of the token is stored; it expires 30 minutes after being
+ * issued and works once. `email` is what the link was requested with: the clients it opens are resolved at use time.
+ */
+export const clientLoginTokens = pgTable(
+  'client_login_tokens',
+  {
+    id: serial('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    email: text('email').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('client_login_tokens_hash_uq').on(t.tokenHash), index('client_login_tokens_expires_idx').on(t.expiresAt)],
 );
 
 /** Month route proposed by the system and reviewed by the owner. One per month. */

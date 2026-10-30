@@ -60,6 +60,25 @@ Allocation = { invoiceId, invoiceNumber, amountCents }
 
 Sessions issued before employee accounts existed (no role in the cookie) are rejected: log in again.
 
+## Client portal (`/api/portal`, role `client`)
+
+Clients sign in with an emailed magic link. The session cookie is the same signed cookie as the staff one, with role `client`, the `clientId` it is bound to and a **30 day** lifetime. A client session is **rejected with `403` by every staff route** (`requireSession` only lets `admin` and `employee` through) and the staff and public routes are the only ones that ignore it; `/api/portal/*` data routes accept only a client session (`401` without one, `403` for staff). Every portal query filters by the session's `clientId`, never by an id from the request.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/portal/login` | `{ email }` | `200 { ok: true, message }`, **identical for known and unknown emails** (the lookup and the mail run after the response). When the email matches an active client (`clients.email` or any `client_contacts.email`, case-insensitive) a link `<base>/portal/entrar?token=...` is emailed (email kind `portal_login`). `429 rate_limited` after 3 requests per email or 10 per IP in 15 minutes (in memory; counted for known and unknown emails alike). `400` for a malformed email. In production the link needs `PUBLIC_BASE_URL`: without it no mail is sent (a spoofed `Host` must not decide where the link points) |
+| POST | `/api/portal/verify` | `{ token }` | One matching client: `{ status: 'ok', client: { id, name } }` + session cookie, token spent. Several clients share the email: `{ status: 'choose', clients: { id, name }[] }` (only those that matched this token), no cookie, token **not** spent. `400 invalid_link` for an unknown, expired (30 min) or used token. POST instead of GET so mail scanners that prefetch links cannot burn the token |
+| POST | `/api/portal/select` | `{ token, clientId }` | Picker step: same checks as `verify`; `clientId` must be one of the clients that matched the token, else `400 invalid_link` (and the token stays usable). Spends the token and binds the session to that client |
+| GET | `/api/portal/me` | - | `{ client: { id, name } }` |
+| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
+| GET | `/api/portal/visits` | - | `{ id, date, time, status, serviceTypeName }[]`, newest first (no notes, prices, cancel reasons or employee names) |
+| GET | `/api/portal/invoices` | - | Non-voided invoices, newest first: `{ id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents, status, daysOverdue, items: { description, quantity, unitPriceCents, amountCents }[] }[]` (no ARCA data) |
+| GET | `/api/portal/payments` | - | `{ id, paidOn, amountCents, method, allocations: { invoiceNumber, amountCents }[] }[]`, newest first |
+| GET | `/api/portal/certificates` | - | `{ id, number, issuedOn, expiresOn, serviceTypeName, hasFile, valid, daysLeft, superseded }[]`, latest expiry first |
+| GET | `/api/portal/certificates/:id/file` | - | The PDF (`application/pdf`, inline) of one of the client's own certificates; `404` for anything else, including another client's id |
+
+Logout is `POST /api/auth/logout`; `GET /api/auth/me` answers `{ role: 'client', clientId, name }` for a portal session. Login tokens live in `client_login_tokens` (sha256 only, single use, 30 min).
+
 ## Users (owner only)
 
 | Method | Path | Body | Response |
@@ -118,11 +137,22 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 |---|---|---|---|
 | GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, taxDocType, taxDocNumber, ivaCondition, legalName, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
 | POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName? }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
+| GET | `/api/clients/placards` | query `area?` (exact zone) | `{ zones: string[], items: { id, name, address, area, token, url }[] }`: active clients (all, or one zone) with their public link for printing, ordered by zone then name; `zones` = zones with at least one active client. Missing tokens are created |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
 | POST | `/api/clients/:id/archive` | - | client row (soft archive; archived clients drop out of lists, batch billing, search) |
 | POST | `/api/clients/:id/unarchive` | - | client row |
+| GET | `/api/clients/:id/public-link` | - | `{ token, url }`: the client's public link (`<base>/c/<token>`). Every client has a token (created with the client; existing ones were backfilled by migration 0015; a missing one is created on the spot). `<base>` is `PUBLIC_BASE_URL` or, if unset, the origin of the request |
+| POST | `/api/clients/:id/public-link/regenerate` | - | `{ token, url }` with a new token; the previous link answers `404` from then on |
+
+### Public link (no login)
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/api/public/clients/:token` | `{ name, nextVisit: { date, time, serviceTypeName }\|null, lastVisitDate, certificate: { number, issuedOn, expiresOn, valid, daysLeft }\|null, company: { name, phone } }`. `404 not_found` for an unknown, malformed or archived-client token. `cache-control: no-store`, `x-robots-tag: noindex`. **Deliberately has no amounts, tax id, email, phone, address, notes or employee names**: it is printed on building walls |
+
+The token is 192 random bits (base64url, 32 chars), stored in `clients.public_token` (unique). The SPA page `/c/:token` renders this payload. `company.phone` comes from the setting `companyPhone` (Ajustes > Base de la empresa).
 
 Statement:
 - `ledger[]`: chronological `{ date, type: 'invoice'\|'payment', id, reference (invoice number or payment method), description, debitCents, creditCents, balanceCents (running; positive = owes) }`. Voided invoices are excluded. Same day: invoices before payments.
@@ -194,10 +224,10 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | Method | Path | Body / query | Response |
 |---|---|---|---|
 | GET | `/api/email/status` | - | `{ mode: 'resend'\|'simulated', from }` |
-| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
+| GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification\|portal_login`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
-| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180), companyPhone?: string\|null }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
 
 **Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
 Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.

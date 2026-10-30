@@ -20,11 +20,13 @@ export function CompanyBaseSection() {
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!settings.data) return;
     setAddress(settings.data.companyAddress ?? '');
+    setPhone(settings.data.companyPhone ?? '');
     setLatitude(settings.data.companyLatitude === null ? '' : String(settings.data.companyLatitude));
     setLongitude(settings.data.companyLongitude === null ? '' : String(settings.data.companyLongitude));
   }, [settings.data]);
@@ -51,7 +53,7 @@ export function CompanyBaseSection() {
     if (lng !== null && (lng < -180 || lng > 180)) return setError('La longitud debe estar entre -180 y 180.');
     setError(null);
     save.mutate(
-      { companyAddress: address.trim() || null, companyLatitude: lat, companyLongitude: lng },
+      { companyAddress: address.trim() || null, companyLatitude: lat, companyLongitude: lng, companyPhone: phone.trim() || null },
       {
         onSuccess: () => toast.success('Base guardada'),
         onError: (e) => setError(errorMessage(e)),
@@ -67,6 +69,13 @@ export function CompanyBaseSection() {
           Desde acá arranca el recorrido del día de cada empleado. Sin coordenadas, el recorrido empieza por la primera visita que tenga ubicación.
         </p>
         <Input label="Dirección" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <Input
+          label="Teléfono / WhatsApp"
+          inputMode="tel"
+          hint="Se muestra en la página pública que abre el QR de cada cliente."
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Latitud" inputMode="decimal" placeholder="-34.6037" value={latitude} onChange={(e) => setLatitude(e.target.value)} />
           <Input label="Longitud" inputMode="decimal" placeholder="-58.3816" value={longitude} onChange={(e) => setLongitude(e.target.value)} />

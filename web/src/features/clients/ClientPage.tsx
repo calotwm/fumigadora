@@ -1,16 +1,18 @@
+import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import { useClient, useStatement, useUnarchiveClient } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, money, overdueLabel } from '../../lib/format';
 import { debtReminderText, mapsLink, whatsappLink } from '../../lib/whatsapp';
-import { AnchorButton, Button } from '../../ui/Button';
+import { AnchorButton, Button, LinkButton } from '../../ui/Button';
 import { ErrorNote, Loading, Stat, Tabs } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { ClientDetail, Statement } from '../../lib/types';
 import { BUCKET_LABELS } from './balance';
 import { EmailLogList } from '../mail/EmailLogList';
+import { PublicLinkSheet } from './PublicLinkSheet';
 import { AccountTab, CertificatesTab, DataTab, InvoicesTab, VisitsTab } from './ClientTabs';
 
 const TABS = [
@@ -56,6 +58,7 @@ function ClientView({
   const { open } = useActions();
   const toast = useToast();
   const unarchive = useUnarchiveClient();
+  const [linkOpen, setLinkOpen] = useState(false);
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab: TabId = TABS.find((t) => t.id === requested)?.id ?? 'cuenta';
@@ -149,6 +152,12 @@ function ClientView({
               WhatsApp
             </AnchorButton>
           ) : null}
+          <Button variant="outline" onClick={() => setLinkOpen(true)}>
+            Link público
+          </Button>
+          <LinkButton variant="outline" to={`/clientes/${client.id}/cartel`}>
+            Imprimir QR
+          </LinkButton>
           <Button variant="outline" onClick={() => open({ type: 'clientEdit', clientId: client.id })}>
             Editar
           </Button>
@@ -192,6 +201,7 @@ function ClientView({
           )}
         </div>
       </div>
+      {linkOpen ? <PublicLinkSheet clientId={client.id} onClose={() => setLinkOpen(false)} /> : null}
     </div>
   );
 }

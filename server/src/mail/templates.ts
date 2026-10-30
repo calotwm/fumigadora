@@ -13,7 +13,7 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-type Block = { type: 'p'; text: string } | { type: 'facts'; rows: [string, string][] } | { type: 'table'; head: string[]; rows: string[][]; total?: [string, string] };
+type Block = { type: 'p'; text: string } | { type: 'button'; label: string; url: string } | { type: 'facts'; rows: [string, string][] } | { type: 'table'; head: string[]; rows: string[][]; total?: [string, string] };
 
 /** Branded, table-based layout with inline styles (works in mail clients) plus a plain-text alternative. */
 function layout(subject: string, heading: string, blocks: Block[]): RenderedEmail {
@@ -21,6 +21,9 @@ function layout(subject: string, heading: string, blocks: Block[]): RenderedEmai
     .map((block) => {
       if (block.type === 'p') {
         return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#1a1a1a;">${escapeHtml(block.text)}</p>`;
+      }
+      if (block.type === 'button') {
+        return `<p style="margin:0 0 20px;"><a href="${escapeHtml(block.url)}" style="display:inline-block;background:#f5c400;color:#111111;font-size:15px;font-weight:800;text-decoration:none;padding:14px 22px;letter-spacing:.04em;text-transform:uppercase;">${escapeHtml(block.label)}</a></p><p style="margin:0 0 16px;font-size:12px;line-height:1.5;color:#6b6b66;word-break:break-all;">${escapeHtml(block.url)}</p>`;
       }
       if (block.type === 'facts') {
         const rows = block.rows
@@ -77,6 +80,7 @@ ${body}
     '',
     ...blocks.map((block) => {
       if (block.type === 'p') return `${block.text}\n`;
+      if (block.type === 'button') return `${block.label}: ${block.url}\n`;
       if (block.type === 'facts') return `${block.rows.map(([l, v]) => `${l}: ${v}`).join('\n')}\n`;
       return `${[block.head.join(' | '), ...block.rows.map((r) => r.join(' | ')), ...(block.total ? [`${block.total[0]} ${block.total[1]}`] : [])].join('\n')}\n`;
     }),
@@ -140,6 +144,15 @@ export function ownerNotificationEmail(input: { title: string; body: string }): 
   return layout(input.title, input.title, [
     ...input.body.split('\n').map((text): Block => ({ type: 'p', text })),
     { type: 'p', text: 'Podés verlo también en la campana de notificaciones del sistema.' },
+  ]);
+}
+
+/** Magic link of the client portal. */
+export function portalLoginEmail(input: { url: string; minutes: number }): RenderedEmail {
+  return layout('Tu acceso al portal de clientes', 'Tu acceso al portal de clientes', [
+    { type: 'p', text: 'Recibimos un pedido para ingresar al portal de clientes, donde podés ver tus próximas visitas, tus facturas, tu saldo y tus obleas.' },
+    { type: 'button', label: 'Ingresar al portal', url: input.url },
+    { type: 'p', text: `El enlace funciona una sola vez y vence en ${input.minutes} minutos. Si no lo pediste vos, ignorá este mensaje: nadie puede ingresar sin abrirlo.` },
   ]);
 }
 
