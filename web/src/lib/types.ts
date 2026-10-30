@@ -32,6 +32,8 @@ export interface ClientRow {
   email: string | null;
   address: string | null;
   area: string | null;
+  latitude: number | null;
+  longitude: number | null;
   notes: string | null;
   taxId: string | null;
   monthlyFeeCents: number | null;
@@ -288,6 +290,8 @@ export interface ClientInput {
   email: string;
   address: string;
   area: string;
+  latitude: number | null;
+  longitude: number | null;
   notes: string;
   taxId: string;
   monthlyFeeCents: number | null;
@@ -589,6 +593,8 @@ export interface RouteItem {
   hasEmail: boolean;
   email: string | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   date: IsoDate;
   time: string | null;
   serviceTypeId: number;

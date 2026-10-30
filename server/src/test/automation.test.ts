@@ -45,7 +45,7 @@ describe('month route planner and service notices', () => {
     t = await makeTestApp('2025-06-15', mail);
     service = (await t.post('/api/service-types', { name: 'Desinsectación' })).body.id;
     employee = (await t.post('/api/users', { name: 'Juan', username: 'juan', password: 'secret1' })).body.id;
-    await client('a1', { name: 'A1 Con mail', area: 'Norte', email: 'a1@example.com' });
+    await client('a1', { name: 'A1 Con mail', area: 'Norte', email: 'a1@example.com', latitude: -34.55, longitude: -58.46 });
     await client('a2', { name: 'A2 Sin mail', area: 'Norte' });
     await client('b1', { name: 'B1 Con mail', area: 'Sur', email: 'b1@example.com' });
     await client('w', { name: 'W Semanal', area: 'Sur', serviceFrequency: 'weekly', email: 'w@example.com' });
@@ -81,6 +81,9 @@ describe('month route planner and service notices', () => {
     }
     expect(res.body.totals).toMatchObject({ visits: 7, clients: 4, withEmail: 3, withoutEmail: 1 });
     expect(res.body.zones.map((z: { zone: string }) => z.zone)).toEqual(['Norte', 'Sur']);
+    // Each item carries the client's coordinates for the route map.
+    expect(items.find((i) => i.clientId === ids.a1)).toMatchObject({ latitude: -34.55, longitude: -58.46 });
+    expect(items.find((i) => i.clientId === ids.a2)).toMatchObject({ latitude: null, longitude: null });
   });
 
   it('regenerating a draft replaces its items; edits are validated', async () => {
