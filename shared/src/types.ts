@@ -28,6 +28,10 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const CASH_KINDS = ['expense', 'income'] as const;
 export type CashKind = (typeof CASH_KINDS)[number];
 
+/** What a payment to an employee was: salary, advance or anything else. */
+export const EMPLOYEE_PAY_KINDS = ['sueldo', 'adelanto', 'otro'] as const;
+export type EmployeePayKind = (typeof EMPLOYEE_PAY_KINDS)[number];
+
 /** `void` is a voided invoice; the rest follow the derived rules in docs/design.md. */
 export const INVOICE_STATUSES = ['pending', 'partial', 'overdue', 'paid', 'void'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];

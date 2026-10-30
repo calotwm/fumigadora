@@ -9,6 +9,7 @@ import type {
   InvoiceStatus,
   IsoDate,
   IsoMonth,
+  EmployeePayKind,
   PaymentMethod,
   PriceRounding,
   PriceScope,
@@ -364,6 +365,9 @@ export interface Movement {
   clientName: string | null;
   categoryId: number | null;
   categoryName: string | null;
+  /** Employee the expense belongs to (payment to them, or fuel they loaded). */
+  employeeId: number | null;
+  employeeName: string | null;
 }
 
 export type TrackingStatus = 'pending' | 'scheduled' | 'complete';
@@ -522,6 +526,32 @@ export interface CashHandover {
   pendingCount: number;
   employees: { userId: number; name: string; pendingCents: number; count: number; items: HandoverItem[] }[];
   recent: (HandoverItem & { userId: number; userName: string; handedOverAt: string })[];
+}
+
+export interface EmployeePayItem {
+  id: number;
+  date: IsoDate;
+  userId: number;
+  userName: string;
+  amountCents: number;
+  kind: EmployeePayKind;
+  note: string | null;
+  method: PaymentMethod;
+}
+
+export interface EmployeePayMonth {
+  month: IsoMonth;
+  totalPaidCents: number;
+  employees: {
+    userId: number;
+    name: string;
+    paidCents: number;
+    byKind: Record<EmployeePayKind, number>;
+    cashCollectedCents: number;
+    cashHandedOverCents: number;
+    cashPendingCents: number;
+  }[];
+  payments: EmployeePayItem[];
 }
 
 // Emails, route planner and reminders --------------------------------------

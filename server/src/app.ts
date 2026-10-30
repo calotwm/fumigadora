@@ -13,6 +13,7 @@ import { routePlanRoutes } from './routes/routePlans.js';
 import { settingsRoutes } from './routes/settings.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
 import { extraRoutes } from './routes/extras.js';
+import { employeePayRoutes } from './routes/employeePay.js';
 import { handoverRoutes } from './routes/handover.js';
 import { meRoutes } from './routes/me.js';
 import { userRoutes } from './routes/users.js';
@@ -72,6 +73,7 @@ export function createApp(options: AppOptions) {
   api.use('*', requireAdmin);
   api.route('/users', userRoutes(deps));
   api.route('/cash-handover', handoverRoutes(deps));
+  api.route('/employee-pay', employeePayRoutes(deps));
   api.route('/clients', clientRoutes(deps));
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));

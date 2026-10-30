@@ -5,6 +5,7 @@ import type {
   ArcaCheckResult,
   ArcaStatusInfo,
   CashHandover,
+  EmployeePayMonth,
   EmailKind,
   EmailLogItem,
   EmailLogPage,
@@ -49,7 +50,7 @@ import type {
   Statement,
   Visit,
 } from './types';
-import type { DebtByMonth, Frequency, PaymentMethod } from '@fumigadora/shared';
+import type { DebtByMonth, EmployeePayKind, Frequency, PaymentMethod } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -719,5 +720,38 @@ export function useApplyPriceAdjustment() {
     mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentResult>('/price-adjustments', { body }),
     // Service type prices are reference data (not refreshed by invalidateData).
     onSuccess: () => Promise.all([invalidateData(queryClient), queryClient.invalidateQueries({ queryKey: ['service-types'] })]),
+  });
+}
+
+export function useEmployeePay(month: string) {
+  return useQuery({
+    queryKey: ['employee-pay', month],
+    queryFn: () => api<EmployeePayMonth>('/employee-pay', { query: { month } }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export interface EmployeePayInput {
+  userId: number;
+  date: string;
+  amountCents: number;
+  kind: EmployeePayKind;
+  note?: string;
+  method: PaymentMethod;
+}
+
+export function useCreateEmployeePay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EmployeePayInput) => api('/employee-pay', { body }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteEmployeePay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/employee-pay/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
   });
 }

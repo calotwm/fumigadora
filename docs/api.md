@@ -131,6 +131,16 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 | GET | `/api/cash-handover` | - | `{ pendingCents, pendingCount, employees: { userId, name, pendingCents, count, items: { paymentId, date, clientId, clientName, amountCents, visitId }[] }[] (largest first), recent: { paymentId, date, clientId, clientName, amountCents, visitId, userId, userName, handedOverAt }[] (last 30 confirmed) }` |
 | POST | `/api/cash-handover/confirm` | `{ paymentIds: number[] (1-500) }` | `{ confirmed, handedOverAt }`; sets `handedOverAt = now`. All-or-nothing: `400` if any id is unknown, not collected by an employee, or already confirmed |
 
+## Employee pay (owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/employee-pay?month=YYYY-MM` (default current) | - | `{ month, totalPaidCents, employees: { userId, name, paidCents, byKind: { sueldo, adelanto, otro }, cashCollectedCents, cashHandedOverCents, cashPendingCents }[] (by name), payments: { id, date, userId, userName, amountCents, kind, note, method }[] (newest first) }`. `employees` lists active employees plus anyone paid or collecting that month; the cash figures are the cash payments they collected in the field that month (by `paidOn`), split into confirmed (`/api/cash-handover`) and still "a rendir" |
+| POST | `/api/employee-pay` | `{ userId, amountCents (>0), kind: 'sueldo'\|'adelanto'\|'otro', date?=today, note?, method?='cash' }` | `201` payment. `400` when the user does not exist |
+| DELETE | `/api/employee-pay/:id` | - | `{ ok: true }`; `404` for ids that are not a payment to an employee |
+
+A payment to an employee is stored as a regular expense cash entry (category "Sueldos", created on first use) with `employeeId` and `payKind`, so it counts in `/api/finance/*` like any other expense and shows in `/api/cash-entries` and `/api/finance/movements` with `employeeId`/`employeeName`. Employees cannot reach these routes (`403`).
+
 ## Clients
 
 | Method | Path | Body / query | Response |
@@ -331,12 +341,12 @@ Emissions are serialized in-process (numbering is sequential per point of sale a
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/cash-entries` | query `month?` (default current), `kind?=expense\|income` | `{ id, kind, date, amountCents, categoryId, categoryName, description, method }[]` newest first |
+| GET | `/api/cash-entries` | query `month?` (default current), `kind?=expense\|income` | `{ id, kind, date, amountCents, categoryId, categoryName, description, method, employeeId, employeeName }[]` newest first (`employeeId` set on payments to employees and fuel loads) |
 | POST | `/api/cash-entries` | `{ kind: 'expense'\|'income', amountCents (>0), date?=today, categoryId (required for expense), description?, method?='cash' }` | `201` entry (manual entries only; client payments are NOT copied here) |
 | PATCH | `/api/cash-entries/:id` | `{ date?, amountCents?, categoryId?, description?, method? }` | entry |
 | DELETE | `/api/cash-entries/:id` | - | `{ ok: true }` |
 | GET | `/api/finance/summary?month=YYYY-MM` (default current) | - | `{ month, incomeCents, paymentsCents, otherIncomeCents, expensesCents, balanceCents, byCategory: { categoryId, name, totalCents, share (percent, 1 decimal) }[] (desc), previous: { month, ...same figures }, series: { month, incomeCents, paymentsCents, otherIncomeCents, expensesCents, balanceCents }[6] (oldest first, ending at month) }` |
-| GET | `/api/finance/movements?month=` | - | `{ month, movements: { type: 'payment'\|'income'\|'expense', id, date, direction: 'in'\|'out', amountCents (positive), method, description, clientId, clientName, categoryId, categoryName }[] }` date desc. Ids are per type (payment id vs cash entry id) |
+| GET | `/api/finance/movements?month=` | - | `{ month, movements: { type: 'payment'\|'income'\|'expense', id, date, direction: 'in'\|'out', amountCents (positive), method, description, clientId, clientName, categoryId, categoryName, employeeId, employeeName }[] }` date desc. Ids are per type (payment id vs cash entry id) |
 
 Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
 

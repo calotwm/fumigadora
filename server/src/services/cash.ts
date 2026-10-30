@@ -2,7 +2,7 @@ import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { CASH_KINDS, monthOf, monthRange, PAYMENT_METHODS, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { cashEntries, expenseCategories } from '../db/schema.js';
+import { cashEntries, expenseCategories, users } from '../db/schema.js';
 import { badRequest, notFound, zDate, zMonth, zOptText, zPositiveCents } from '../http.js';
 
 export const cashInput = z.object({
@@ -37,6 +37,8 @@ const select = {
   categoryName: expenseCategories.name,
   description: cashEntries.description,
   method: cashEntries.method,
+  employeeId: cashEntries.employeeId,
+  employeeName: users.name,
 };
 
 async function getEntry(db: Db, id: number) {
@@ -44,6 +46,7 @@ async function getEntry(db: Db, id: number) {
     .select(select)
     .from(cashEntries)
     .leftJoin(expenseCategories, eq(expenseCategories.id, cashEntries.categoryId))
+    .leftJoin(users, eq(users.id, cashEntries.employeeId))
     .where(eq(cashEntries.id, id));
   if (!row) throw notFound('Movimiento');
   return row;
@@ -55,6 +58,7 @@ export async function listCashEntries(db: Db, today: IsoDate, q: z.infer<typeof 
     .select(select)
     .from(cashEntries)
     .leftJoin(expenseCategories, eq(expenseCategories.id, cashEntries.categoryId))
+    .leftJoin(users, eq(users.id, cashEntries.employeeId))
     .where(and(gte(cashEntries.date, from), lte(cashEntries.date, to), q.kind ? eq(cashEntries.kind, q.kind) : undefined))
     .orderBy(desc(cashEntries.date), desc(cashEntries.id));
 }

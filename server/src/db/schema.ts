@@ -19,6 +19,7 @@ import {
   ARCA_STATUSES,
   CASH_KINDS,
   CLIENT_KINDS,
+  EMPLOYEE_PAY_KINDS,
   FREQUENCIES,
   IVA_CONDITIONS,
   PAYMENT_METHODS,
@@ -38,6 +39,7 @@ export const visitStatusEnum = pgEnum('visit_status', VISIT_STATUSES);
 export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
+export const employeePayKindEnum = pgEnum('employee_pay_kind', EMPLOYEE_PAY_KINDS);
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
 export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
 export const ivaConditionEnum = pgEnum('iva_condition', IVA_CONDITIONS);
@@ -356,9 +358,13 @@ export const cashEntries = pgTable(
     categoryId: integer('category_id').references(() => expenseCategories.id),
     description: text('description').notNull().default(''),
     method: paymentMethodEnum('method').notNull().default('cash'),
+    /** Employee the expense belongs to: a payment to them (with `payKind`) or something they spent (fuel). */
+    employeeId: integer('employee_id').references(() => users.id),
+    /** Set only on payments to an employee (salary, advance, other). */
+    payKind: employeePayKindEnum('pay_kind'),
     createdAt: createdAt(),
   },
-  (t) => [index('cash_entries_date_idx').on(t.date)],
+  (t) => [index('cash_entries_date_idx').on(t.date), index('cash_entries_employee_idx').on(t.employeeId, t.date)],
 );
 
 /** Every email the system tried to send (real, simulated or failed). */

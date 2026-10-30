@@ -127,6 +127,13 @@
       "when": 1793367320784,
       "tag": "0017_price_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793387777510,
+      "tag": "0018_employee_pay",
+      "breakpoints": true
     }
   ]
 }

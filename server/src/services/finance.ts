@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { addMonthsToMonth, lastMonths, monthRange, type IsoMonth } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { cashEntries, clients, expenseCategories, payments } from '../db/schema.js';
+import { cashEntries, clients, expenseCategories, payments, users } from '../db/schema.js';
 
 export interface MonthFigures {
   month: IsoMonth;
@@ -121,9 +121,12 @@ export async function financeMovements(db: Db, month: IsoMonth) {
         description: cashEntries.description,
         categoryId: cashEntries.categoryId,
         categoryName: expenseCategories.name,
+        employeeId: cashEntries.employeeId,
+        employeeName: users.name,
       })
       .from(cashEntries)
       .leftJoin(expenseCategories, eq(expenseCategories.id, cashEntries.categoryId))
+      .leftJoin(users, eq(users.id, cashEntries.employeeId))
       .where(and(gte(cashEntries.date, from), lte(cashEntries.date, to))),
   ]);
 
@@ -140,6 +143,8 @@ export async function financeMovements(db: Db, month: IsoMonth) {
       clientName: p.clientName,
       categoryId: null as number | null,
       categoryName: null as string | null,
+      employeeId: null as number | null,
+      employeeName: null as string | null,
     })),
     ...cashRows.map((c) => ({
       type: c.kind,
@@ -153,6 +158,8 @@ export async function financeMovements(db: Db, month: IsoMonth) {
       clientName: null as string | null,
       categoryId: c.categoryId,
       categoryName: c.categoryName,
+      employeeId: c.employeeId,
+      employeeName: c.employeeName,
     })),
   ];
   movements.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
