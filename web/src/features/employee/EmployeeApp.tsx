@@ -10,6 +10,7 @@ import { mapsLink, visitReminderText, whatsappLink } from '../../lib/whatsapp';
 import type { MyVisit } from '../../lib/types';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading, ProgressBar } from '../../ui/display';
+import { LazyStopsMap as StopsMap, type MapStop } from '../../ui/LazyStopsMap';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { ClientCancelledSheet } from './ClientCancelledSheet';
 import { DoneSheet } from './DoneSheet';
@@ -47,6 +48,23 @@ export function EmployeeApp() {
       ),
     [pending, data?.base],
   );
+  // Pending stops numbered in the order they will be done (the server already sorts them that way).
+  const mapStops = useMemo<MapStop[]>(
+    () =>
+      pending
+        .filter((v) => v.clientLatitude !== null && v.clientLongitude !== null)
+        .map((v) => ({
+          key: v.id,
+          latitude: v.clientLatitude!,
+          longitude: v.clientLongitude!,
+          color: '#0a0a0a',
+          label: String(pending.indexOf(v) + 1),
+          title: v.clientName,
+          details: [v.clientAddress ?? '', v.time ?? ''].filter(Boolean),
+        })),
+    [pending],
+  );
+  const [showMap, setShowMap] = useState(false);
   const iconButton = 'grid size-11 place-items-center hover:bg-paper/10';
 
   return (
@@ -141,6 +159,20 @@ export function EmployeeApp() {
                 </AnchorButton>
               ))}
             </div>
+            {mapStops.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={showMap}
+                icon={<MapPin size={16} aria-hidden />}
+                onClick={() => setShowMap((open) => !open)}
+              >
+                {showMap ? 'Ocultar mapa' : 'Ver mapa del día'}
+              </Button>
+            ) : null}
+            {showMap && mapStops.length > 0 ? (
+              <StopsMap stops={mapStops} base={data?.base ?? null} path="#0a0a0a" className="h-[320px]" />
+            ) : null}
           </div>
         ) : null}
       </div>
