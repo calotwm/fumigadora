@@ -20,6 +20,7 @@ import { ErrorNote, Loading } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useArchiveClient, useClient, useSaveClient, useServiceTypes } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
+import { LocationField } from './LocationField';
 import { FREQUENCY_LABELS, KIND_LABELS, TAX_DOC_LABELS } from '../../lib/format';
 import type { ClientDetail, ClientInput } from '../../lib/types';
 
@@ -31,6 +32,8 @@ const EMPTY: ClientInput = {
   email: '',
   address: '',
   area: '',
+  latitude: null,
+  longitude: null,
   notes: '',
   taxId: '',
   monthlyFeeCents: null,
@@ -72,6 +75,8 @@ function toInput(client: ClientDetail): ClientInput {
     email: client.email ?? '',
     address: client.address ?? '',
     area: client.area ?? '',
+    latitude: client.latitude,
+    longitude: client.longitude,
     notes: client.notes ?? '',
     taxId: client.taxId ?? '',
     monthlyFeeCents: client.monthlyFeeCents,
@@ -214,6 +219,12 @@ function ClientForm({
           <Input label="Dirección" value={form.address} onChange={(e) => set('address', e.target.value)} />
           <Input label="Zona" value={form.area} onChange={(e) => set('area', e.target.value)} />
         </div>
+        <LocationField
+          address={form.address}
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onChange={(latitude, longitude) => setForm((f) => ({ ...f, latitude, longitude }))}
+        />
         <div className="grid gap-4 md:grid-cols-2">
           <Select
             label="Frecuencia del servicio"
