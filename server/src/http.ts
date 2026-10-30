@@ -19,6 +19,8 @@ export interface Deps {
   now?: () => Date;
   /** Window in which repeated alerts from the same employee are grouped. Defaults to 10 minutes. */
   alertWindowMs?: number;
+  /** Magic-link requests allowed per email and per IP in 15 minutes. Defaults to 3 and 10. */
+  portalLimits?: { perEmail: number; perIp: number };
 }
 
 /** Business error rendered as `{ error: { code, message } }`. Messages are user-facing Spanish. */

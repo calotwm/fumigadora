@@ -29,7 +29,7 @@ function useAuth() {
 
 /** Where each role lands after logging in. */
 function homeFor(user: AuthUser): string {
-  return user.role === 'employee' ? '/app' : '/';
+  return user.role === 'employee' ? '/app' : user.role === 'client' ? '/portal' : '/';
 }
 
 function AuthGate({ role }: { role?: 'admin' }) {
@@ -44,7 +44,8 @@ function AuthGate({ role }: { role?: 'admin' }) {
     );
   }
   if (!auth.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  // Employees never see the admin app: send them to their own screen.
+  // Clients only have the portal; employees never see the admin app: send each to their own screen.
+  if (auth.data.role === 'client') return <Navigate to="/portal" replace />;
   if (role === 'admin' && auth.data.role !== 'admin') return <Navigate to="/app" replace />;
   return <Outlet />;
 }

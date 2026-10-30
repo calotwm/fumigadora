@@ -31,7 +31,14 @@ export interface ApiResult {
 export async function makeTestApp(
   initialToday = '2025-06-15',
   mail: MailProvider = createSimulatedProvider(),
-  opts: { config?: Partial<Config>; fetch?: typeof fetch; push?: PushSender; now?: () => Date; alertWindowMs?: number } = {},
+  opts: {
+    config?: Partial<Config>;
+    fetch?: typeof fetch;
+    push?: PushSender;
+    now?: () => Date;
+    alertWindowMs?: number;
+    portalLimits?: { perEmail: number; perIp: number };
+  } = {},
 ) {
   const config: Config = { ...testConfig, ...opts.config };
   const handle = createDb(); // memory://
@@ -47,6 +54,8 @@ export async function makeTestApp(
     ...(opts.push ? { push: opts.push } : {}),
     ...(opts.now ? { now: opts.now } : {}),
     ...(opts.alertWindowMs !== undefined ? { alertWindowMs: opts.alertWindowMs } : {}),
+    // Generous by default: every test shares one IP. The rate-limit tests pass their own.
+    portalLimits: opts.portalLimits ?? { perEmail: 1000, perIp: 1000 },
   });
 
   const login = await app.request('/api/auth/login', {

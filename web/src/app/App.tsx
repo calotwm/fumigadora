@@ -1,4 +1,6 @@
 import { Route, Routes } from 'react-router';
+import { PortalPage } from '../features/portal/PortalPage';
+import { PortalVerifyPage } from '../features/portal/PortalVerifyPage';
 import { PublicClientPage } from '../features/public/PublicClientPage';
 import { LoginPage, RequireAdmin, RequireAuth } from '../features/auth/auth';
 import { EmployeeApp } from '../features/employee/EmployeeApp';
@@ -30,6 +32,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/c/:token" element={<PublicClientPage />} />
+      <Route path="/portal" element={<PortalPage />} />
+      <Route path="/portal/entrar" element={<PortalVerifyPage />} />
       <Route element={<RequireAuth />}>
         <Route path="app" element={<EmployeeApp />} />
       </Route>
