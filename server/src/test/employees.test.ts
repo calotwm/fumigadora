@@ -179,9 +179,10 @@ describe('employees', () => {
         serviceTypeName: 'Desinsectación',
         time: '09:00',
         status: 'scheduled',
-        clientBalanceCents: 30_000_00,
         cashCollectedCents: 0,
       });
+      // Employees see the route and what they collect, never the client's debt.
+      expect(res.body.visits[0]).not.toHaveProperty('clientBalanceCents');
       expect(res.body.cashPending).toEqual({ cents: 0, count: 0 });
 
       const other = await pablo.get('/api/me/visits');

@@ -464,7 +464,8 @@ export interface NotificationList {
 }
 
 export interface MyVisit extends Visit {
-  clientBalanceCents: number;
+  /** Service price extras are priced on (each one costs a share of it). */
+  extraBaseCents: number;
   /** Everything the employee registered as paid at this visit (any method). */
   paidCents: number;
   /** The cash part of it: the one that is "a rendir". */

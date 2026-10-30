@@ -29,7 +29,7 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
   const [error, setError] = useState<string | null>(null);
 
   const base = visit.priceCents ?? 0;
-  const extrasCents = extrasTotal(catalog, extras);
+  const extrasCents = extrasTotal(catalog, extras, visit.extraBaseCents);
   const total = base + extrasCents;
   const statusOptions: { value: PaymentStatus; label: string }[] = [
     ...(total > 0 ? [{ value: 'full' as const, label: 'Pagó todo' }] : []),
@@ -100,7 +100,7 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
           </p>
         </div>
 
-        <ExtrasPicker catalog={catalog} value={extras} onChange={setExtras} />
+        <ExtrasPicker catalog={catalog} value={extras} onChange={setExtras} serviceCents={visit.extraBaseCents} />
 
         <div className="flex items-baseline justify-between border-y-2 border-ink py-3">
           <span className="label-caps">Total a cobrar</span>
@@ -108,24 +108,11 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
             {total > 0 ? money(total) : '—'}
           </span>
         </div>
-        {visit.clientBalanceCents > 0 ? (
-          <p className="-mt-3 text-sm">
-            Saldo anterior del cliente: <span className="num font-bold text-red">{money(visit.clientBalanceCents)}</span>
-          </p>
-        ) : null}
 
         <Chips label="¿Pagó?" value={status} onChange={setStatus} options={statusOptions} />
         {status === 'partial' ? (
           <div className="flex flex-col gap-2">
             <MoneyInput label="Importe cobrado" value={amount} onChange={setAmount} autoFocus />
-            {visit.clientBalanceCents > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setAmount(visit.clientBalanceCents + total)}>
-                  Todo, con saldo anterior {money(visit.clientBalanceCents + total)}
-                </Button>
-              </div>
-            ) : null}
-            <p className="text-xs text-muted">Se aplica primero a esta visita y lo que sobre, a la deuda más vieja.</p>
           </div>
         ) : null}
         {status === 'full' || status === 'partial' ? (

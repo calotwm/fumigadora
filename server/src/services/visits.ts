@@ -206,7 +206,10 @@ export async function completeVisit(db: Db, today: IsoDate, id: number, input: z
   const serviceType = await requireServiceType(db, visit.serviceTypeId);
   const completedOn = input.completedOn ?? today;
   const priceCents = input.priceCents ?? visit.priceCents ?? serviceType.defaultPriceCents;
-  const extraLines = await resolveExtraLines(db, input.extras);
+  // Extras are priced on the service price even when the base line is not billed (an employee closing a visit
+  // without an agreed price sends 0): the visit's own price, else the service type's.
+  const extrasBaseCents = priceCents > 0 ? priceCents : (visit.priceCents ?? serviceType.defaultPriceCents);
+  const extraLines = await resolveExtraLines(db, input.extras, extrasBaseCents);
   const extrasCents = extraLines.reduce((sum, l) => sum + l.amountCents, 0);
   const totalCents = Math.max(priceCents, 0) + extrasCents;
   const issueCertificate = input.issueCertificate ?? serviceType.issuesCertificate;
