@@ -307,7 +307,7 @@ Emissions are serialized in-process (numbering is sequential per point of sale a
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId? }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; any remainder is credit. `400` if `invoiceId` is not an open invoice of the client |
+| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId?, invoiceIds?: number[] }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; with `invoiceIds` (the months chosen in the payment form, see `GET /api/clients/:id/months`) those invoices are paid first in chronological order (due date), then FIFO over the other open invoices; any remainder is credit. An empty `invoiceIds` is plain FIFO. `400` if `invoiceId` or any of `invoiceIds` is not an open invoice of the client, or when both are sent |
 | GET | `/api/payments` | query `from?`, `to?`, `clientId?` | `{ ...payment, clientName, allocations, unallocatedCents }[]` newest first |
 | DELETE | `/api/payments/:id` | - | `{ ok: true, client: { id } & BalanceFields }` (allocations removed; invoices reopen) |
 

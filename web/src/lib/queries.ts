@@ -141,6 +141,8 @@ export interface PaymentInput {
   method: PaymentMethod;
   notes?: string;
   invoiceId?: number;
+  /** Invoices (months) to settle first, in chronological order; the rest goes FIFO. */
+  invoiceIds?: number[];
 }
 
 export function useCreatePayment() {
