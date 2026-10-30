@@ -253,11 +253,6 @@ function PendingCard({
         </p>
       ) : null}
       {visit.notes ? <p className="mt-1 text-sm">{visit.notes}</p> : null}
-      {visit.clientBalanceCents > 0 ? (
-        <p className="mt-1 text-sm">
-          Saldo del cliente: <span className="num font-bold text-red">{money(visit.clientBalanceCents)}</span>
-        </p>
-      ) : null}
 
       <Button variant="accent" className="mt-4 min-h-14 w-full text-base" onClick={onMark} icon={<Check size={20} aria-hidden />}>
         Marcar hecho

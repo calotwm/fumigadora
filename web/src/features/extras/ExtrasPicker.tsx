@@ -1,12 +1,13 @@
 import { Minus, Plus } from 'lucide-react';
+import { EXTRA_PRICE_PERCENT, extraUnitPriceCents } from '@fumigadora/shared';
 import { money } from '../../lib/format';
 import type { Extra, ExtraSelection } from '../../lib/types';
 
 const MAX_QUANTITY = 99;
 
-/** Sum of the selected extras at catalog prices. */
-export function extrasTotal(catalog: Extra[], selection: ExtraSelection[]): number {
-  const prices = new Map(catalog.map((e) => [e.id, e.priceCents]));
+/** Sum of the selected extras, each priced on the service price (`extraUnitPriceCents`, same rule as the server). */
+export function extrasTotal(catalog: Extra[], selection: ExtraSelection[], serviceCents: number): number {
+  const prices = new Map(catalog.map((e) => [e.id, extraUnitPriceCents(serviceCents, e.priceCents)]));
   return selection.reduce((sum, s) => sum + (prices.get(s.extraId) ?? 0) * s.quantity, 0);
 }
 
@@ -18,10 +19,13 @@ export function ExtrasPicker({
   catalog,
   value,
   onChange,
+  serviceCents,
 }: {
   catalog: Extra[];
   value: ExtraSelection[];
   onChange: (value: ExtraSelection[]) => void;
+  /** Price of the visit's service: each extra costs a share of it. */
+  serviceCents: number;
 }) {
   const quantities = new Map(value.map((s) => [s.extraId, s.quantity]));
 
@@ -32,11 +36,12 @@ export function ExtrasPicker({
   }
 
   if (catalog.length === 0) return null;
-  const total = extrasTotal(catalog, value);
+  const total = extrasTotal(catalog, value, serviceCents);
 
   return (
     <div className="flex flex-col gap-1">
       <span className="label-caps">Extras</span>
+      {serviceCents > 0 ? <p className="text-xs text-muted">Cada extra: {EXTRA_PRICE_PERCENT}% del precio del servicio.</p> : null}
       <ul className="border-t border-ink">
         {catalog.map((extra) => {
           const quantity = quantities.get(extra.id) ?? 0;
@@ -44,7 +49,7 @@ export function ExtrasPicker({
             <li key={extra.id} className="flex items-center justify-between gap-3 border-b border-rule py-2">
               <div className="min-w-0">
                 <p className="truncate text-base font-semibold">{extra.name}</p>
-                <p className="num text-sm text-muted">{money(extra.priceCents)} c/u</p>
+                <p className="num text-sm text-muted">{money(extraUnitPriceCents(serviceCents, extra.priceCents))} c/u</p>
               </div>
               <div className="flex shrink-0 items-center">
                 <button

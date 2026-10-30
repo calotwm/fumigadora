@@ -64,7 +64,8 @@ describe('closing a visit in the field: extras and payment status', () => {
       ],
     });
     expect(res.status).toBe(200);
-    expect(res.body.invoice.amountCents).toBe(50_000_00 + 2 * 4_500_00 + 8_000_00);
+    // Each extra costs 30% of the service price (50.000 -> 15.000), whatever the catalog says.
+    expect(res.body.invoice.amountCents).toBe(50_000_00 + 3 * 15_000_00);
     expect(res.body.invoice.items.map((i: { description: string }) => i.description)).toEqual(['Desinsectación', 'Cebo', 'Estación cebadera']);
     const { payment } = res.body;
     expect(payment.payment).toMatchObject({ amountCents: 30_000_00, method: 'transfer', collectedByUserId: juanId, visitId: v });
@@ -76,6 +77,9 @@ describe('closing a visit in the field: extras and payment status', () => {
     const mine = await juan.get('/api/me/visits');
     expect(mine.body.visits.find((x: { id: number }) => x.id === v)).toMatchObject({ paidCents: 30_000_00, cashCollectedCents: 0 });
     expect(mine.body.cashPending).toEqual({ cents: 0, count: 0 });
+    // The employee app prices extras from this base and never sees the client's debt.
+    expect(mine.body.visits.find((x: { id: number }) => x.id === v)).toMatchObject({ extraBaseCents: 50_000_00 });
+    expect(mine.body.visits[0]).not.toHaveProperty('clientBalanceCents');
     expect((await t.get('/api/cash-handover')).body.pendingCount).toBe(0);
     expect((await t.get('/api/cash-handover')).body.recent).toEqual([]);
   });
@@ -85,10 +89,10 @@ describe('closing a visit in the field: extras and payment status', () => {
     const v = await newVisit(c);
     const res = await juan.post(`/api/me/visits/${v}/done`, { paymentStatus: 'full', method: 'cash', extras: [{ extraId: baitId, quantity: 1 }] });
     expect(res.status).toBe(200);
-    expect(res.body.payment.payment).toMatchObject({ amountCents: 54_500_00, method: 'cash', handedOverAt: null });
+    expect(res.body.payment.payment).toMatchObject({ amountCents: 65_000_00, method: 'cash', handedOverAt: null });
     expect(res.body.payment.client.balanceCents).toBe(0);
     expect((await t.get(`/api/invoices/${res.body.invoice.id}`)).body.status).toBe('paid');
-    expect((await juan.get('/api/me/visits')).body.cashPending.cents).toBeGreaterThanOrEqual(54_500_00);
+    expect((await juan.get('/api/me/visits')).body.cashPending.cents).toBeGreaterThanOrEqual(65_000_00);
   });
 
   it('sends a partial payment above the invoice to the oldest debt', async () => {
@@ -119,7 +123,8 @@ describe('closing a visit in the field: extras and payment status', () => {
     const v = (await t.post('/api/visits', { clientId: c, serviceTypeId: serviceId, date: '2025-06-15', assignedUserId: juanId })).body.id;
     const res = await juan.post(`/api/me/visits/${v}/done`, { paymentStatus: 'none', extras: [{ extraId: stationId, quantity: 1 }] });
     expect(res.status).toBe(200);
-    expect(res.body.invoice.items).toEqual([{ description: 'Estación cebadera', quantity: 1, unitPriceCents: 8_000_00, amountCents: 8_000_00 }]);
+    // No agreed price: the extra is still 30% of the service type's price (50.000).
+    expect(res.body.invoice.items).toEqual([{ description: 'Estación cebadera', quantity: 1, unitPriceCents: 15_000_00, amountCents: 15_000_00 }]);
   });
 
   it('validates the payment and rolls everything back', async () => {
@@ -154,8 +159,8 @@ describe('closing a visit in the field: extras and payment status', () => {
     const done = created.find((n) => n.kind === 'visit_done')!;
     expect(done.body).toMatch(/^Juan Pérez completó la visita de Alertas\. Pagó una parte \(.*20\.000.*, transferencia\)\.$/);
     const extras = created.find((n) => n.kind === 'extras_added')!;
-    expect(extras).toMatchObject({ title: 'Extras agregados', groupAmountCents: 17_000_00, link: `/clientes/${c}` });
-    expect(extras.body).toMatch(/^Juan Pérez agregó extras en Alertas: 2 × Cebo, 1 × Estación cebadera \(.*17\.000.*\)\.$/);
+    expect(extras).toMatchObject({ title: 'Extras agregados', groupAmountCents: 45_000_00, link: `/clientes/${c}` });
+    expect(extras.body).toMatch(/^Juan Pérez agregó extras en Alertas: 2 × Cebo, 1 × Estación cebadera \(.*45\.000.*\)\.$/);
   });
 
   it('keeps the cash alert for cash payments only', async () => {

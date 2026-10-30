@@ -2,9 +2,8 @@ import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { nextVisitDate, orderDayRoute, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { payments, visits } from '../db/schema.js';
+import { payments, serviceTypes, visits } from '../db/schema.js';
 import { badRequest, conflict, notFound, zDate, zOptText, zPositiveCents, zTime } from '../http.js';
-import { clientFinancials } from './accounts.js';
 import { getSettings } from './settings.js';
 import { extraLineInput } from './extras.js';
 import { createPayment } from './payments.js';
@@ -52,8 +51,9 @@ export async function pendingCashFor(db: Db, userId: number) {
 }
 
 /**
- * The employee's own visits for a day (cancelled ones are hidden) in route order, with the client's balance, everything paid at the
- * visit (`paidCents`) and the cash part of it (`cashCollectedCents`, the one that is "a rendir").
+ * The employee's own visits for a day (cancelled ones are hidden) in route order, with the base price extras are
+ * priced on (`extraBaseCents`), everything paid at the visit (`paidCents`) and the cash part of it (`cashCollectedCents`,
+ * the one that is "a rendir"). Deliberately no client balance: employees see the route and what they collect, not debts.
  */
 export async function myVisits(db: Db, today: IsoDate, userId: number, date: IsoDate) {
   const all = (await listVisits(db, { from: date, to: date, assignedUserId: userId })).filter((v) => v.status !== 'cancelled');
@@ -67,7 +67,15 @@ export async function myVisits(db: Db, today: IsoDate, userId: number, date: Iso
     ...orderDayRoute(all.filter((v) => v.status === 'scheduled'), base),
     ...all.filter((v) => v.status !== 'scheduled'),
   ];
-  const balances = rows.length === 0 ? new Map() : await clientFinancials(db, today);
+  // Extras cost a share of the service price: the visit's own price, else the service type's.
+  const serviceRows =
+    rows.length === 0
+      ? []
+      : await db
+          .select({ id: serviceTypes.id, defaultPriceCents: serviceTypes.defaultPriceCents })
+          .from(serviceTypes)
+          .where(inArray(serviceTypes.id, [...new Set(rows.map((r) => r.serviceTypeId))]));
+  const servicePrice = new Map(serviceRows.map((s) => [s.id, s.defaultPriceCents]));
   const collected =
     rows.length === 0
       ? []
@@ -86,7 +94,7 @@ export async function myVisits(db: Db, today: IsoDate, userId: number, date: Iso
     base,
     visits: rows.map((v) => ({
       ...v,
-      clientBalanceCents: balances.get(v.clientId)?.balanceCents ?? 0,
+      extraBaseCents: v.priceCents ?? servicePrice.get(v.serviceTypeId) ?? 0,
       paidCents: paidByVisit.get(v.id)?.cents ?? 0,
       cashCollectedCents: paidByVisit.get(v.id)?.cashCents ?? 0,
     })),
