@@ -7,6 +7,7 @@ import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
 import { createMailProvider, type MailProvider } from './mail/provider.js';
 import { arcaRoutes } from './routes/arca.js';
+import { baitStationRoutes, clientDocumentRoutes } from './routes/baitStations.js';
 import { emailRoutes } from './routes/email.js';
 import { jobRoutes, reminderRoutes } from './routes/automation.js';
 import { routePlanRoutes } from './routes/routePlans.js';
@@ -76,6 +77,8 @@ export function createApp(options: AppOptions) {
   api.route('/cash-handover', handoverRoutes(deps));
   api.route('/employee-pay', employeePayRoutes(deps));
   api.route('/clients', clientRoutes(deps));
+  api.route('/bait-stations', baitStationRoutes(deps));
+  api.route('/client-documents', clientDocumentRoutes(deps));
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));
   api.route('/extras', extraRoutes(deps));

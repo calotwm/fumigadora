@@ -6,6 +6,10 @@ import type {
   ArcaStatusInfo,
   CashHandover,
   EmployeePayMonth,
+  BaitStation,
+  ClientBaitStations,
+  ClientDocument,
+  MyVisitStations,
   Product,
   ProductOption,
   StockMovement,
@@ -839,4 +843,74 @@ export function useDeleteStockMovement() {
 /** Employee app: active products to report as used when closing a visit. */
 export function useMyProducts() {
   return useQuery({ queryKey: ['me', 'products'], queryFn: () => api<ProductOption[]>('/me/products'), staleTime: 60_000 });
+}
+
+// Bait stations ("cebaderos") ----------------------------------------------
+
+export function useBaitStations(clientId: number) {
+  return useQuery({
+    queryKey: ['bait-stations', clientId],
+    queryFn: () => api<ClientBaitStations>('/bait-stations', { query: { clientId } }),
+  });
+}
+
+export function useSaveBaitStation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: { clientId: number; code: string; reference: string } }) =>
+      id === undefined
+        ? api<BaitStation>('/bait-stations', { body })
+        : api<BaitStation>(`/bait-stations/${id}`, { method: 'PATCH', body: { code: body.code, reference: body.reference } }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteBaitStation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/bait-stations/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useUploadStationPhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, photo }: { id: number; photo: File }) => {
+      const body = new FormData();
+      body.set('photo', photo);
+      return api<BaitStation>(`/bait-stations/${id}/photo`, { method: 'PUT', body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useUploadClientDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ clientId, name, file }: { clientId: number; name?: string; file: File }) => {
+      const body = new FormData();
+      body.set('clientId', String(clientId));
+      if (name) body.set('name', name);
+      body.set('file', file);
+      return api<ClientDocument>('/client-documents', { body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+export function useDeleteClientDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/client-documents/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Employee app: stations of the client of one of the caller's visits. */
+export function useMyVisitStations(visitId: number) {
+  return useQuery({
+    queryKey: ['me', 'bait-stations', visitId],
+    queryFn: () => api<MyVisitStations>(`/me/visits/${visitId}/bait-stations`),
+  });
 }

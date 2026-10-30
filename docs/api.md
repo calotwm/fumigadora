@@ -96,6 +96,8 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 |---|---|---|---|
 | GET | `/api/me/visits` | query `date?=today` | `{ date, base: { latitude, longitude }\|null, visits: (Visit & { clientBalanceCents, paidCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, in **route order**: pending visits first (timed ones by time, then the untimed ones nearest-neighbour from the company base, clients without coordinates last), then the done ones. `base` is the company location from the settings (null when not configured; the route then starts at the first located visit). `Visit` carries `clientLatitude`/`clientLongitude` (null when unknown). `paidCents` = everything this employee registered as paid at that visit (any method), `cashCollectedCents` = the cash part of it; `cashPending` = all cash of the caller not yet confirmed by the owner |
 | POST | `/api/me/fuel` | multipart: `amountCents` (> 0), `date?` (default today), `photo` (file: JPEG, PNG, WEBP or HEIC, max 10 MB) | `201 { id, date, amountCents }`. "Cargar nafta": a cash expense in the fuel category (an existing "Combustible" or "Nafta" category, else "Combustible" is created) with `employeeId` = caller and the photo kept under `FILES_DIR/receipts/<id>.<ext>` (the name never comes from the uploaded file). The type is checked on the file's bytes, not the declared type: `400 invalid_file`; no photo: `400`; over 10 MB: `413 file_too_large`; bad amount: `400 validation`. The amount is typed by the employee (reading it from the photo is a follow-up). The answer carries nothing about balances |
+| GET | `/api/me/visits/:id/bait-stations` | - | `{ clientId, clientName, stations: { id, code, reference, hasPhoto }[] }` of the visit's client, read-only (no money fields). `404` if the visit is not assigned to the caller (same answer as unknown id) |
+| GET | `/api/me/bait-stations/:id/photo` | - | The station photo, only when the caller has a visit assigned at that client; otherwise `404` |
 | GET | `/api/me/products` | - | Active products `{ id, name, unit }[]` by name, to report what was used when closing a visit. No stock figures |
 | GET | `/api/me/extras` | - | Active extras (`{ id, name, priceCents, active, createdAt }[]`) the caller can add when closing a visit |
 | POST | `/api/me/visits/:id/done` | `{ paymentStatus?: 'full'\|'partial'\|'none', method?: 'cash'\|'transfer'\|'mercadopago' (default cash), amountCents? (> 0, required for partial), extras?: { extraId, quantity }[], products?: { productId, quantity (> 0, up to 3 decimals) }[] (max 30), notes?, cashCollectedCents? (legacy: same as partial + cash) }` | `{ visit, invoice, extras, certificate, nextVisit, payment: <POST /api/payments response>\|null, paymentStatus, paymentMethod, products: { productId, name, unit, quantity }[] }`. `products` become stock `use` movements of today with the visit and the caller; an unknown or inactive product is a `400` and nothing is saved. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
@@ -158,6 +160,23 @@ A payment to an employee is stored as a regular expense cash entry (category "Su
 | POST | `/api/clients/:id/unarchive` | - | client row |
 | GET | `/api/clients/:id/public-link` | - | `{ token, url }`: the client's public link (`<base>/c/<token>`). Every client has a token (created with the client; existing ones were backfilled by migration 0015; a missing one is created on the spot). `<base>` is `PUBLIC_BASE_URL` or, if unset, the origin of the request |
 | POST | `/api/clients/:id/public-link/regenerate` | - | `{ token, url }` with a new token; the previous link answers `404` from then on |
+
+### Bait stations and documents ("Cebaderos", owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/bait-stations?clientId=` | - | `{ stations: { id, clientId, code, reference, hasPhoto }[] (by code, natural order), documents: { id, clientId, name, size, createdAt }[] (newest first) }` |
+| POST | `/api/bait-stations` | `{ clientId, code (1-40), reference? (max 500) }` | `201` station. `400` unknown client; `409` repeated code for the client |
+| PATCH | `/api/bait-stations/:id` | `{ code?, reference? }` | station |
+| DELETE | `/api/bait-stations/:id` | - | `{ ok: true }`; removes its photo |
+| PUT | `/api/bait-stations/:id/photo` | multipart `photo` (JPEG, PNG, WEBP or HEIC, max 10 MB) | station; replaces the previous photo. Stored as `FILES_DIR/bait-stations/<id>.<ext>` |
+| DELETE | `/api/bait-stations/:id/photo` | - | station without photo |
+| GET | `/api/bait-stations/:id/photo` | - | the photo (`cache-control: private, no-store`); `404` when none |
+| POST | `/api/client-documents` | multipart `clientId`, `file` (PDF, max 10 MB), `name?` (default: the uploaded file's base name) | `201 { id, clientId, name, size, createdAt }`. Stored as `FILES_DIR/client-documents/<id>.pdf` |
+| GET | `/api/client-documents/:id/file` | - | the PDF inline |
+| DELETE | `/api/client-documents/:id` | - | `{ ok: true }`; removes the file |
+
+Uploads (here, `/api/me/fuel`) share one rule: the type is detected from the file's bytes (the declared type and file name are never trusted, and stored names are always `<folder>/<row id>.<ext>`); a wrong type is `400 invalid_file`, a body over 10 MB is `413 file_too_large`.
 
 ### Public link (no login)
 

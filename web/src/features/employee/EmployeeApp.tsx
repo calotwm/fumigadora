@@ -14,6 +14,7 @@ import { NotificationBell } from '../notifications/NotificationBell';
 import { ClientCancelledSheet } from './ClientCancelledSheet';
 import { DoneSheet } from './DoneSheet';
 import { FuelSheet } from './FuelSheet';
+import { MyStationsSheet } from './MyStationsSheet';
 import plagamixWhite from '../../assets/plagamix-white.png';
 
 function dayLabel(date: string, today: string): string {
@@ -36,6 +37,7 @@ export function EmployeeApp() {
   const [cancelling, setCancelling] = useState<MyVisit | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [fueling, setFueling] = useState(false);
+  const [stationsOf, setStationsOf] = useState<MyVisit | null>(null);
   const { data, error, isLoading, refetch } = useMyVisits(date);
 
   const visits = data?.visits ?? [];
@@ -169,6 +171,7 @@ export function EmployeeApp() {
                     isNext={index === 0}
                     onMark={() => setMarking(visit)}
                     onCancel={() => setCancelling(visit)}
+                    onStations={() => setStationsOf(visit)}
                   />
                 ))}
               </ul>
@@ -216,6 +219,7 @@ export function EmployeeApp() {
       </footer>
 
       {marking ? <DoneSheet visit={marking} onClose={() => setMarking(null)} /> : null}
+      {stationsOf ? <MyStationsSheet visit={stationsOf} onClose={() => setStationsOf(null)} /> : null}
       {fueling ? <FuelSheet onClose={() => setFueling(false)} /> : null}
       {cancelling ? <ClientCancelledSheet visit={cancelling} onClose={() => setCancelling(null)} /> : null}
     </div>
@@ -228,12 +232,14 @@ function PendingCard({
   isNext,
   onMark,
   onCancel,
+  onStations,
 }: {
   visit: MyVisit;
   stop: number;
   isNext: boolean;
   onMark: () => void;
   onCancel: () => void;
+  onStations: () => void;
 }) {
   const wa = whatsappLink(visit.clientPhone, visitReminderText(visit.clientName, visit.serviceTypeName, longDate(visit.date).toLowerCase(), visit.time));
   const tel = visit.clientPhone ? `tel:${visit.clientPhone.replace(/[^\d+]/g, '')}` : null;
@@ -307,9 +313,14 @@ function PendingCard({
           <span />
         )}
       </div>
-      <Button variant="ghost" className="mt-1 w-full" onClick={onCancel}>
-        El cliente canceló
-      </Button>
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <Button variant="ghost" className="w-full" onClick={onStations}>
+          Cebaderos
+        </Button>
+        <Button variant="ghost" className="w-full" onClick={onCancel}>
+          El cliente canceló
+        </Button>
+      </div>
     </li>
   );
 }

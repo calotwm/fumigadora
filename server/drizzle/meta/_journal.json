@@ -148,6 +148,13 @@
       "when": 1793390068988,
       "tag": "0020_stock",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793390877337,
+      "tag": "0021_bait_stations",
+      "breakpoints": true
     }
   ]
 }

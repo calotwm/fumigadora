@@ -588,6 +588,39 @@ export const stockMovements = pgTable(
   (t) => [index('stock_movements_product_idx').on(t.productId, t.date), index('stock_movements_date_idx').on(t.date)],
 );
 
+/** Bait stations of a client ("cebaderos"): code, where to find it and an optional photo under FILES_DIR. */
+export const baitStations = pgTable(
+  'bait_stations',
+  {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    code: text('code').notNull(),
+    reference: text('reference').notNull().default(''),
+    photoKey: text('photo_key'),
+    photoType: text('photo_type'),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('bait_stations_client_code_uq').on(t.clientId, t.code)],
+);
+
+/** PDF documents of a client (e.g. the bait-station plan), stored under FILES_DIR. */
+export const clientDocuments = pgTable(
+  'client_documents',
+  {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    name: text('name').notNull(),
+    fileKey: text('file_key').notNull(),
+    fileSize: integer('file_size').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('client_documents_client_idx').on(t.clientId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

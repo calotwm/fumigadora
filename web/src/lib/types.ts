@@ -551,6 +551,34 @@ export interface StockUsage {
   days: { date: IsoDate; items: { productId: number; used: number }[] }[];
 }
 
+export interface BaitStation {
+  id: number;
+  clientId: number;
+  code: string;
+  reference: string;
+  hasPhoto: boolean;
+}
+
+export interface ClientDocument {
+  id: number;
+  clientId: number;
+  name: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface ClientBaitStations {
+  stations: BaitStation[];
+  documents: ClientDocument[];
+}
+
+/** Employee app: stations of the client of a visit (read-only). */
+export interface MyVisitStations {
+  clientId: number;
+  clientName: string;
+  stations: Omit<BaitStation, 'clientId'>[];
+}
+
 export interface MyVisits {
   date: IsoDate;
   /** Company location where the day route starts; null when not configured. */
