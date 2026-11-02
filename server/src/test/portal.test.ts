@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createSessionToken, verifySessionToken } from '../auth.js';
-import { certificates, clientContacts, clientLoginTokens, emailLog, invoices } from '../db/schema.js';
+import { certificates, clientContacts, clientLoginTokens, emailLog, invoices, ipcMonths } from '../db/schema.js';
 import type { MailProvider, OutgoingEmail } from '../mail/provider.js';
 import { hashLoginToken } from '../services/portal.js';
 import { writeStoredFile } from '../services/files.js';
@@ -189,6 +189,27 @@ describe('client portal: magic link, data and isolation', () => {
       const again = await as(t).post('/api/portal/verify', { token });
       expect(again.status).toBe(400);
       expect(again.body.error.code).toBe('invalid_link');
+    });
+
+    it('shows the client their overdue debt updated by IPC, without changing it', async () => {
+      const [inv] = await t.db.select().from(invoices).where(eq(invoices.id, aliceInvoice));
+      await t.db.update(invoices).set({ dueOn: '2025-04-30' }).where(eq(invoices.id, aliceInvoice));
+      await t.db.insert(ipcMonths).values([
+        { month: '2025-04', percentBp: 280 },
+        { month: '2025-05', percentBp: 150 },
+      ]);
+      try {
+        const { token } = await requestLink(f, 'admin@alfa.test');
+        const me = as(t, cookieOf((await as(t).post('/api/portal/verify', { token })).headers));
+        const summary = (await me.get('/api/portal/summary')).body;
+        // Due in April: only May's 1.5 % applies to the $40.000 owed.
+        expect(summary.months).toEqual([{ month: '2025-06', billedCents: 50_000_00, paidCents: 10_000_00, owedCents: 40_000_00, ipcCents: 600_00 }]);
+        expect(summary.ipc).toEqual({ throughMonth: '2025-05', totalCents: 600_00, updatedOwedCents: 40_600_00 });
+        expect(summary.balanceCents).toBe(40_000_00);
+      } finally {
+        await t.db.update(invoices).set({ dueOn: inv!.dueOn }).where(eq(invoices.id, aliceInvoice));
+        await t.db.delete(ipcMonths);
+      }
     });
 
     it('rejects an unknown token and an expired one', async () => {
