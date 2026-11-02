@@ -536,6 +536,15 @@ export const jobRuns = pgTable(
   (t) => [uniqueIndex('job_runs_job_date_uq').on(t.job, t.runDate)],
 );
 
+/** Monthly IPC (INDEC, nivel general) synced from Argly; used to update overdue debt to the last published month. */
+export const ipcMonths = pgTable('ipc_months', {
+  /** `YYYY-MM`. */
+  month: text('month').primaryKey(),
+  /** 190 = 1.9 %. */
+  percentBp: integer('percent_bp').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** One row per IPC price update applied: what was raised, by how much and by whom. Invoices are never touched. */
 export const priceAdjustments = pgTable('price_adjustments', {
   id: serial('id').primaryKey(),
