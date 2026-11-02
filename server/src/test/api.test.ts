@@ -348,6 +348,8 @@ describe('finance, receivables and dashboard', () => {
   it('builds receivables sorted by days overdue with aging buckets', async () => {
     const res = await t.get('/api/receivables');
     expect(res.body.debtors.map((d: { name: string }) => d.name)).toEqual(['Deudor Viejo', 'Deudor Reciente']);
+    // Today is 2025-06-15; the oldest overdue invoice is 124 days late.
+    expect(res.body.debtors[0]).toMatchObject({ daysOverdue: 124, overdueSince: '2025-02-11' });
     expect(res.body.owedCents).toBe(130_000_00);
     expect(res.body.overdueInvoiceCount).toBe(2);
     const bucket = (b: string) => res.body.buckets.find((x: { bucket: string }) => x.bucket === b);
