@@ -680,6 +680,8 @@ export interface AppSettings {
   companyLatitude: number | null;
   companyLongitude: number | null;
   companyPhone: string | null;
+  ipcWarningEnabled: boolean;
+  ipcWarningGraceDays: number;
 }
 
 export interface ArcaStatusInfo {
