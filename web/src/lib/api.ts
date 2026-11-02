@@ -18,6 +18,7 @@ export function setUnauthorizedHandler(handler: () => void): void {
 
 interface ApiOptions {
   method?: string;
+  /** JSON body, or a FormData sent as multipart (file uploads). */
   body?: unknown;
   query?: Record<string, string | number | undefined | null>;
 }
@@ -28,13 +29,15 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   }
   const hasBody = options.body !== undefined;
+  const isForm = options.body instanceof FormData;
   let response: Response;
   try {
     response = await fetch(url, {
       method: options.method ?? (hasBody ? 'POST' : 'GET'),
       credentials: 'same-origin',
-      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
-      body: hasBody ? JSON.stringify(options.body) : undefined,
+      // The browser sets the multipart boundary itself.
+      headers: hasBody && !isForm ? { 'content-type': 'application/json' } : undefined,
+      body: isForm ? (options.body as FormData) : hasBody ? JSON.stringify(options.body) : undefined,
     });
   } catch {
     throw new ApiError(0, 'network', 'No se pudo conectar con el servidor. Revise su conexión.');

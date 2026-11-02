@@ -7,7 +7,7 @@ import { certificates, clientContacts, clientLoginTokens, clients, invoices, pay
 import { hhmm } from '../http.js';
 import type { MailProvider } from '../mail/provider.js';
 import { portalLoginEmail } from '../mail/templates.js';
-import { allocationsForPayments, selectInvoices, toInvoiceView, withInvoiceItems } from './accounts.js';
+import { allocationsForPayments, clientDebtMonths, selectInvoices, toInvoiceView, withInvoiceItems } from './accounts.js';
 import { clientSummary } from './clients.js';
 import { listCertificates } from './certificates.js';
 import { sendLogged } from './mail.js';
@@ -99,7 +99,11 @@ export async function consumeLoginToken(db: Db, tokenId: number, now: Date): Pro
 
 /** The home screen: balance, next visits, current oblea. */
 export async function portalSummary(db: Db, today: IsoDate, clientId: number) {
-  const [summary, certs] = await Promise.all([clientSummary(db, today, clientId), portalCertificates(db, today, clientId)]);
+  const [summary, certs, debt] = await Promise.all([
+    clientSummary(db, today, clientId),
+    portalCertificates(db, today, clientId),
+    clientDebtMonths(db, clientId),
+  ]);
   const current = certs.find((c) => !c.superseded) ?? certs[0] ?? null;
   return {
     balanceCents: summary.balanceCents,
@@ -108,6 +112,7 @@ export async function portalSummary(db: Db, today: IsoDate, clientId: number) {
     creditCents: summary.creditCents,
     daysOverdue: summary.daysOverdue,
     overdueInvoiceCount: summary.overdueInvoiceCount,
+    months: debt.months.map((m) => ({ month: m.month, billedCents: m.billedCents, paidCents: m.paidCents, owedCents: m.owedCents })),
     nextVisits: summary.nextVisits.map((v) => ({ id: v.id, date: v.date, time: v.time, serviceTypeName: v.serviceTypeName })),
     lastVisitDate: summary.lastVisitDate,
     certificate: current,

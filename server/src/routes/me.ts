@@ -6,6 +6,11 @@ import { pushEnabled, removeSubscription, saveSubscription, subscribeInput, unsu
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../services/notifications.js';
 import { alertVisitChanged, alertVisitDone } from '../services/adminAlerts.js';
 import { listExtras } from '../services/extras.js';
+import { createFuelLoad, fuelInput } from '../services/cash.js';
+import { activeProductsForPicking } from '../services/stock.js';
+import { hasVisitAtClient, myVisitStations, stationPhotoInfo } from '../services/baitStations.js';
+import { readStoredFile } from '../services/files.js';
+import { checkUpload, fileResponse, IMAGE_TYPES, parseFields, readForm, uploadLimit } from '../services/uploads.js';
 import {
   cancelMyVisit,
   markMyVisitDone,
@@ -34,6 +39,33 @@ export function meRoutes(deps: Deps) {
       const q = c.req.valid('query');
       return c.json(await myVisits(db, today(), actingUser(c.get('session'), q.userId), q.date ?? today()));
     })
+    // Fuel load: multipart `amountCents`, `date?` and the ticket `photo`. Stored as a fuel expense of the caller.
+    .post('/fuel', uploadLimit(), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const { fields, files } = await readForm(c);
+      const input = parseFields(fuelInput, fields);
+      const photo = await checkUpload(files.photo, IMAGE_TYPES, {
+        missing: 'Adjuntá la foto del ticket',
+        wrongType: 'La foto debe ser una imagen JPG, PNG, WEBP o HEIC',
+      });
+      return c.json(await createFuelLoad(db, deps.config.filesDir, today(), userId, input, photo), 201);
+    })
+    // Bait stations of the client of one of the caller's visits (read-only, no money involved).
+    .get('/visits/:id/bait-stations', v('param', idParam), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      return c.json(await myVisitStations(db, userId, c.req.valid('param').id));
+    })
+    // A station photo, only for a client where the caller has a visit assigned.
+    .get('/bait-stations/:id/photo', v('param', idParam), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const info = await stationPhotoInfo(db, c.req.valid('param').id);
+      const allowed = info ? await hasVisitAtClient(db, userId, info.clientId) : false;
+      const bytes = info && allowed ? await readStoredFile(deps.config.filesDir, info.key) : null;
+      if (!info || !bytes) throw notFound('Foto del cebadero');
+      return fileResponse(c, bytes, info.type, `cebadero-${info.code}.${info.key.split('.').pop()}`);
+    })
+    // Active products the employee can report as used when closing a visit (names and units only).
+    .get('/products', async (c) => c.json(await activeProductsForPicking(db)))
     // Active extras the employee can add when closing a visit.
     .get('/extras', async (c) => c.json(await listExtras(db, true)))
     .post('/visits/:id/done', v('param', idParam), v('json', myDoneInput), v('query', myVisitsQuery), async (c) => {

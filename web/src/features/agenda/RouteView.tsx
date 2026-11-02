@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { Plus } from 'lucide-react';
 import { monthLabelEs, monthOf, monthRange, noticeDueDate, today as todayIso } from '@fumigadora/shared';
@@ -15,6 +15,7 @@ import { useToast } from '../../ui/Toast';
 import { AssigneeSelect } from '../employees/AssigneeSelect';
 import { ClientPicker } from '../clients/ClientPicker';
 import { NoticeModeFields } from '../settings/NoticeModeFields';
+import { RouteMap } from './RouteMap';
 
 const CONTROL = 'block w-full min-h-11 md:min-h-9 bg-paper text-ink text-sm border border-ink rounded-sm px-2';
 
@@ -40,10 +41,18 @@ export function RouteView({ month }: { month: string }) {
   const today = todayIso();
   const route = useRoute(month);
   const actions = useRouteActions(month);
+  const settings = useSettings();
+  const companyLatitude = settings.data?.companyLatitude ?? null;
+  const companyLongitude = settings.data?.companyLongitude ?? null;
+  const base = useMemo(
+    () => (companyLatitude !== null && companyLongitude !== null ? { latitude: companyLatitude, longitude: companyLongitude } : null),
+    [companyLatitude, companyLongitude],
+  );
   const toast = useToast();
   const [confirm, setConfirm] = useState<'generate' | 'approve' | null>(null);
   const [adding, setAdding] = useState(false);
   const [skipped, setSkipped] = useState<RouteData['skipped']>([]);
+  const allItems = useMemo(() => route.data?.zones.flatMap((z) => z.dates.flatMap((d) => d.items)) ?? [], [route.data]);
 
   if (route.isLoading) return <Loading />;
   if (route.error || !route.data) return <ErrorNote message={errorMessage(route.error)} onRetry={() => route.refetch()} />;
@@ -151,28 +160,31 @@ export function RouteView({ month }: { month: string }) {
       ) : !hasItems ? (
         <EmptyState title="No hay servicios pendientes de planificar este mes. Puede agregar clientes manualmente." />
       ) : (
-        data.zones.map((zone) => (
-          <section key={zone.zone ?? '_'} aria-label={`Zona ${zone.zone ?? 'sin zona'}`}>
-            <div className="flex items-baseline gap-3 border-t-4 border-ink pt-2">
-              <h3 className="label-caps !text-ink">{zone.zone ?? 'Sin zona'}</h3>
-              <span className="num text-sm text-muted">
-                {zone.count} {zone.count === 1 ? 'visita' : 'visitas'}
-              </span>
-            </div>
-            {zone.dates.map((day) => (
-              <div key={day.date}>
-                <p className="mt-3 text-sm font-bold">
-                  {longDate(day.date)} <span className="num font-normal text-muted">· {day.items.length}</span>
-                </p>
-                <ul>
-                  {day.items.map((item) => (
-                    <RouteRow key={item.id} item={item} month={month} editable={!approved} />
-                  ))}
-                </ul>
+        <>
+          <RouteMap items={allItems} base={base} />
+          {data.zones.map((zone) => (
+            <section key={zone.zone ?? '_'} aria-label={`Zona ${zone.zone ?? 'sin zona'}`}>
+              <div className="flex items-baseline gap-3 border-t-4 border-ink pt-2">
+                <h3 className="label-caps !text-ink">{zone.zone ?? 'Sin zona'}</h3>
+                <span className="num text-sm text-muted">
+                  {zone.count} {zone.count === 1 ? 'visita' : 'visitas'}
+                </span>
               </div>
-            ))}
-          </section>
-        ))
+              {zone.dates.map((day) => (
+                <div key={day.date}>
+                  <p className="mt-3 text-sm font-bold">
+                    {longDate(day.date)} <span className="num font-normal text-muted">· {day.items.length}</span>
+                  </p>
+                  <ul>
+                    {day.items.map((item) => (
+                      <RouteRow key={item.id} item={item} month={month} editable={!approved} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+          ))}
+        </>
       )}
 
       {confirm === 'generate' ? (
