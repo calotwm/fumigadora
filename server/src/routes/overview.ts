@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { idParam, notFound, v, type Deps } from '../http.js';
+import { idParam, notFound, v, zDate, type Deps } from '../http.js';
 import { certificateFileInfo, certificateListQuery, listCertificates } from '../services/certificates.js';
 import { readStoredFile } from '../services/files.js';
 import { dashboard } from '../services/dashboard.js';
+import { daySummary } from '../services/dayClose.js';
 import { searchClients } from '../services/search.js';
 
 export function certificateRoutes({ db, config, today }: Deps) {
@@ -29,5 +30,12 @@ export function dashboardRoutes({ db, today }: Deps) {
 export function searchRoutes({ db }: Deps) {
   return new Hono().get('/', v('query', z.object({ q: z.string().trim().min(1).max(100) })), async (c) =>
     c.json({ clients: await searchClients(db, c.req.valid('query').q) }),
+  );
+}
+
+/** "Cierre del día" of any date (default today). */
+export function dayCloseRoutes({ db, today }: Deps) {
+  return new Hono().get('/', v('query', z.object({ date: zDate.optional() })), async (c) =>
+    c.json(await daySummary(db, c.req.valid('query').date ?? today())),
   );
 }

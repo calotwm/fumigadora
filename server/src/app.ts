@@ -21,7 +21,7 @@ import { userRoutes } from './routes/users.js';
 import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
-import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
+import { certificateRoutes, dashboardRoutes, dayCloseRoutes, searchRoutes } from './routes/overview.js';
 import { portalRoutes } from './routes/portal.js';
 import { priceAdjustmentRoutes } from './routes/priceAdjust.js';
 import { publicRoutes } from './routes/public.js';
@@ -101,6 +101,7 @@ export function createApp(options: AppOptions) {
   api.route('/receivables', receivablesRoutes(deps));
   api.route('/certificates', certificateRoutes(deps));
   api.route('/dashboard', dashboardRoutes(deps));
+  api.route('/day-close', dayCloseRoutes(deps));
   api.route('/search', searchRoutes(deps));
   api.notFound((c) => c.json(errorBody('not_found', 'Recurso no encontrado'), 404));
 

@@ -9,6 +9,7 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { AgendaPage } from '../features/agenda/AgendaPage';
 import { CobranzasPage } from '../features/receivables/CobranzasPage';
 import { FinanzasPage } from '../features/finance/FinanzasPage';
+import { DayClosePage } from '../features/dayclose/DayClosePage';
 import { StockPage } from '../features/stock/StockPage';
 import { AjustesPage } from '../features/settings/AjustesPage';
 import { ClientPage } from '../features/clients/ClientPage';
@@ -54,6 +55,7 @@ export function App() {
           <Route path="clientes/:id" element={<ClientPage />} />
           <Route path="cobranzas" element={<CobranzasPage />} />
           <Route path="finanzas" element={<FinanzasPage />} />
+          <Route path="cierre" element={<DayClosePage />} />
           <Route path="stock" element={<StockPage />} />
           <Route path="ajustes" element={<AjustesPage />} />
           <Route path="*" element={<NotFound />} />

@@ -847,6 +847,40 @@ export interface PlacardList {
   items: PlacardItem[];
 }
 
+export interface DayVisitCounts {
+  done: number;
+  pending: number;
+  postponed: number;
+  cancelled: number;
+}
+
+/** `GET /day-close`: "Cierre del día" of one date. `userId` null = unassigned visits / payments registered by the office. */
+export interface DaySummary {
+  date: IsoDate;
+  visits: {
+    totals: DayVisitCounts;
+    byEmployee: ({ userId: number | null; name: string } & DayVisitCounts)[];
+  };
+  collections: {
+    totalCents: number;
+    count: number;
+    byMethod: { method: PaymentMethod; cents: number; count: number }[];
+    byEmployee: { userId: number | null; name: string; cents: number; count: number; cashCents: number; toHandOverCents: number }[];
+    cashToHandOver: { dayCents: number; dayCount: number; totalCents: number; totalCount: number };
+  };
+  invoices: { count: number; totalCents: number; items: { id: number; number: string; clientId: number; clientName: string; amountCents: number }[] };
+  newOverdue: {
+    count: number;
+    totalCents: number;
+    items: { invoiceId: number; number: string; clientId: number; clientName: string; balanceCents: number; dueOn: IsoDate }[];
+  };
+  expenses: {
+    count: number;
+    totalCents: number;
+    items: { id: number; amountCents: number; categoryName: string | null; description: string; method: PaymentMethod }[];
+  };
+}
+
 export interface PriceChange {
   scope: PriceScope;
   id: number;
