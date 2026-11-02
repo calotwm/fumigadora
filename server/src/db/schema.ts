@@ -523,6 +523,24 @@ export const jobRuns = pgTable(
   (t) => [uniqueIndex('job_runs_job_date_uq').on(t.job, t.runDate)],
 );
 
+/** One row per IPC price update applied: what was raised, by how much and by whom. Invoices are never touched. */
+export const priceAdjustments = pgTable('price_adjustments', {
+  id: serial('id').primaryKey(),
+  /** 320 = 3.2 %. */
+  percentBasisPoints: integer('percent_basis_points').notNull(),
+  /** `none` | `100` | `1000` (see PRICE_ROUNDINGS). */
+  rounding: text('rounding').notNull(),
+  /** PRICE_SCOPES chosen for this application. */
+  scopes: jsonb('scopes').$type<string[]>().notNull(),
+  /** Null for the emergency owner session (no user row). */
+  userId: integer('user_id').references(() => users.id),
+  userName: text('user_name').notNull(),
+  itemCount: integer('item_count').notNull(),
+  /** Snapshot of every changed price: { scope, id, name, detail, date, oldCents, newCents }[]. */
+  items: jsonb('items').notNull(),
+  createdAt: createdAt(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
@@ -538,3 +556,4 @@ export type CashEntry = typeof cashEntries.$inferSelect;
 export type EmailLog = typeof emailLog.$inferSelect;
 export type RoutePlan = typeof routePlans.$inferSelect;
 export type RoutePlanItem = typeof routePlanItems.$inferSelect;
+export type PriceAdjustment = typeof priceAdjustments.$inferSelect;

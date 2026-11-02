@@ -8,11 +8,13 @@ import {
   createClient,
   getClient,
   listClients,
+  requireClient,
   setArchived,
   updateClient,
 } from '../services/clients.js';
 import { ensurePublicToken, placardList, placardZones, publicBaseUrl, publicUrl, regeneratePublicToken } from '../services/publicLink.js';
 import { clientStatement } from '../services/statement.js';
+import { clientDebtMonths } from '../services/accounts.js';
 
 export function clientRoutes({ db, config, today }: Deps) {
   return new Hono()
@@ -27,6 +29,11 @@ export function clientRoutes({ db, config, today }: Deps) {
     .get('/:id/statement', v('param', idParam), async (c) =>
       c.json(await clientStatement(db, today(), c.req.valid('param').id)),
     )
+    .get('/:id/months', v('param', idParam), async (c) => {
+      const { id } = c.req.valid('param');
+      await requireClient(db, id);
+      return c.json(await clientDebtMonths(db, id));
+    })
     .patch('/:id', v('param', idParam), v('json', clientPatch), async (c) =>
       c.json(await updateClient(db, c.req.valid('param').id, c.req.valid('json'))),
     )

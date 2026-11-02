@@ -13,6 +13,7 @@ import type { ClientDetail, Statement } from '../../lib/types';
 import { BUCKET_LABELS } from './balance';
 import { EmailLogList } from '../mail/EmailLogList';
 import { PublicLinkSheet } from './PublicLinkSheet';
+import { DebtMonths } from './DebtMonths';
 import { AccountTab, CertificatesTab, DataTab, InvoicesTab, VisitsTab } from './ClientTabs';
 
 const TABS = [
@@ -191,7 +192,10 @@ function ClientView({
           ) : !statement ? (
             <Loading />
           ) : tab === 'cuenta' ? (
-            <AccountTab statement={statement} />
+            <>
+              <DebtMonths clientId={client.id} />
+              <AccountTab statement={statement} />
+            </>
           ) : tab === 'visitas' ? (
             <VisitsTab statement={statement} />
           ) : tab === 'facturas' ? (

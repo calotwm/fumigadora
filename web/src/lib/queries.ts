@@ -40,12 +40,16 @@ import type {
   Extra,
   Invoice,
   PaymentResult,
+  PriceAdjustmentBody,
+  PriceAdjustmentPreview,
+  PriceAdjustmentRecord,
+  PriceAdjustmentResult,
   SearchClient,
   ServiceType,
   Statement,
   Visit,
 } from './types';
-import type { Frequency, PaymentMethod } from '@fumigadora/shared';
+import type { DebtByMonth, Frequency, PaymentMethod } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -99,6 +103,15 @@ export function useStatement(id: number | null) {
   });
 }
 
+/** Open debt grouped by month (oldest first), with the open invoices of each month. */
+export function useClientMonths(id: number | null) {
+  return useQuery({
+    queryKey: ['client-months', id],
+    queryFn: () => api<DebtByMonth>(`/clients/${id}/months`),
+    enabled: id !== null,
+  });
+}
+
 export function useServiceTypes() {
   return useQuery({
     queryKey: ['service-types'],
@@ -132,6 +145,8 @@ export interface PaymentInput {
   method: PaymentMethod;
   notes?: string;
   invoiceId?: number;
+  /** Invoices (months) to settle first, in chronological order; the rest goes FIFO. */
+  invoiceIds?: number[];
 }
 
 export function useCreatePayment() {
@@ -685,4 +700,24 @@ export function useRouteActions(month: string) {
       onSuccess: done,
     }),
   };
+}
+
+/** IPC price updates applied so far, newest first. */
+export function usePriceAdjustments() {
+  return useQuery({ queryKey: ['price-adjustments'], queryFn: () => api<PriceAdjustmentRecord[]>('/price-adjustments') });
+}
+
+export function usePreviewPriceAdjustment() {
+  return useMutation({
+    mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentPreview>('/price-adjustments/preview', { body }),
+  });
+}
+
+export function useApplyPriceAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentResult>('/price-adjustments', { body }),
+    // Service type prices are reference data (not refreshed by invalidateData).
+    onSuccess: () => Promise.all([invalidateData(queryClient), queryClient.invalidateQueries({ queryKey: ['service-types'] })]),
+  });
 }
