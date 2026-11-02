@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound, zDate, zOptText, zPositiveCents, zTime 
 import { clientFinancials } from './accounts.js';
 import { getSettings } from './settings.js';
 import { extraLineInput } from './extras.js';
+import { productUseInput, recordVisitUse } from './stock.js';
 import { createPayment } from './payments.js';
 import { completeVisit, getVisit, insertNextVisit, listVisits, updateVisit } from './visits.js';
 
@@ -30,6 +31,8 @@ export const myDoneInput = z.object({
   /** Legacy shape: cash received, equivalent to `partial` + `cash`. */
   cashCollectedCents: zPositiveCents.optional(),
   extras: z.array(extraLineInput).max(30).optional(),
+  /** Product used at the visit (optional): stock `use` movements linked to the visit and the employee. */
+  products: z.array(productUseInput).max(30).optional(),
   notes: zOptText(2000),
 });
 
@@ -146,7 +149,8 @@ export async function markMyVisitDone(
             { userId, visitId, handedOver: method !== 'cash' },
           )
         : null;
-    return { ...result, payment, paymentStatus: status, paymentMethod: payment ? method : null };
+    const productsUsed = await recordVisitUse(tx, today, visitId, userId, input.products ?? []);
+    return { ...result, payment, paymentStatus: status, paymentMethod: payment ? method : null, products: productsUsed };
   });
 }
 

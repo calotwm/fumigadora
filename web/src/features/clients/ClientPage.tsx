@@ -15,12 +15,14 @@ import { EmailLogList } from '../mail/EmailLogList';
 import { PublicLinkSheet } from './PublicLinkSheet';
 import { DebtMonths } from './DebtMonths';
 import { AccountTab, CertificatesTab, DataTab, InvoicesTab, VisitsTab } from './ClientTabs';
+import { BaitStationsTab } from './BaitStationsTab';
 
 const TABS = [
   { id: 'cuenta', label: 'Cuenta corriente' },
   { id: 'visitas', label: 'Visitas' },
   { id: 'facturas', label: 'Facturas' },
   { id: 'obleas', label: 'Obleas' },
+  { id: 'cebaderos', label: 'Cebaderos' },
   { id: 'mails', label: 'Mails' },
   { id: 'datos', label: 'Datos' },
 ] as const;
@@ -185,6 +187,8 @@ function ClientView({
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pt-6">
           {tab === 'datos' ? (
             <DataTab client={client} />
+          ) : tab === 'cebaderos' ? (
+            <BaitStationsTab clientId={client.id} />
           ) : tab === 'mails' ? (
             <EmailLogList clientId={client.id} showFilter={false} />
           ) : statementError ? (

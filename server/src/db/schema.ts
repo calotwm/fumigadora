@@ -19,9 +19,12 @@ import {
   ARCA_STATUSES,
   CASH_KINDS,
   CLIENT_KINDS,
+  EMPLOYEE_PAY_KINDS,
   FREQUENCIES,
   IVA_CONDITIONS,
   PAYMENT_METHODS,
+  PRODUCT_UNITS,
+  STOCK_MOVEMENT_KINDS,
   TAX_DOC_TYPES,
   USER_ROLES,
   VISIT_STATUSES,
@@ -38,6 +41,9 @@ export const visitStatusEnum = pgEnum('visit_status', VISIT_STATUSES);
 export const frequencyEnum = pgEnum('frequency', FREQUENCIES);
 export const paymentMethodEnum = pgEnum('payment_method', PAYMENT_METHODS);
 export const cashKindEnum = pgEnum('cash_kind', CASH_KINDS);
+export const productUnitEnum = pgEnum('product_unit', PRODUCT_UNITS);
+export const stockMovementKindEnum = pgEnum('stock_movement_kind', STOCK_MOVEMENT_KINDS);
+export const employeePayKindEnum = pgEnum('employee_pay_kind', EMPLOYEE_PAY_KINDS);
 export const userRoleEnum = pgEnum('user_role', USER_ROLES);
 export const taxDocTypeEnum = pgEnum('tax_doc_type', TAX_DOC_TYPES);
 export const ivaConditionEnum = pgEnum('iva_condition', IVA_CONDITIONS);
@@ -356,9 +362,16 @@ export const cashEntries = pgTable(
     categoryId: integer('category_id').references(() => expenseCategories.id),
     description: text('description').notNull().default(''),
     method: paymentMethodEnum('method').notNull().default('cash'),
+    /** Employee the expense belongs to: a payment to them (with `payKind`) or something they spent (fuel). */
+    employeeId: integer('employee_id').references(() => users.id),
+    /** Set only on payments to an employee (salary, advance, other). */
+    payKind: employeePayKindEnum('pay_kind'),
+    /** Photo of the receipt under FILES_DIR (fuel loads from the employee app) and its media type. */
+    receiptKey: text('receipt_key'),
+    receiptType: text('receipt_type'),
     createdAt: createdAt(),
   },
-  (t) => [index('cash_entries_date_idx').on(t.date)],
+  (t) => [index('cash_entries_date_idx').on(t.date), index('cash_entries_employee_idx').on(t.employeeId, t.date)],
 );
 
 /** Every email the system tried to send (real, simulated or failed). */
@@ -540,6 +553,73 @@ export const priceAdjustments = pgTable('price_adjustments', {
   items: jsonb('items').notNull(),
   createdAt: createdAt(),
 });
+
+/** Quantity in thousandths of the product's unit (2.5 litros = 2500). */
+const milli = (name: string) => bigint(name, { mode: 'number' });
+
+/** Products used in the field (insecticides, baits...). Stock is the sum of their movements. */
+export const products = pgTable('products', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  unit: productUnitEnum('unit').notNull(),
+  /** Low-stock mark below this quantity; null = no minimum. */
+  minQuantityMilli: milli('min_quantity_milli'),
+  active: boolean('active').notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Stock movement: signed quantity (purchase +, use -, adjustment either way). */
+export const stockMovements = pgTable(
+  'stock_movements',
+  {
+    id: serial('id').primaryKey(),
+    productId: integer('product_id')
+      .notNull()
+      .references(() => products.id),
+    kind: stockMovementKindEnum('kind').notNull(),
+    date: isoDate('date').notNull(),
+    quantityMilli: milli('quantity_milli').notNull(),
+    /** Visit the product was used at, when registered while closing it. */
+    visitId: integer('visit_id').references(() => visits.id),
+    userId: integer('user_id').references(() => users.id),
+    note: text('note'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('stock_movements_product_idx').on(t.productId, t.date), index('stock_movements_date_idx').on(t.date)],
+);
+
+/** Bait stations of a client ("cebaderos"): code, where to find it and an optional photo under FILES_DIR. */
+export const baitStations = pgTable(
+  'bait_stations',
+  {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    code: text('code').notNull(),
+    reference: text('reference').notNull().default(''),
+    photoKey: text('photo_key'),
+    photoType: text('photo_type'),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('bait_stations_client_code_uq').on(t.clientId, t.code)],
+);
+
+/** PDF documents of a client (e.g. the bait-station plan), stored under FILES_DIR. */
+export const clientDocuments = pgTable(
+  'client_documents',
+  {
+    id: serial('id').primaryKey(),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id),
+    name: text('name').notNull(),
+    fileKey: text('file_key').notNull(),
+    fileSize: integer('file_size').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('client_documents_client_idx').on(t.clientId)],
+);
 
 export type User = typeof users.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;

@@ -3,11 +3,12 @@ import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { Chips, MoneyInput, Textarea } from '../../ui/form';
 import { useToast } from '../../ui/Toast';
-import { useMarkMyVisitDone, useMyExtras } from '../../lib/queries';
+import { useMarkMyVisitDone, useMyExtras, useMyProducts } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { money } from '../../lib/format';
-import type { ExtraSelection, FieldPaymentMethod, MyVisit, PaymentStatus } from '../../lib/types';
+import type { ExtraSelection, FieldPaymentMethod, MyVisit, PaymentStatus, ProductUse } from '../../lib/types';
 import { ExtrasPicker, extrasTotal } from '../extras/ExtrasPicker';
+import { ProductsUsedPicker } from './ProductsUsedPicker';
 
 const METHOD_OPTIONS: { value: FieldPaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Efectivo' },
@@ -21,7 +22,9 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
   const toast = useToast();
   const mutation = useMarkMyVisitDone();
   const catalog = useMyExtras().data ?? [];
+  const productCatalog = useMyProducts().data ?? [];
   const [extras, setExtras] = useState<ExtraSelection[]>([]);
+  const [productsUsed, setProductsUsed] = useState<ProductUse[]>([]);
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [method, setMethod] = useState<FieldPaymentMethod>('cash');
   const [amount, setAmount] = useState<number | null>(null);
@@ -47,6 +50,10 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
       setError('Ingresá el importe cobrado.');
       return;
     }
+    if (productsUsed.some((p) => !(p.quantity > 0))) {
+      setError('Indicá la cantidad de cada producto usado.');
+      return;
+    }
     setError(null);
     const paid = status === 'full' ? total : status === 'partial' ? (amount ?? 0) : 0;
     mutation.mutate(
@@ -57,6 +64,7 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
           ...(status !== 'none' ? { method } : {}),
           ...(status === 'partial' ? { amountCents: amount! } : {}),
           ...(extras.length > 0 ? { extras } : {}),
+          ...(productsUsed.length > 0 ? { products: productsUsed } : {}),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
         },
       },
@@ -136,6 +144,8 @@ export function DoneSheet({ visit, onClose }: { visit: MyVisit; onClose: () => v
             ) : null}
           </div>
         ) : null}
+
+        {productCatalog.length > 0 ? <ProductsUsedPicker catalog={productCatalog} value={productsUsed} onChange={setProductsUsed} /> : null}
 
         <Textarea label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         {error ? (
