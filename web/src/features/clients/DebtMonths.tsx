@@ -1,10 +1,13 @@
-import type { DebtMonth } from '@fumigadora/shared';
+import type { DebtMonthWithIpc } from '@fumigadora/shared';
 import { useClientMonths } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { money, monthLabel } from '../../lib/format';
 import { ErrorNote, Table, type Column } from '../../ui/display';
 
-/** Open debt grouped by month (period of the invoice, or the month it was issued), oldest first. */
+/**
+ * Open debt grouped by month (period of the invoice, or the month it was issued), oldest first, with what each overdue
+ * month grows when updated by the last published IPC (a reference figure: it is not charged to the account).
+ */
 export function DebtMonths({ clientId }: { clientId: number }) {
   const query = useClientMonths(clientId);
   if (query.error) return <ErrorNote message={errorMessage(query.error)} onRetry={() => query.refetch()} />;
@@ -12,7 +15,7 @@ export function DebtMonths({ clientId }: { clientId: number }) {
   if (!data || data.months.length === 0) return null;
   const creditApplied = data.months.some((m) => m.creditAppliedCents > 0);
 
-  const columns: Column<DebtMonth>[] = [
+  const columns: Column<DebtMonthWithIpc>[] = [
     {
       key: 'month',
       header: 'Mes',
@@ -40,7 +43,10 @@ export function DebtMonths({ clientId }: { clientId: number }) {
       header: 'Adeuda',
       align: 'right',
       cell: (m) => (
-        <span className={`num whitespace-nowrap font-bold ${m.owedCents > 0 ? 'text-red' : ''}`}>{money(m.owedCents)}</span>
+        <span className="flex flex-col items-end">
+          <span className={`num whitespace-nowrap font-bold ${m.owedCents > 0 ? 'text-red' : ''}`}>{money(m.owedCents)}</span>
+          {m.ipcCents > 0 ? <span className="num whitespace-nowrap text-xs text-muted">+ {money(m.ipcCents)} IPC</span> : null}
+        </span>
       ),
     },
   ];
@@ -64,6 +70,17 @@ export function DebtMonths({ clientId }: { clientId: number }) {
         mobileCols="grid-cols-3"
         gridClass="md:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr]"
       />
+      {data.ipc.totalCents > 0 && data.ipc.throughMonth ? (
+        <div className="mt-3 flex items-baseline justify-between gap-4 border-l-4 border-yellow bg-paper-2 px-3 py-2 text-sm">
+          <p>
+            <span className="font-bold">Actualizado por IPC</span>
+            <span className="block text-xs text-muted">
+              Hasta {monthLabel(data.ipc.throughMonth).toLowerCase()} (INDEC): + {money(data.ipc.totalCents)} sobre la deuda vencida.
+            </span>
+          </p>
+          <span className="num font-extrabold whitespace-nowrap text-red">{money(data.ipc.updatedOwedCents)}</span>
+        </div>
+      ) : null}
       {creditApplied ? <p className="mt-2 text-xs text-muted">El saldo a favor se descuenta de los meses más antiguos.</p> : null}
     </section>
   );

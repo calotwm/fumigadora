@@ -59,7 +59,7 @@ import type {
   Statement,
   Visit,
 } from './types';
-import type { DebtByMonth, EmployeePayKind, Frequency, PaymentMethod, ProductUnit, StockMovementKind } from '@fumigadora/shared';
+import type { DebtByMonthWithIpc, EmployeePayKind, Frequency, PaymentMethod, ProductUnit, StockMovementKind } from '@fumigadora/shared';
 
 /** Keys that hold reference data and never change as a result of a business mutation. */
 const STATIC_KEYS = new Set(['auth', 'service-types', 'expense-categories', 'search']);
@@ -125,7 +125,7 @@ export function useStatement(id: number | null) {
 export function useClientMonths(id: number | null) {
   return useQuery({
     queryKey: ['client-months', id],
-    queryFn: () => api<DebtByMonth>(`/clients/${id}/months`),
+    queryFn: () => api<DebtByMonthWithIpc>(`/clients/${id}/months`),
     enabled: id !== null,
   });
 }

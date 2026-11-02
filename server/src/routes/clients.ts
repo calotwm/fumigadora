@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { withIpcUpdate } from '@fumigadora/shared';
 import { z } from 'zod';
 import { AppError, idParam, v, type Deps } from '../http.js';
 import { geocodeAddress } from '../services/geocode.js';
@@ -16,6 +17,7 @@ import {
 import { ensurePublicToken, placardList, placardZones, publicBaseUrl, publicUrl, regeneratePublicToken } from '../services/publicLink.js';
 import { clientStatement } from '../services/statement.js';
 import { clientDebtMonths } from '../services/accounts.js';
+import { listIpcRates } from '../services/ipc.js';
 
 export function clientRoutes({ db, config, today, fetch: fetchFn }: Deps) {
   return new Hono()
@@ -39,7 +41,8 @@ export function clientRoutes({ db, config, today, fetch: fetchFn }: Deps) {
     .get('/:id/months', v('param', idParam), async (c) => {
       const { id } = c.req.valid('param');
       await requireClient(db, id);
-      return c.json(await clientDebtMonths(db, id));
+      const [debt, rates] = await Promise.all([clientDebtMonths(db, id), listIpcRates(db)]);
+      return c.json(withIpcUpdate(debt, rates, today()));
     })
     .patch('/:id', v('param', idParam), v('json', clientPatch), async (c) =>
       c.json(await updateClient(db, c.req.valid('param').id, c.req.valid('json'))),

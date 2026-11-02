@@ -7,6 +7,7 @@ import {
   runEveningNotifications,
   runMorningNotifications,
 } from './notificationJobs.js';
+import { syncIpc } from './ipc.js';
 import { sendDebtReminders } from './reminders.js';
 import { sendDueNotices } from './routePlans.js';
 
@@ -74,6 +75,13 @@ export async function maybeRunNotificationJobs(deps: Deps, now: Date = new Date(
   return results;
 }
 
+export const IPC_SYNC_JOB = 'ipc_sync';
+
+/** Refreshes the IPC history once per day (any hour); a failure releases the claim so the next hourly tick retries. */
+export function maybeSyncIpc(deps: Deps) {
+  return runClaimed(deps, IPC_SYNC_JOB, () => syncIpc(deps.db, deps.fetch ?? fetch));
+}
+
 /** Checks hourly (and shortly after boot). Single-instance, in-process. */
 export function startDailyScheduler(deps: Deps): () => void {
   const tick = () => {
@@ -87,6 +95,11 @@ export function startDailyScheduler(deps: Deps): () => void {
         if (Object.keys(results).length > 0) console.log('[jobs] notifications done', JSON.stringify(results));
       })
       .catch((error) => console.error('[jobs] notifications failed', error));
+    maybeSyncIpc(deps)
+      .then((result) => {
+        if (result) console.log('[jobs] IPC synced', JSON.stringify(result));
+      })
+      .catch((error) => console.error('[jobs] IPC sync failed', error));
   };
   const timer = setInterval(tick, 60 * 60 * 1000);
   timer.unref();
