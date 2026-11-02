@@ -639,7 +639,7 @@ export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_not
 export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
 
 export interface EmailStatus {
-  mode: 'resend' | 'simulated';
+  mode: 'resend' | 'smtp' | 'simulated';
   from: string;
 }
 

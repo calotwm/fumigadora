@@ -30,6 +30,33 @@ describe('mail provider selection', () => {
     });
   });
 
+  it('sends through SMTP (e.g. a Gmail account) when only SMTP credentials are set', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(createMailProvider(loadConfig({ SMTP_USER: 'plagamix@gmail.com' }).mail).mode).toBe('simulated');
+    const config = loadConfig({ SMTP_USER: 'plagamix@gmail.com', SMTP_PASS: 'abcd efgh ijkl mnop', MAIL_REPLY_TO: 'lucas@example.com' }).mail;
+    expect(config.smtp).toEqual({ host: 'smtp.gmail.com', port: 465, user: 'plagamix@gmail.com', pass: 'abcd efgh ijkl mnop' });
+    warn.mockRestore();
+
+    const sendMail = vi.fn(async () => ({ messageId: '<m1@gmail.com>' }));
+    const createTransport = vi.fn(() => ({ sendMail }));
+    const provider = createMailProvider(config, undefined, createTransport);
+    expect(provider).toMatchObject({ mode: 'smtp', from: 'Plagamix <plagamix@gmail.com>' });
+    const result = await provider.sendEmail({ to: 'a@example.com', subject: 'Hola', html: '<p>x</p>', text: 'x', tag: 'debt_reminder' });
+    expect(result.providerId).toBe('<m1@gmail.com>');
+    expect(createTransport).toHaveBeenCalledWith({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: 'plagamix@gmail.com', pass: 'abcd efgh ijkl mnop' } });
+    expect(sendMail).toHaveBeenCalledWith({
+      from: 'Plagamix <plagamix@gmail.com>',
+      to: 'a@example.com',
+      subject: 'Hola',
+      html: '<p>x</p>',
+      text: 'x',
+      replyTo: 'lucas@example.com',
+    });
+
+    sendMail.mockRejectedValueOnce(new Error('Invalid login'));
+    await expect(provider.sendEmail({ to: 'a@example.com', subject: 's', html: 'h', text: 't', tag: 'test' })).rejects.toThrow(/Invalid login/);
+  });
+
   it('turns a non-2xx answer into an error', async () => {
     const fetchMock: FetchLike = async () => ({ ok: false, status: 422, text: async () => JSON.stringify({ message: 'invalid from' }) });
     const provider = createMailProvider({ resendApiKey: 'k', from: 'f@example.com', replyTo: undefined }, fetchMock);
