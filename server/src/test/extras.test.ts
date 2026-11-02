@@ -59,11 +59,12 @@ describe('extras and invoice lines', () => {
       ],
     });
     expect(res.status).toBe(200);
-    expect(res.body.invoice.amountCents).toBe(40_000_00 + 3 * 4_500_00 + 8_000_00);
+    // Each extra costs 30% of the visit's price (40.000 -> 12.000).
+    expect(res.body.invoice.amountCents).toBe(40_000_00 + 4 * 12_000_00);
     expect(res.body.invoice.items).toEqual([
       { description: 'Desinsectación', quantity: 1, unitPriceCents: 40_000_00, amountCents: 40_000_00 },
-      { description: 'Cebo', quantity: 3, unitPriceCents: 4_500_00, amountCents: 13_500_00 },
-      { description: 'Estación cebadera', quantity: 1, unitPriceCents: 8_000_00, amountCents: 8_000_00 },
+      { description: 'Cebo', quantity: 3, unitPriceCents: 12_000_00, amountCents: 36_000_00 },
+      { description: 'Estación cebadera', quantity: 1, unitPriceCents: 12_000_00, amountCents: 12_000_00 },
     ]);
     expect(res.body.extras).toHaveLength(2);
 
@@ -75,7 +76,15 @@ describe('extras and invoice lines', () => {
     const statement = await t.get(`/api/clients/${clientId}/statement`);
     expect(statement.body.invoices.find((i: { id: number }) => i.id === res.body.invoice.id).items).toHaveLength(3);
     // ARCA only sees the total.
-    expect(fetched.body.amountCents).toBe(61_500_00);
+    expect(fetched.body.amountCents).toBe(88_000_00);
+  });
+
+  it('falls back to the catalog price only when the service has no price', async () => {
+    const freeId = (await t.post('/api/service-types', { name: 'Sin precio' })).body.id;
+    const id = await newVisit(freeId);
+    const res = await t.post(`/api/visits/${id}/complete`, { createInvoice: true, extras: [{ extraId: baitId, quantity: 2 }] });
+    expect(res.status).toBe(200);
+    expect(res.body.invoice.items).toEqual([{ description: 'Cebo', quantity: 2, unitPriceCents: 4_500_00, amountCents: 9_000_00 }]);
   });
 
   it('renders invoices without stored lines as one line from description and amount', async () => {

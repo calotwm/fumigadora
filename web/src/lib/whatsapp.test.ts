@@ -42,10 +42,10 @@ describe('overdueDebtText', () => {
       [
         'Hola Plaza, le escribimos de Plagamix. Le recordamos que, según nuestros registros, las siguientes facturas se encuentran vencidas y con saldo pendiente:',
         '',
-        '• Factura 2025-0001, vencida el 01/05/2025: $ 10.000',
-        '• Factura 2025-0003, vencida el 10/06/2025: $ 3.000',
+        '• Factura 2025-0001, vencida el 01/05/2025: $ 10.000',
+        '• Factura 2025-0003, vencida el 10/06/2025: $ 3.000',
         '',
-        'Total adeudado: $ 13.000',
+        'Total adeudado: $ 13.000',
         '',
         'Le agradeceremos regularizar el pago a la brevedad. Si necesita los datos para realizar la transferencia o desea coordinar otra forma de pago, responda a este mensaje.',
         '',

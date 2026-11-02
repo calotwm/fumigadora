@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, LogOut, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Fuel, LogOut, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
 import { addDays, directionsLinks, today as todayIso } from '@fumigadora/shared';
 import { useLogout, useCurrentUser } from '../auth/auth';
 import { useMyVisits } from '../../lib/queries';
@@ -10,9 +10,12 @@ import { mapsLink, visitReminderText, whatsappLink } from '../../lib/whatsapp';
 import type { MyVisit } from '../../lib/types';
 import { AnchorButton, Button } from '../../ui/Button';
 import { EmptyState, ErrorNote, Loading, ProgressBar } from '../../ui/display';
+import { LazyStopsMap as StopsMap, type MapStop } from '../../ui/LazyStopsMap';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { ClientCancelledSheet } from './ClientCancelledSheet';
 import { DoneSheet } from './DoneSheet';
+import { FuelSheet } from './FuelSheet';
+import { MyStationsSheet } from './MyStationsSheet';
 import plagamixWhite from '../../assets/plagamix-white.png';
 
 function dayLabel(date: string, today: string): string {
@@ -34,6 +37,8 @@ export function EmployeeApp() {
   const [marking, setMarking] = useState<MyVisit | null>(null);
   const [cancelling, setCancelling] = useState<MyVisit | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [fueling, setFueling] = useState(false);
+  const [stationsOf, setStationsOf] = useState<MyVisit | null>(null);
   const { data, error, isLoading, refetch } = useMyVisits(date);
 
   const visits = data?.visits ?? [];
@@ -47,6 +52,23 @@ export function EmployeeApp() {
       ),
     [pending, data?.base],
   );
+  // Pending stops numbered in the order they will be done (the server already sorts them that way).
+  const mapStops = useMemo<MapStop[]>(
+    () =>
+      pending
+        .filter((v) => v.clientLatitude !== null && v.clientLongitude !== null)
+        .map((v) => ({
+          key: v.id,
+          latitude: v.clientLatitude!,
+          longitude: v.clientLongitude!,
+          color: '#0a0a0a',
+          label: String(pending.indexOf(v) + 1),
+          title: v.clientName,
+          details: [v.clientAddress ?? '', v.time ?? ''].filter(Boolean),
+        })),
+    [pending],
+  );
+  const [showMap, setShowMap] = useState(false);
   const iconButton = 'grid size-11 place-items-center hover:bg-paper/10';
 
   return (
@@ -141,8 +163,25 @@ export function EmployeeApp() {
                 </AnchorButton>
               ))}
             </div>
+            {mapStops.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={showMap}
+                icon={<MapPin size={16} aria-hidden />}
+                onClick={() => setShowMap((open) => !open)}
+              >
+                {showMap ? 'Ocultar mapa' : 'Ver mapa del día'}
+              </Button>
+            ) : null}
+            {showMap && mapStops.length > 0 ? (
+              <StopsMap stops={mapStops} base={data?.base ?? null} path="#0a0a0a" className="h-[320px]" />
+            ) : null}
           </div>
         ) : null}
+        <Button variant="outline" className="mt-3 w-full" onClick={() => setFueling(true)} icon={<Fuel size={16} aria-hidden />}>
+          Cargar nafta
+        </Button>
       </div>
 
       <main className="flex-1 px-4 pb-32 pt-4">
@@ -164,6 +203,7 @@ export function EmployeeApp() {
                     isNext={index === 0}
                     onMark={() => setMarking(visit)}
                     onCancel={() => setCancelling(visit)}
+                    onStations={() => setStationsOf(visit)}
                   />
                 ))}
               </ul>
@@ -211,6 +251,8 @@ export function EmployeeApp() {
       </footer>
 
       {marking ? <DoneSheet visit={marking} onClose={() => setMarking(null)} /> : null}
+      {stationsOf ? <MyStationsSheet visit={stationsOf} onClose={() => setStationsOf(null)} /> : null}
+      {fueling ? <FuelSheet onClose={() => setFueling(false)} /> : null}
       {cancelling ? <ClientCancelledSheet visit={cancelling} onClose={() => setCancelling(null)} /> : null}
     </div>
   );
@@ -222,12 +264,14 @@ function PendingCard({
   isNext,
   onMark,
   onCancel,
+  onStations,
 }: {
   visit: MyVisit;
   stop: number;
   isNext: boolean;
   onMark: () => void;
   onCancel: () => void;
+  onStations: () => void;
 }) {
   const wa = whatsappLink(visit.clientPhone, visitReminderText(visit.clientName, visit.serviceTypeName, longDate(visit.date).toLowerCase(), visit.time));
   const tel = visit.clientPhone ? `tel:${visit.clientPhone.replace(/[^\d+]/g, '')}` : null;
@@ -253,11 +297,6 @@ function PendingCard({
         </p>
       ) : null}
       {visit.notes ? <p className="mt-1 text-sm">{visit.notes}</p> : null}
-      {visit.clientBalanceCents > 0 ? (
-        <p className="mt-1 text-sm">
-          Saldo del cliente: <span className="num font-bold text-red">{money(visit.clientBalanceCents)}</span>
-        </p>
-      ) : null}
 
       <Button variant="accent" className="mt-4 min-h-14 w-full text-base" onClick={onMark} icon={<Check size={20} aria-hidden />}>
         Marcar hecho
@@ -301,9 +340,14 @@ function PendingCard({
           <span />
         )}
       </div>
-      <Button variant="ghost" className="mt-1 w-full" onClick={onCancel}>
-        El cliente canceló
-      </Button>
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <Button variant="ghost" className="w-full" onClick={onStations}>
+          Cebaderos
+        </Button>
+        <Button variant="ghost" className="w-full" onClick={onCancel}>
+          El cliente canceló
+        </Button>
+      </div>
     </li>
   );
 }

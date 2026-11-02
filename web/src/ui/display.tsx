@@ -79,16 +79,20 @@ interface StatProps {
 
 /**
  * Big numeral with a small caps label, optional sub-note and delta line.
- * The numeral scales with its own container (cqw) so long amounts never overflow; capped at the type scale.
+ * The numeral stays on one line and scales with its own container (cqw) by its character count,
+ * so long amounts shrink to fit instead of wrapping; capped at the type scale.
  */
 export function Stat({ label, value, note, delta, tone = 'default', size = 'lg' }: StatProps) {
   const cap = size === 'lg' ? 64 : 40;
+  // Extrabold tabular digits are ~0.6em wide: fit `chars` glyphs into 100cqw.
+  const chars = Math.max(typeof value === 'string' || typeof value === 'number' ? String(value).length : 6, 6);
+  const fit = (100 / (chars * 0.62)).toFixed(2);
   return (
     <div className="@container min-w-0">
       <p className="label-caps">{label}</p>
       <p
-        className={`num font-extrabold tracking-tight leading-none mt-2 ${tone === 'red' ? 'text-red' : ''}`}
-        style={{ fontSize: `clamp(22px, 14cqw, ${cap}px)` }}
+        className={`num font-extrabold tracking-tight leading-none mt-2 whitespace-nowrap ${tone === 'red' ? 'text-red' : ''}`}
+        style={{ fontSize: `clamp(14px, ${fit}cqw, ${cap}px)` }}
       >
         {value}
       </p>

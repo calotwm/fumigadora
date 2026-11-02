@@ -14,6 +14,8 @@ export const paymentInput = z.object({
   method: z.enum(PAYMENT_METHODS).default('cash'),
   notes: zOptText(500),
   invoiceId: zId.nullish(),
+  /** Invoices (months) the owner chose to settle: paid first in chronological order, the rest goes FIFO. */
+  invoiceIds: z.array(zId).max(500).optional(),
 });
 
 export const paymentListQuery = z.object({
@@ -24,7 +26,7 @@ export const paymentListQuery = z.object({
 
 /**
  * Records a payment and allocates it FIFO to the client's oldest open invoices
- * (or to `invoiceId` first). Everything runs in one transaction.
+ * (or to `invoiceId` / the selected `invoiceIds` first). Everything runs in one transaction.
  */
 export async function createPayment(
   db: Db,
@@ -40,10 +42,18 @@ export async function createPayment(
   const created = await db.transaction(async (rawTx) => {
     const tx = rawTx as unknown as Db;
     const open = await openInvoicesForAllocation(tx, input.clientId);
+    const selected = input.invoiceIds ?? [];
+    if (input.invoiceId != null && selected.length > 0) {
+      throw badRequest('Indicá una factura o una selección de facturas, no ambas');
+    }
     if (input.invoiceId != null && !open.some((i) => i.id === input.invoiceId)) {
       throw badRequest('La factura indicada no está pendiente de pago para este cliente');
     }
-    const { allocations: parts, creditCents } = allocatePayment(input.amountCents, open, input.invoiceId);
+    if (selected.some((id) => !open.some((i) => i.id === id))) {
+      throw badRequest('Alguna de las facturas elegidas no está pendiente de pago para este cliente');
+    }
+    const target = selected.length > 0 ? selected : input.invoiceId;
+    const { allocations: parts, creditCents } = allocatePayment(input.amountCents, open, target);
     const [payment] = await tx
       .insert(payments)
       .values({

@@ -19,6 +19,8 @@ export function RemindersSection() {
   const [enabled, setEnabled] = useState(false);
   const [every, setEvery] = useState('15');
   const [min, setMin] = useState('10');
+  const [ipcWarning, setIpcWarning] = useState(false);
+  const [grace, setGrace] = useState('10');
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
@@ -27,6 +29,8 @@ export function RemindersSection() {
     setEnabled(settings.data.debtRemindersEnabled);
     setEvery(String(settings.data.debtReminderEveryDays));
     setMin(String(settings.data.debtReminderMinDaysOverdue));
+    setIpcWarning(settings.data.ipcWarningEnabled);
+    setGrace(String(settings.data.ipcWarningGraceDays));
   }, [settings.data]);
 
   if (settings.isLoading) return <Loading />;
@@ -35,7 +39,9 @@ export function RemindersSection() {
   const dirty =
     enabled !== settings.data.debtRemindersEnabled ||
     Number(every) !== settings.data.debtReminderEveryDays ||
-    Number(min) !== settings.data.debtReminderMinDaysOverdue;
+    Number(min) !== settings.data.debtReminderMinDaysOverdue ||
+    ipcWarning !== settings.data.ipcWarningEnabled ||
+    Number(grace) !== settings.data.ipcWarningGraceDays;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -43,9 +49,17 @@ export function RemindersSection() {
     const minDays = Number(min);
     if (!Number.isInteger(everyDays) || everyDays < 1) return setError('Ingrese cada cuántos días se repite el recordatorio (mínimo 1).');
     if (!Number.isInteger(minDays) || minDays < 0) return setError('Ingrese desde cuántos días de atraso se avisa (0 o más).');
+    const graceDays = Number(grace);
+    if (!Number.isInteger(graceDays) || graceDays < 1 || graceDays > 90) return setError('El plazo para pagar antes del interés debe ser de 1 a 90 días.');
     setError(null);
     save.mutate(
-      { debtRemindersEnabled: enabled, debtReminderEveryDays: everyDays, debtReminderMinDaysOverdue: minDays },
+      {
+        debtRemindersEnabled: enabled,
+        debtReminderEveryDays: everyDays,
+        debtReminderMinDaysOverdue: minDays,
+        ipcWarningEnabled: ipcWarning,
+        ipcWarningGraceDays: graceDays,
+      },
       {
         onSuccess: () => toast.success('Recordatorios guardados'),
         onError: (e) => setError(errorMessage(e)),
@@ -79,6 +93,26 @@ export function RemindersSection() {
               hint="Se cuenta desde la factura vencida más antigua."
             />
           </div>
+          <Checkbox
+            label="Advertir interés por IPC"
+            hint="El recordatorio avisa que, si no paga dentro del plazo, empezará a correr un interés según el IPC. Solo es un aviso: no cambia la deuda."
+            checked={ipcWarning}
+            onChange={setIpcWarning}
+          />
+          {ipcWarning ? (
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Plazo para pagar (días)"
+                type="number"
+                min={1}
+                max={90}
+                inputMode="numeric"
+                value={grace}
+                onChange={(e) => setGrace(e.target.value)}
+                hint="Desde el día en que sale el recordatorio."
+              />
+            </div>
+          ) : null}
           {error ? (
             <p role="alert" className="text-xs text-red">
               {error}

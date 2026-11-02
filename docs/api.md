@@ -70,7 +70,7 @@ Clients sign in with an emailed magic link. The session cookie is the same signe
 | POST | `/api/portal/verify` | `{ token }` | One matching client: `{ status: 'ok', client: { id, name } }` + session cookie, token spent. Several clients share the email: `{ status: 'choose', clients: { id, name }[] }` (only those that matched this token), no cookie, token **not** spent. `400 invalid_link` for an unknown, expired (30 min) or used token. POST instead of GET so mail scanners that prefetch links cannot burn the token |
 | POST | `/api/portal/select` | `{ token, clientId }` | Picker step: same checks as `verify`; `clientId` must be one of the clients that matched the token, else `400 invalid_link` (and the token stays usable). Spends the token and binds the session to that client |
 | GET | `/api/portal/me` | - | `{ client: { id, name } }` |
-| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
+| GET | `/api/portal/summary` | - | `{ balanceCents, openCents, overdueCents, creditCents, daysOverdue, overdueInvoiceCount, months: { month, billedCents, paidCents, owedCents }[] (same rules as `GET /api/clients/:id/months`), nextVisits: { id, date, time, serviceTypeName }[] (5), lastVisitDate, certificate: PortalCertificate\|null }` |
 | GET | `/api/portal/visits` | - | `{ id, date, time, status, serviceTypeName }[]`, newest first (no notes, prices, cancel reasons or employee names) |
 | GET | `/api/portal/invoices` | - | Non-voided invoices, newest first: `{ id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents, status, daysOverdue, items: { description, quantity, unitPriceCents, amountCents }[] }[]` (no ARCA data) |
 | GET | `/api/portal/payments` | - | `{ id, paidOn, amountCents, method, allocations: { invoiceNumber, amountCents }[] }[]`, newest first |
@@ -94,9 +94,13 @@ An employee always acts as themselves, and so does an admin user. An admin may p
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/me/visits` | query `date?=today` | `{ date, base: { latitude, longitude }\|null, visits: (Visit & { clientBalanceCents, paidCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, in **route order**: pending visits first (timed ones by time, then the untimed ones nearest-neighbour from the company base, clients without coordinates last), then the done ones. `base` is the company location from the settings (null when not configured; the route then starts at the first located visit). `Visit` carries `clientLatitude`/`clientLongitude` (null when unknown). `paidCents` = everything this employee registered as paid at that visit (any method), `cashCollectedCents` = the cash part of it; `cashPending` = all cash of the caller not yet confirmed by the owner |
+| GET | `/api/me/visits` | query `date?=today` | `{ date, base: { latitude, longitude }\|null, visits: (Visit & { extraBaseCents, paidCents, cashCollectedCents })[], cashPending: { cents, count } }`. Only visits assigned to the caller, cancelled hidden, in **route order**: pending visits first (timed ones by time, then the untimed ones nearest-neighbour from the company base, clients without coordinates last), then the done ones. `base` is the company location from the settings (null when not configured; the route then starts at the first located visit). `Visit` carries `clientLatitude`/`clientLongitude` (null when unknown). `extraBaseCents` = the price extras are priced on (the visit's own price, else the service type's). **No client balance**: employees see the route and what they collect, never debts. `paidCents` = everything this employee registered as paid at that visit (any method), `cashCollectedCents` = the cash part of it; `cashPending` = all cash of the caller not yet confirmed by the owner |
+| POST | `/api/me/fuel` | multipart: `amountCents` (> 0), `date?` (default today), `photo` (file: JPEG, PNG, WEBP or HEIC, max 10 MB) | `201 { id, date, amountCents }`. "Cargar nafta": a cash expense in the fuel category (an existing "Combustible" or "Nafta" category, else "Combustible" is created) with `employeeId` = caller and the photo kept under `FILES_DIR/receipts/<id>.<ext>` (the name never comes from the uploaded file). The type is checked on the file's bytes, not the declared type: `400 invalid_file`; no photo: `400`; over 10 MB: `413 file_too_large`; bad amount: `400 validation`. The amount is typed by the employee (reading it from the photo is a follow-up). The answer carries nothing about balances |
+| GET | `/api/me/visits/:id/bait-stations` | - | `{ clientId, clientName, stations: { id, code, reference, hasPhoto }[] }` of the visit's client, read-only (no money fields). `404` if the visit is not assigned to the caller (same answer as unknown id) |
+| GET | `/api/me/bait-stations/:id/photo` | - | The station photo, only when the caller has a visit assigned at that client; otherwise `404` |
+| GET | `/api/me/products` | - | Active products `{ id, name, unit }[]` by name, to report what was used when closing a visit. No stock figures |
 | GET | `/api/me/extras` | - | Active extras (`{ id, name, priceCents, active, createdAt }[]`) the caller can add when closing a visit |
-| POST | `/api/me/visits/:id/done` | `{ paymentStatus?: 'full'\|'partial'\|'none', method?: 'cash'\|'transfer'\|'mercadopago' (default cash), amountCents? (> 0, required for partial), extras?: { extraId, quantity }[], notes?, cashCollectedCents? (legacy: same as partial + cash) }` | `{ visit, invoice, extras, certificate, nextVisit, payment: <POST /api/payments response>\|null, paymentStatus, paymentMethod }`. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
+| POST | `/api/me/visits/:id/done` | `{ paymentStatus?: 'full'\|'partial'\|'none', method?: 'cash'\|'transfer'\|'mercadopago' (default cash), amountCents? (> 0, required for partial), extras?: { extraId, quantity }[], products?: { productId, quantity (> 0, up to 3 decimals) }[] (max 30), notes?, cashCollectedCents? (legacy: same as partial + cash) }` | `{ visit, invoice, extras, certificate, nextVisit, payment: <POST /api/payments response>\|null, paymentStatus, paymentMethod, products: { productId, name, unit, quantity }[] }`. `products` become stock `use` movements of today with the visit and the caller; an unknown or inactive product is a `400` and nothing is saved. `404` if the visit is not assigned to the caller (same answer as unknown id); `409` if not `scheduled`. One transaction |
 
 **Client cancelled** (the employee's own `scheduled` visits only; unknown or foreign id `404`, not `scheduled` `409`):
 
@@ -131,20 +135,49 @@ Completion defaults (same engine as `POST /api/visits/:id/complete`): invoice on
 | GET | `/api/cash-handover` | - | `{ pendingCents, pendingCount, employees: { userId, name, pendingCents, count, items: { paymentId, date, clientId, clientName, amountCents, visitId }[] }[] (largest first), recent: { paymentId, date, clientId, clientName, amountCents, visitId, userId, userName, handedOverAt }[] (last 30 confirmed) }` |
 | POST | `/api/cash-handover/confirm` | `{ paymentIds: number[] (1-500) }` | `{ confirmed, handedOverAt }`; sets `handedOverAt = now`. All-or-nothing: `400` if any id is unknown, not collected by an employee, or already confirmed |
 
+## Employee pay (owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/employee-pay?month=YYYY-MM` (default current) | - | `{ month, totalPaidCents, employees: { userId, name, paidCents, byKind: { sueldo, adelanto, otro }, cashCollectedCents, cashHandedOverCents, cashPendingCents }[] (by name), payments: { id, date, userId, userName, amountCents, kind, note, method }[] (newest first) }`. `employees` lists active employees plus anyone paid or collecting that month; the cash figures are the cash payments they collected in the field that month (by `paidOn`), split into confirmed (`/api/cash-handover`) and still "a rendir" |
+| POST | `/api/employee-pay` | `{ userId, amountCents (>0), kind: 'sueldo'\|'adelanto'\|'otro', date?=today, note?, method?='cash' }` | `201` payment. `400` when the user does not exist |
+| DELETE | `/api/employee-pay/:id` | - | `{ ok: true }`; `404` for ids that are not a payment to an employee |
+
+A payment to an employee is stored as a regular expense cash entry (category "Sueldos", created on first use) with `employeeId` and `payKind`, so it counts in `/api/finance/*` like any other expense and shows in `/api/cash-entries` and `/api/finance/movements` with `employeeId`/`employeeName`. Employees cannot reach these routes (`403`).
+
 ## Clients
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, taxDocType, taxDocNumber, ivaCondition, legalName, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
-| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName? }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
+| GET | `/api/clients` | query `search?` (name, address, phone, contact), `filter?=debt\|overdue\|all` (default all), `sort?=name\|balance\|overdue` (default name; `overdue` = most days overdue, then amount), `archived?=true\|false` (default false) | `Client[]`: all client columns (`id, name, kind: 'business'\|'home'\|'building', contactName, phone, email, address, area, latitude, longitude, notes, taxId, monthlyFeeCents, serviceFrequency, defaultServiceTypeId, taxDocType, taxDocNumber, ivaCondition, legalName, archivedAt, createdAt`) + `archived` + `BalanceFields` + `nextVisit: {id,date,time,serviceTypeId,serviceTypeName}\|null` + `lastVisitDate: string\|null` |
+| POST | `/api/clients` | `{ name, kind?='business', contactName?, phone?, email?, address?, area?, notes?, taxId?, monthlyFeeCents?, serviceFrequency?='none', defaultServiceTypeId?, taxDocType?='none'\|'cuit'\|'dni', taxDocNumber?, ivaCondition?='consumidor_final'\|'responsable_inscripto'\|'monotributo'\|'exento'\|'no_categorizado', legalName?, latitude?: number\|null (-90..90), longitude?: number\|null (-180..180) }` (fiscal data for ARCA: the CUIT checksum / DNI is validated, `400 invalid_cuit`/`invalid_dni`, the number is stored as digits and cleared when `taxDocType='none'`; empty strings become null; `area` is the zone; `serviceFrequency` + `defaultServiceTypeId` are the service plan used by `/api/tracking`; unknown service type -> `404`) | `201` client row |
 | GET | `/api/clients/placards` | query `area?` (exact zone) | `{ zones: string[], items: { id, name, address, area, token, url }[] }`: active clients (all, or one zone) with their public link for printing, ordered by zone then name; `zones` = zones with at least one active client. Missing tokens are created |
+| GET | `/api/clients/geocode` | query `q` (3-300 chars, an address) | `{ latitude, longitude, label }`: first match in Argentina from OpenStreetMap Nominatim (`label` = the full address it understood, so the user can check it). `404 not_found` when nothing matches, `502 geocode_unavailable` when the service fails. Nothing is saved: the client form sends the coordinates with the client |
 | GET | `/api/clients/:id` | - | client columns + `archived` + `summary: BalanceFields & { nextVisits: NextVisit[] (up to 5), lastVisitDate, lastFrequency (frequency of latest visit; default for scheduling), counts: { doneVisits, invoices, payments, certificates } }` |
+| GET | `/api/clients/:id/months` | - | `DebtByMonth` (below): the client's open debt grouped by month, oldest first. `404` for an unknown client |
 | GET | `/api/clients/:id/statement` | - | `{ client, summary (same as above), ledger, invoices, payments, visits, certificates }` (below) |
 | PATCH | `/api/clients/:id` | any subset of the create body | updated client row |
 | POST | `/api/clients/:id/archive` | - | client row (soft archive; archived clients drop out of lists, batch billing, search) |
 | POST | `/api/clients/:id/unarchive` | - | client row |
 | GET | `/api/clients/:id/public-link` | - | `{ token, url }`: the client's public link (`<base>/c/<token>`). Every client has a token (created with the client; existing ones were backfilled by migration 0015; a missing one is created on the spot). `<base>` is `PUBLIC_BASE_URL` or, if unset, the origin of the request |
 | POST | `/api/clients/:id/public-link/regenerate` | - | `{ token, url }` with a new token; the previous link answers `404` from then on |
+
+### Bait stations and documents ("Cebaderos", owner only)
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/bait-stations?clientId=` | - | `{ stations: { id, clientId, code, reference, hasPhoto }[] (by code, natural order), documents: { id, clientId, name, size, createdAt }[] (newest first) }` |
+| POST | `/api/bait-stations` | `{ clientId, code (1-40), reference? (max 500) }` | `201` station. `400` unknown client; `409` repeated code for the client |
+| PATCH | `/api/bait-stations/:id` | `{ code?, reference? }` | station |
+| DELETE | `/api/bait-stations/:id` | - | `{ ok: true }`; removes its photo |
+| PUT | `/api/bait-stations/:id/photo` | multipart `photo` (JPEG, PNG, WEBP or HEIC, max 10 MB) | station; replaces the previous photo. Stored as `FILES_DIR/bait-stations/<id>.<ext>` |
+| DELETE | `/api/bait-stations/:id/photo` | - | station without photo |
+| GET | `/api/bait-stations/:id/photo` | - | the photo (`cache-control: private, no-store`); `404` when none |
+| POST | `/api/client-documents` | multipart `clientId`, `file` (PDF, max 10 MB), `name?` (default: the uploaded file's base name) | `201 { id, clientId, name, size, createdAt }`. Stored as `FILES_DIR/client-documents/<id>.pdf` |
+| GET | `/api/client-documents/:id/file` | - | the PDF inline |
+| DELETE | `/api/client-documents/:id` | - | `{ ok: true }`; removes the file |
+
+Uploads (here, `/api/me/fuel`) share one rule: the type is detected from the file's bytes (the declared type and file name are never trusted, and stored names are always `<folder>/<row id>.<ext>`); a wrong type is `400 invalid_file`, a body over 10 MB is `413 file_too_large`.
 
 ### Public link (no login)
 
@@ -159,6 +192,22 @@ Statement:
 - `invoices[]`: `Invoice` newest first (including voided, flagged `voided`).
 - `payments[]`: `{ id, clientId, paidOn, amountCents, method, notes, createdAt, allocations: Allocation[], unallocatedCents }` newest first.
 - `visits[]`: `Visit` newest first. `certificates[]`: `Certificate` by expiry desc.
+
+`DebtByMonth`:
+
+```ts
+{
+  months: {
+    month: 'YYYY-MM',           // invoice periodMonth, or the month of issuedOn when it has none
+    billedCents, paidCents,     // amounts and allocations of the month's open invoices
+    creditAppliedCents,         // unallocated client credit netted here (oldest month first)
+    owedCents,                  // billed - paid - creditApplied
+    invoices: { id, number, issuedOn, dueOn, description, amountCents, paidCents, balanceCents }[]  // oldest due first
+  }[],                          // only months with at least one open (non-voided, unpaid) invoice
+  totalOwedCents,               // sum of owedCents = balanceCents whenever the balance is not negative
+  creditCents                   // credit left after netting every month
+}
+```
 
 ## Service types and expense categories
 
@@ -185,6 +234,20 @@ Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. 
 | PATCH | `/api/extras/:id` | subset | row (a price change never touches lines already billed) |
 | DELETE | `/api/extras/:id` | - | `{ ok: true }`; `409` once used by a visit (deactivate instead) |
 
+### IPC price update (owner only)
+
+A forward-looking price update: raises list prices by a percentage entered by hand (no automatic INDEC fetch). Invoices already issued, allocations and client balances are never touched.
+
+Body `PriceAdjustment = { percent (> 0, <= 100, at most 2 decimals, e.g. 3.2), rounding?='none'|'100'|'1000' (to the cent, to $100, to $1.000), scopes: ('serviceTypes'|'extras'|'visits'|'monthlyFees')[] (at least one) }`. Each price is raised and rounded half up to the cent, then rounded half up to the chosen step (integer cents throughout). Scopes: `serviceTypes` = `defaultPriceCents` of every service type; `extras` = `priceCents` of active extras; `visits` = `priceCents` of `scheduled` visits dated today or later that have their own price (visits without one keep using the service type default); `monthlyFees` = `monthlyFeeCents` of active clients with a fee.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/price-adjustments/preview` | `PriceAdjustment` | `{ percent, percentBasisPoints (320 = 3.2 %), rounding, scopes, itemCount, items: { scope, id, name, detail: string\|null (service of a visit), date: IsoDate\|null (visit date), oldCents, newCents }[] }`: every price that would change (unchanged ones are left out). Changes nothing |
+| POST | `/api/price-adjustments` | `PriceAdjustment` | `201 { adjustment: PriceAdjustmentRecord, ...same as preview }`: applies the update in one transaction (the items are the ones the preview returns for the same body and data) and records it. `400 nothing_to_adjust` when no price changes |
+| GET | `/api/price-adjustments` | - | `PriceAdjustmentRecord[]` newest first: `{ id, createdAt, percent, percentBasisPoints, rounding, scopes, userName, itemCount }` (`userName` is `Dueño` for the emergency owner session). Rows live in `price_adjustments` (migration 0017) with a snapshot of the changed items |
+
+Employees get `403` on all three.
+
 ## Visits and agenda
 
 | Method | Path | Body / query | Response |
@@ -199,7 +262,7 @@ Catalog of add-ons the employee (or the owner) bills when closing a visit, e.g. 
 
 `POST /api/visits/:id/complete` body (all optional, booleans default false):
 `{ completedOn? (default today), priceCents? (default: visit price, then service default), createInvoice, issueCertificate? (default: what the service type does), certificateNumber? (auto-increment numeric if omitted), scheduleNext, nextDate? (default: completedOn + visit frequency), nextTime? (default: same time), notes?, extras?: { extraId, quantity (1-99) }[] }`.
-One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`, 30 days when the type has none), next visit (same client, service, frequency). Response: `{ visit: Visit, invoice: Invoice|null, extras: { extraId, name, quantity, unitPriceCents, amountCents }[], certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
+One DB transaction: visit -> `done` (its `date` becomes `completedOn`), invoice (`visitId` link, `dueOn` = issue + 10 days, description = service name), certificate (`expiresOn` = issuedOn + `certificateValidityDays`, 30 days when the type has none), next visit (same client, service, frequency). Each extra costs **30% of the service price** (the price used for the visit, else the visit's own, else the service type's default), rounded to the cent; only when that price is 0 does the extra use its catalog `priceCents`. Response: `{ visit: Visit, invoice: Invoice|null, extras: { extraId, name, quantity, unitPriceCents, amountCents }[], certificate: {id,clientId,visitId,number,issuedOn,expiresOn,createdAt}|null, nextVisit: Visit|null }`.
 **Invoice lines and extras.** The invoice gets one line for the base service (when its price is > 0) plus one line per extra at the catalog price of that moment (the same extra twice is merged); `amountCents` is the total of the lines, so ARCA still sees one total. The extras are also stored per visit (`visit_extras`, name and price snapshot). Extras need `createInvoice`; an unknown extra is `404`, an inactive one `400`.
 **Oblea rule.** A service type with `issuesCertificate` always issues the oblea on completion (the owner may pass `issueCertificate: false` explicitly; the employee flow cannot). Its base invoice line reads `"<service> (incluye desinfección y oblea)"`.
 Errors (`400`): total <= 0 when invoicing, extras without invoice, `issueCertificate: true` for a service that does not issue them, `scheduleNext` without a frequency or `nextDate`. `409`: visit not `scheduled`, or duplicate certificate number (nothing is persisted).
@@ -219,7 +282,7 @@ Expected services per month: `weekly` = number of Mondays in the month (4 or 5);
 
 ## Emails, month route, settings and reminders (owner only)
 
-Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FROM` are set, **simulated** otherwise (logged to the console and to `email_log`, nothing leaves the server). Every attempt is stored; a provider failure is recorded as `failed` and never raised to the caller.
+Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FROM` are set, else **SMTP** when `SMTP_USER` and `SMTP_PASS` are set (e.g. Gmail with an app password; `GET /api/email/status` then reports `mode: 'smtp'`), **simulated** otherwise (logged to the console and to `email_log`, nothing leaves the server). Every attempt is stored; a provider failure is recorded as `failed` and never raised to the caller.
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
@@ -227,21 +290,21 @@ Email is sent through an adapter: **Resend** when `RESEND_API_KEY` and `MAIL_FRO
 | GET | `/api/email/log` | query `kind?=service_notice\|debt_reminder\|test\|owner_notification\|portal_login`, `clientId?`, `page?=1` (25 per page) | `{ page, pageSize, total, items: { id, kind, clientId, clientName, to, subject, status: 'sent'\|'simulated'\|'failed', error, providerId, refType, refId, sentOn, createdAt }[] }` newest first (no html) |
 | GET | `/api/email/log/:id` | - | same item plus `html` |
 | POST | `/api/email/test` | `{ to }` | `201` log item (kind `test`) |
-| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180), companyPhone?: string\|null }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null, null`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
+| GET / PUT | `/api/settings` | PUT partial `{ debtRemindersEnabled?, debtReminderEveryDays? (>=1), debtReminderMinDaysOverdue? (>=0), noticeMode?: 'on_approve'\|'days_before', noticeDaysBefore? (1-60), arcaAutoEmit?: boolean, companyAddress?: string\|null, companyLatitude?: number\|null (-90..90), companyLongitude?: number\|null (-180..180), companyPhone?: string\|null, ipcWarningEnabled?: boolean, ipcWarningGraceDays? (1-90) }` | `AppSettings`; defaults `false, 15, 10, 'on_approve', 7, false, null, null, null, null, false, 10`. `null` clears a company field (the company base is where the employees' day route starts; no geocoding, the owner types the coordinates) |
 
 **Month route** (`/api/routes`). A `route_plan` per month (`draft` -> `approved`) holds items (client, date, time, service, assignee, zone). Zone = client `area`.
 Generation takes every client with a service plan whose month still has pending services not yet scheduled (same rule as `/api/tracking`; clients with a visit already scheduled or done are excluded) and proposes dates: weekly = one per week, biweekly = weeks 1 and 3, longer plans = one. Each zone gets one weekday (zones balanced across Mon-Fri, heaviest first), capped at 12 visits per day; see `planMonthRoute` in `shared/src/routePlan.ts`. For the current month only dates after today are proposed; past months answer `400`.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| GET | `/api/routes/:month` | - | `{ month, noticeMode, noticeDaysBefore, plan: { id, month, status, approvedAt, notifiedAt } \| null, totals: { visits, clients, withEmail, withoutEmail, notices, noticesSent, noticesSimulated, noticesFailed, noticesScheduled }, zones: { zone: string\|null, count, dates: { date, items: RouteItem[] }[] }[] }`; `RouteItem = { id, clientId, clientName, hasEmail, email, address, date, time, serviceTypeId, serviceTypeName, frequency, assignedUserId, assigneeName, zone, visitId, notice: { state: 'no_email'\|'pending'\|'scheduled'\|'sent'\|'simulated'\|'failed', dueOn, emailLogId } }` |
+| GET | `/api/routes/:month` | - | `{ month, noticeMode, noticeDaysBefore, plan: { id, month, status, approvedAt, notifiedAt } \| null, totals: { visits, clients, withEmail, withoutEmail, notices, noticesSent, noticesSimulated, noticesFailed, noticesScheduled }, zones: { zone: string\|null, count, dates: { date, items: RouteItem[] }[] }[] }`; `RouteItem = { id, clientId, clientName, hasEmail, email, address, latitude, longitude, date, time, serviceTypeId, serviceTypeName, frequency, assignedUserId, assigneeName, zone, visitId, notice: { state: 'no_email'\|'pending'\|'scheduled'\|'sent'\|'simulated'\|'failed', dueOn, emailLogId } }` |
 | POST | `/api/routes/:month/generate` | - | route view plus `skipped: { clientId, name, reason }[]` (plans without a habitual service). Replaces a draft; `409 route_approved` once approved |
 | PATCH | `/api/routes/items/:id` | `{ date? (inside the month), time? \| null, assignedUserId? \| null }` | route view. Draft only (`409` after approval) |
 | DELETE | `/api/routes/items/:id` | - | route view. Draft only |
 | POST | `/api/routes/:month/items` | `{ clientId, date, time?, serviceTypeId?, assignedUserId? }` | `201` route view (creates the draft if needed) |
 | POST | `/api/routes/:month/approve` | - | route view plus `notices: { sent, simulated, failed }`. One transaction creates a `scheduled` visit per item (frequency = client plan, assignee), then notices go out outside it: `on_approve` sends now; `days_before` sends when `visit date - N <= today` (already-due ones go now, the rest wait for the daily job). Clients without email get no notice. Failed sends do not undo visits and are retried by the daily job while the visit is still ahead |
 
-**Debt reminders and the daily job.** A client gets a reminder when reminders are enabled, it has an email, its overdue balance is positive, its oldest overdue invoice is at least `debtReminderMinDaysOverdue` days late and no `debt_reminder` was sent or simulated to it in the last `debtReminderEveryDays` days (business date stored in `email_log.sentOn`). The email lists overdue invoices (number, due date, balance) and the total.
+**Debt reminders and the daily job.** A client gets a reminder when reminders are enabled, it has an email, its overdue balance is positive, its oldest overdue invoice is at least `debtReminderMinDaysOverdue` days late and no `debt_reminder` was sent or simulated to it in the last `debtReminderEveryDays` days (business date stored in `email_log.sentOn`). The email lists overdue invoices (number, due date, balance) and the total. With `ipcWarningEnabled`, it also warns that if the overdue balance is not paid before the send date + `ipcWarningGraceDays`, interest based on the IPC (INDEC) will start to apply; this is only a notice, no balance is changed.
 
 | Method | Path | Response |
 |---|---|---|
@@ -290,22 +353,39 @@ Emissions are serialized in-process (numbering is sequential per point of sale a
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId? }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; any remainder is credit. `400` if `invoiceId` is not an open invoice of the client |
+| POST | `/api/payments` | `{ clientId, amountCents (>0), paidOn?=today, method?='cash' ('cash'\|'transfer'\|'mercadopago'\|'check'\|'other'), notes?, invoiceId?, invoiceIds?: number[] }` | `201 { payment, allocations: Allocation[], creditCents (unallocated part), client: { id } & BalanceFields }`. FIFO by due date over the client's open invoices; with `invoiceId` that invoice is paid first, then FIFO; with `invoiceIds` (the months chosen in the payment form, see `GET /api/clients/:id/months`) those invoices are paid first in chronological order (due date), then FIFO over the other open invoices; any remainder is credit. An empty `invoiceIds` is plain FIFO. `400` if `invoiceId` or any of `invoiceIds` is not an open invoice of the client, or when both are sent |
 | GET | `/api/payments` | query `from?`, `to?`, `clientId?` | `{ ...payment, clientName, allocations, unallocatedCents }[]` newest first |
 | DELETE | `/api/payments/:id` | - | `{ ok: true, client: { id } & BalanceFields }` (allocations removed; invoices reopen) |
 
 "Cobrar todo" = `amountCents` equal to the client's `balanceCents`.
 
+## Stock (owner only)
+
+Quantities are numbers in the product's unit with up to three decimals (stored in thousandths). Units: `litro`, `ml`, `kg`, `g`, `unidad`. Current stock is the sum of the product's movements: `purchase` adds, `use` takes out, `adjustment` adds or takes out (signed).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/products` | - | `{ id, name, unit, minQuantity (null = none), active, stock, belowMin }[]`, active first then by name. `belowMin` = `minQuantity` set and `stock < minQuantity` |
+| POST | `/api/products` | `{ name, unit, minQuantity?: number \| null (>= 0) }` | `201` product |
+| PATCH | `/api/products/:id` | `{ name?, unit?, minQuantity?, active? }` | product. Inactive products are hidden from employees and rejected at visit closing |
+| GET | `/api/stock/movements?month=YYYY-MM&productId=` | - | `{ id, productId, productName, unit, kind, date, quantity (signed: uses negative), visitId, clientName, userId, userName, note }[]` newest first |
+| POST | `/api/stock/movements` | `{ productId, kind: 'purchase'\|'use'\|'adjustment', quantity (purchase/use > 0; adjustment != 0, negative takes out), date?=today, visitId?, userId?, note? }` | `201` movement. `400` for an unknown product, visit or user |
+| DELETE | `/api/stock/movements/:id` | - | `{ ok: true }` |
+| GET | `/api/stock/usage?month=YYYY-MM` | - | `{ month, products: { productId, name, unit, used }[] (by name), days: { date, items: { productId, used }[] }[] (oldest first) }`; only `use` movements count |
+
+Employees get `403` here; they only report product used through `POST /api/me/visits/:id/done`.
+
 ## Cash entries and finance
 
 | Method | Path | Body / query | Response |
 |---|---|---|---|
-| GET | `/api/cash-entries` | query `month?` (default current), `kind?=expense\|income` | `{ id, kind, date, amountCents, categoryId, categoryName, description, method }[]` newest first |
+| GET | `/api/cash-entries` | query `month?` (default current), `kind?=expense\|income` | `{ id, kind, date, amountCents, categoryId, categoryName, description, method, employeeId, employeeName, hasReceipt }[]` newest first (`employeeId` set on payments to employees and fuel loads; `hasReceipt` when a photo is stored) |
 | POST | `/api/cash-entries` | `{ kind: 'expense'\|'income', amountCents (>0), date?=today, categoryId (required for expense), description?, method?='cash' }` | `201` entry (manual entries only; client payments are NOT copied here) |
 | PATCH | `/api/cash-entries/:id` | `{ date?, amountCents?, categoryId?, description?, method? }` | entry |
-| DELETE | `/api/cash-entries/:id` | - | `{ ok: true }` |
+| DELETE | `/api/cash-entries/:id` | - | `{ ok: true }`; also removes its stored receipt photo |
+| GET | `/api/cash-entries/:id/receipt` | - | The receipt photo (`content-type` as detected on upload, `cache-control: private, no-store`); `404` when the entry has none. Owner only (`403` for employees) |
 | GET | `/api/finance/summary?month=YYYY-MM` (default current) | - | `{ month, incomeCents, paymentsCents, otherIncomeCents, expensesCents, balanceCents, byCategory: { categoryId, name, totalCents, share (percent, 1 decimal) }[] (desc), previous: { month, ...same figures }, series: { month, incomeCents, paymentsCents, otherIncomeCents, expensesCents, balanceCents }[6] (oldest first, ending at month) }` |
-| GET | `/api/finance/movements?month=` | - | `{ month, movements: { type: 'payment'\|'income'\|'expense', id, date, direction: 'in'\|'out', amountCents (positive), method, description, clientId, clientName, categoryId, categoryName }[] }` date desc. Ids are per type (payment id vs cash entry id) |
+| GET | `/api/finance/movements?month=` | - | `{ month, movements: { type: 'payment'\|'income'\|'expense', id, date, direction: 'in'\|'out', amountCents (positive), method, description, clientId, clientName, categoryId, categoryName, employeeId, employeeName, hasReceipt }[] }` date desc. Ids are per type (payment id vs cash entry id) |
 
 Income = payments (by `paidOn`) + manual incomes; balance = income - expenses.
 
@@ -341,7 +421,7 @@ Computed from existing records, nothing is stored. `pending` = visits of that da
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone } & BalanceFields)[] }` debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
+| GET | `/api/receivables` | `{ owedCents (sum of positive client balances), overdueCents, openInvoicesCents, overdueInvoicesCents, overdueInvoiceCount, debtorCount, buckets: { bucket, totalCents, invoiceCount, clientCount }[5] (current, 1-30, 31-60, 61-90, 90+; per open invoice, credit not netted), debtors: ({ clientId, name, phone, overdueSince, oldestOwedMonth: 'YYYY-MM'\|null, owedMonthCount } & BalanceFields)[] }` (`oldestOwedMonth`/`owedMonthCount`: months that still owe after netting credit, see `DebtByMonth`) debtors = clients with `balanceCents > 0`, sorted by `daysOverdue` desc then `balanceCents` desc |
 | GET | `/api/certificates?expiringWithinDays=15&clientId=` | `Certificate[]` by expiry asc. With `expiringWithinDays`: only non-superseded certificates of active clients with `expiresOn <= today + N` (already expired included, `daysLeft < 0`). A certificate is superseded when the client has a newer one for the same service type. Each item has `hasFile` (a PDF is stored) |
 | GET | `/api/certificates/:id/file` | - | The certificate PDF (`application/pdf`, `Content-Disposition: inline; filename="oblea-<number>.pdf"`). `404` when the certificate has no stored file. Owner only (`401` without session, `403` for employees) |
 | GET | `/api/dashboard` | see below |

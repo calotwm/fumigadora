@@ -27,6 +27,9 @@ export const clientInput = z.object({
   taxDocNumber: zOptText(20),
   ivaCondition: z.enum(IVA_CONDITIONS).optional(),
   legalName: zOptText(200),
+  /** Map location; null clears it. */
+  latitude: z.number().min(-90, 'Latitud inválida').max(90, 'Latitud inválida').nullish(),
+  longitude: z.number().min(-180, 'Longitud inválida').max(180, 'Longitud inválida').nullish(),
 });
 export const clientPatch = clientInput.partial();
 export type ClientInput = z.infer<typeof clientInput>;
