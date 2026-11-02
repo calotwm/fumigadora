@@ -59,7 +59,9 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
   const [error, setError] = useState<string | null>(null);
 
   const validity = service?.certificateValidityDays ?? null;
-  const extrasCents = extrasTotal(extrasCatalog, extras);
+  // Extras are priced on the agreed price, or the service's when none is typed (same rule as the server).
+  const extrasBase = price && price > 0 ? price : initialPrice;
+  const extrasCents = extrasTotal(extrasCatalog, extras, extrasBase);
   const expiry = validity ? addDays(completedOn, validity) : null;
 
   function submit(event: FormEvent) {
@@ -145,7 +147,7 @@ function CompleteVisitForm({ visit, service, onClose }: { visit: Visit; service:
         </div>
         {extrasCatalog.length > 0 ? (
           <div className="border-t border-rule pt-3">
-            <ExtrasPicker catalog={extrasCatalog} value={extras} onChange={setExtras} />
+            <ExtrasPicker catalog={extrasCatalog} value={extras} onChange={setExtras} serviceCents={extrasBase} />
           </div>
         ) : null}
         {visit.issuesCertificate ? (

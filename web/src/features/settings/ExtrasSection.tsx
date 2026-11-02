@@ -115,7 +115,12 @@ function ExtraSheet({ extra, onClose }: { extra?: Extra; onClose: () => void }) 
     >
       <form id={formId} onSubmit={submit} className="flex flex-col gap-5">
         <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} data-autofocus required error={error} />
-        <MoneyInput label="Precio por unidad" value={price} onChange={setPrice} />
+        <MoneyInput
+          label="Precio por unidad"
+          value={price}
+          onChange={setPrice}
+          hint="Solo se usa si el servicio no tiene precio: si lo tiene, cada extra cuesta el 30% del precio del servicio."
+        />
         <Checkbox label="Disponible" hint="Si lo desactivás deja de ofrecerse a los empleados" checked={active} onChange={setActive} />
       </form>
     </Sheet>

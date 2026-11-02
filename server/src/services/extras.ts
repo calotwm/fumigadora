@@ -1,4 +1,5 @@
 import { asc, count, eq, inArray } from 'drizzle-orm';
+import { extraUnitPriceCents } from '@fumigadora/shared';
 import { z } from 'zod';
 import type { Db } from '../db/client.js';
 import { extras, visitExtras } from '../db/schema.js';
@@ -57,8 +58,11 @@ export async function deleteExtra(db: Db, id: number) {
   return { ok: true as const };
 }
 
-/** Resolves the requested extras against the active catalog (same extra twice is merged) and prices them. */
-export async function resolveExtraLines(db: Db, items: ExtraLineInput[] | undefined): Promise<ExtraLine[]> {
+/**
+ * Resolves the requested extras against the active catalog (same extra twice is merged) and prices them: each one
+ * costs a share of `servicePriceCents` (see `extraUnitPriceCents`), or its catalog price when the service has none.
+ */
+export async function resolveExtraLines(db: Db, items: ExtraLineInput[] | undefined, servicePriceCents: number): Promise<ExtraLine[]> {
   if (!items || items.length === 0) return [];
   const quantities = new Map<number, number>();
   for (const item of items) quantities.set(item.extraId, (quantities.get(item.extraId) ?? 0) + item.quantity);
@@ -72,6 +76,7 @@ export async function resolveExtraLines(db: Db, items: ExtraLineInput[] | undefi
     if (!row) throw notFound('Extra');
     if (!row.active) throw badRequest(`El extra "${row.name}" ya no está disponible`);
     if (quantity > 99) throw badRequest(`Cantidad demasiado alta para "${row.name}"`);
-    return { extraId, name: row.name, quantity, unitPriceCents: row.priceCents, amountCents: row.priceCents * quantity };
+    const unitPriceCents = extraUnitPriceCents(servicePriceCents, row.priceCents);
+    return { extraId, name: row.name, quantity, unitPriceCents, amountCents: unitPriceCents * quantity };
   });
 }
