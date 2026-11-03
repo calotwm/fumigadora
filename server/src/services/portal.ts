@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { diffDays, type IsoDate } from '@fumigadora/shared';
+import { diffDays, withIpcUpdate, type IsoDate } from '@fumigadora/shared';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { certificates, clientContacts, clientLoginTokens, clients, invoices, payments, serviceTypes, visits } from '../db/schema.js';
@@ -8,6 +8,7 @@ import { hhmm } from '../http.js';
 import type { MailProvider } from '../mail/provider.js';
 import { portalLoginEmail } from '../mail/templates.js';
 import { allocationsForPayments, clientDebtMonths, selectInvoices, toInvoiceView, withInvoiceItems } from './accounts.js';
+import { listIpcRates } from './ipc.js';
 import { clientSummary } from './clients.js';
 import { listCertificates } from './certificates.js';
 import { sendLogged } from './mail.js';
@@ -97,13 +98,15 @@ export async function consumeLoginToken(db: Db, tokenId: number, now: Date): Pro
 
 // ---------- Read-only views. Every function takes the session's clientId and nothing else to filter by. ----------
 
-/** The home screen: balance, next visits, current oblea. */
+/** The home screen: balance, debt by month updated by IPC (reference only), next visits, current oblea. */
 export async function portalSummary(db: Db, today: IsoDate, clientId: number) {
-  const [summary, certs, debt] = await Promise.all([
+  const [summary, certs, owed, rates] = await Promise.all([
     clientSummary(db, today, clientId),
     portalCertificates(db, today, clientId),
     clientDebtMonths(db, clientId),
+    listIpcRates(db),
   ]);
+  const debt = withIpcUpdate(owed, rates, today);
   const current = certs.find((c) => !c.superseded) ?? certs[0] ?? null;
   return {
     balanceCents: summary.balanceCents,
@@ -112,7 +115,8 @@ export async function portalSummary(db: Db, today: IsoDate, clientId: number) {
     creditCents: summary.creditCents,
     daysOverdue: summary.daysOverdue,
     overdueInvoiceCount: summary.overdueInvoiceCount,
-    months: debt.months.map((m) => ({ month: m.month, billedCents: m.billedCents, paidCents: m.paidCents, owedCents: m.owedCents })),
+    months: debt.months.map((m) => ({ month: m.month, billedCents: m.billedCents, paidCents: m.paidCents, owedCents: m.owedCents, ipcCents: m.ipcCents })),
+    ipc: debt.ipc,
     nextVisits: summary.nextVisits.map((v) => ({ id: v.id, date: v.date, time: v.time, serviceTypeName: v.serviceTypeName })),
     lastVisitDate: summary.lastVisitDate,
     certificate: current,

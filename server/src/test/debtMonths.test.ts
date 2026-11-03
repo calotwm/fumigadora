@@ -52,9 +52,9 @@ describe('debt by month', () => {
     const res = await t.app.request('/api/portal/summary', { headers: { cookie } });
     const body = (await res.json()) as { months: unknown };
     expect(body.months).toEqual([
-      { month: '2025-03', billedCents: 100_000_00, paidCents: 40_000_00, owedCents: 60_000_00 },
-      { month: '2025-04', billedCents: 100_000_00, paidCents: 0, owedCents: 100_000_00 },
-      { month: '2025-05', billedCents: 25_000_00, paidCents: 0, owedCents: 25_000_00 },
+      { month: '2025-03', billedCents: 100_000_00, paidCents: 40_000_00, owedCents: 60_000_00, ipcCents: 0 },
+      { month: '2025-04', billedCents: 100_000_00, paidCents: 0, owedCents: 100_000_00, ipcCents: 0 },
+      { month: '2025-05', billedCents: 25_000_00, paidCents: 0, owedCents: 25_000_00, ipcCents: 0 },
     ]);
   });
 });

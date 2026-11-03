@@ -797,7 +797,9 @@ export interface PortalSummary {
   creditCents: number;
   daysOverdue: number;
   overdueInvoiceCount: number;
-  months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number }[];
+  /** `ipcCents`: what the month grows when updated by IPC (reference only, 0 while not overdue). */
+  months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number; ipcCents: number }[];
+  ipc: { throughMonth: IsoMonth | null; totalCents: number; updatedOwedCents: number };
   nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
   lastVisitDate: IsoDate | null;
   certificate: PortalCertificate | null;

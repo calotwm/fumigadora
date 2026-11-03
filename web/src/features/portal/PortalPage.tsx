@@ -218,10 +218,24 @@ function Overview({ summary }: { summary: PortalSummary }) {
               .map((m) => (
                 <li key={m.month} className="flex items-baseline justify-between gap-4 border-b border-rule py-2 text-sm">
                   <span className="font-semibold">{monthLabel(m.month)}</span>
-                  <span className="num whitespace-nowrap font-bold text-red">{money(m.owedCents)}</span>
+                  <span className="flex flex-col items-end">
+                    <span className="num whitespace-nowrap font-bold text-red">{money(m.owedCents)}</span>
+                    {m.ipcCents > 0 ? <span className="num whitespace-nowrap text-xs text-muted">+ {money(m.ipcCents)} IPC</span> : null}
+                  </span>
                 </li>
               ))}
           </ul>
+          {summary.ipc.totalCents > 0 && summary.ipc.throughMonth ? (
+            <div className="mt-3 flex items-baseline justify-between gap-4 border-l-4 border-yellow bg-paper-2 px-3 py-2 text-sm">
+              <p>
+                <span className="font-bold">Deuda actualizada por IPC</span>
+                <span className="block text-xs text-muted">
+                  Saldo vencido actualizado con el IPC de INDEC hasta {monthLabel(summary.ipc.throughMonth).toLowerCase()}: + {money(summary.ipc.totalCents)}.
+                </span>
+              </p>
+              <span className="num font-extrabold whitespace-nowrap text-red">{money(summary.ipc.updatedOwedCents)}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {cert ? (
