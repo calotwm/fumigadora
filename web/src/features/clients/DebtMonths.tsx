@@ -1,8 +1,10 @@
-import type { DebtMonthWithIpc } from '@fumigadora/shared';
-import { useClientMonths } from '../../lib/queries';
+import { IPC_MIN_OVERDUE_MONTHS, type DebtMonthWithIpc } from '@fumigadora/shared';
+import { useClientMonths, useSetClientIpc } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { money, monthLabel } from '../../lib/format';
 import { ErrorNote, Table, type Column } from '../../ui/display';
+import { Checkbox } from '../../ui/form';
+import { useToast } from '../../ui/Toast';
 
 /**
  * Open debt grouped by month (period of the invoice, or the month it was issued), oldest first, with what each overdue
@@ -10,6 +12,8 @@ import { ErrorNote, Table, type Column } from '../../ui/display';
  */
 export function DebtMonths({ clientId }: { clientId: number }) {
   const query = useClientMonths(clientId);
+  const setIpc = useSetClientIpc();
+  const toast = useToast();
   if (query.error) return <ErrorNote message={errorMessage(query.error)} onRetry={() => query.refetch()} />;
   const data = query.data;
   if (!data || data.months.length === 0) return null;
@@ -81,6 +85,17 @@ export function DebtMonths({ clientId }: { clientId: number }) {
           <span className="num font-extrabold whitespace-nowrap text-red">{money(data.ipc.updatedOwedCents)}</span>
         </div>
       ) : null}
+      <div className="mt-3">
+        <Checkbox
+          label="Actualizar por IPC"
+          hint={`Muestra la deuda con más de ${IPC_MIN_OVERDUE_MONTHS} meses vencida actualizada por IPC, acá y en el portal del cliente. No cambia el saldo.`}
+          checked={data.ipc.enabled}
+          disabled={setIpc.isPending}
+          onChange={(ipcEnabled) =>
+            setIpc.mutate({ id: clientId, ipcEnabled }, { onError: (e) => toast.error(errorMessage(e)) })
+          }
+        />
+      </div>
       {creditApplied ? <p className="mt-2 text-xs text-muted">El saldo a favor se descuenta de los meses más antiguos.</p> : null}
     </section>
   );

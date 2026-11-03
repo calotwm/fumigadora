@@ -4,7 +4,7 @@ import type { ClientBalance, IsoDate } from '@fumigadora/shared';
 import { CLIENT_KINDS, FREQUENCIES, IVA_CONDITIONS, TAX_DOC_TYPES, digitsOnly, isValidCuit, isValidDni } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { certificates, clients, invoices, payments, serviceTypes, visits, type Client } from '../db/schema.js';
-import { badRequest, definedOnly, hhmm, likePattern, notFound, zCents, zId, zOptText } from '../http.js';
+import { badRequest, definedOnly, hhmm, likePattern, notFound, zBool, zCents, zId, zOptText } from '../http.js';
 import { clientFinancial, clientFinancials, emptyBalance } from './accounts.js';
 import { newPublicToken } from './publicLink.js';
 
@@ -30,6 +30,8 @@ export const clientInput = z.object({
   /** Map location; null clears it. */
   latitude: z.number().min(-90, 'Latitud inválida').max(90, 'Latitud inválida').nullish(),
   longitude: z.number().min(-180, 'Longitud inválida').max(180, 'Longitud inválida').nullish(),
+  /** Update this client's debt overdue for more than two months by IPC (reference figure, admin and portal). */
+  ipcEnabled: zBool.optional(),
 });
 export const clientPatch = clientInput.partial();
 export type ClientInput = z.infer<typeof clientInput>;

@@ -60,6 +60,12 @@ describe('withIpcUpdate', () => {
     expect(withIpcUpdate(debt, rates, '2026-03-10').months[0]!.ipcCents).toBe(0);
   });
 
+  it('only updates months overdue for more than two months', () => {
+    // Due 2026-03-15: on 2026-05-15 it is exactly two months late (not yet), on 2026-05-16 it is updated.
+    expect(withIpcUpdate(debt, rates, '2026-05-15').months[0]!.ipcCents).toBe(0);
+    expect(withIpcUpdate(debt, rates, '2026-05-16').months[0]!.ipcCents).toBe(4_755);
+  });
+
   it('reports no IPC month when there are no rates', () => {
     expect(withIpcUpdate(debt, [], '2026-07-01').ipc).toEqual({ throughMonth: null, totalCents: 0, updatedOwedCents: 150_000 });
   });

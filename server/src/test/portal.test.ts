@@ -193,7 +193,8 @@ describe('client portal: magic link, data and isolation', () => {
 
     it('shows the client their overdue debt updated by IPC, without changing it', async () => {
       const [inv] = await t.db.select().from(invoices).where(eq(invoices.id, aliceInvoice));
-      await t.db.update(invoices).set({ dueOn: '2025-04-30' }).where(eq(invoices.id, aliceInvoice));
+      await t.db.update(invoices).set({ dueOn: '2025-03-31' }).where(eq(invoices.id, aliceInvoice));
+      await t.patch(`/api/clients/${alice}`, { ipcEnabled: true });
       await t.db.insert(ipcMonths).values([
         { month: '2025-04', percentBp: 280 },
         { month: '2025-05', percentBp: 150 },
@@ -202,13 +203,14 @@ describe('client portal: magic link, data and isolation', () => {
         const { token } = await requestLink(f, 'admin@alfa.test');
         const me = as(t, cookieOf((await as(t).post('/api/portal/verify', { token })).headers));
         const summary = (await me.get('/api/portal/summary')).body;
-        // Due in April: only May's 1.5 % applies to the $40.000 owed.
-        expect(summary.months).toEqual([{ month: '2025-06', billedCents: 50_000_00, paidCents: 10_000_00, owedCents: 40_000_00, ipcCents: 600_00 }]);
-        expect(summary.ipc).toEqual({ throughMonth: '2025-05', totalCents: 600_00, updatedOwedCents: 40_600_00 });
+        // Due in March (more than two months ago): April 2.8 % and May 1.5 % compounded on the $40.000 owed.
+        expect(summary.months).toEqual([{ month: '2025-06', billedCents: 50_000_00, paidCents: 10_000_00, owedCents: 40_000_00, ipcCents: 1_736_80 }]);
+        expect(summary.ipc).toEqual({ enabled: true, throughMonth: '2025-05', totalCents: 1_736_80, updatedOwedCents: 41_736_80 });
         expect(summary.balanceCents).toBe(40_000_00);
       } finally {
         await t.db.update(invoices).set({ dueOn: inv!.dueOn }).where(eq(invoices.id, aliceInvoice));
         await t.db.delete(ipcMonths);
+        await t.patch(`/api/clients/${alice}`, { ipcEnabled: false });
       }
     });
 

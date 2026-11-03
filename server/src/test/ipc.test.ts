@@ -37,10 +37,15 @@ describe('IPC debt update', () => {
   });
   afterAll(() => t.close());
 
-  it('shows no update before the IPC is synced', async () => {
-    const res = await t.get(`/api/clients/${clientId}/months`);
-    expect(res.status).toBe(200);
-    expect(res.body.ipc).toEqual({ throughMonth: null, totalCents: 0, updatedOwedCents: 150_000_00 });
+  it('is off by default and the owner switches it on per client', async () => {
+    expect((await t.get(`/api/clients/${clientId}`)).body.ipcEnabled).toBe(false);
+    const off = await t.get(`/api/clients/${clientId}/months`);
+    expect(off.status).toBe(200);
+    expect(off.body.ipc).toEqual({ enabled: false, throughMonth: null, totalCents: 0, updatedOwedCents: 150_000_00 });
+
+    expect((await t.patch(`/api/clients/${clientId}`, { ipcEnabled: true })).body.ipcEnabled).toBe(true);
+    // Not synced yet: nothing to update with.
+    expect((await t.get(`/api/clients/${clientId}/months`)).body.ipc).toEqual({ enabled: true, throughMonth: null, totalCents: 0, updatedOwedCents: 150_000_00 });
   });
 
   it('syncs the Argly history once per day and updates overdue debt to the last published month', async () => {
@@ -55,10 +60,22 @@ describe('IPC debt update', () => {
       ['2025-03', 4_342_00],
       ['2025-06', 0],
     ]);
-    expect(res.body.ipc).toEqual({ throughMonth: '2025-05', totalCents: 4_342_00, updatedOwedCents: 154_342_00 });
+    expect(res.body.ipc).toEqual({ enabled: true, throughMonth: '2025-05', totalCents: 4_342_00, updatedOwedCents: 154_342_00 });
     // The debt itself is not changed.
     expect(res.body.totalOwedCents).toBe(150_000_00);
     expect((await t.get(`/api/clients/${clientId}`)).body.summary.balanceCents).toBe(150_000_00);
+
+    // Another client with the option off sees no update for the same kind of debt.
+    const other = (await t.post('/api/clients', { name: 'Sin IPC' })).body.id;
+    await t.post('/api/invoices', { clientId: other, amountCents: 100_000_00, issuedOn: '2025-03-01', dueOn: '2025-03-20' });
+    expect((await t.get(`/api/clients/${other}/months`)).body.ipc).toMatchObject({ enabled: false, totalCents: 0 });
+  });
+
+  it('leaves debt overdue for two months or less as it is', async () => {
+    const recent = (await t.post('/api/clients', { name: 'Reciente', ipcEnabled: true })).body.id;
+    await t.post('/api/invoices', { clientId: recent, amountCents: 100_000_00, issuedOn: '2025-04-01', dueOn: '2025-04-15' });
+    // 2025-04-15 is exactly two months before 2025-06-15.
+    expect((await t.get(`/api/clients/${recent}/months`)).body.ipc.totalCents).toBe(0);
   });
 
   it('keeps the stored months and retries on the next tick when Argly fails', async () => {

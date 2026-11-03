@@ -48,6 +48,8 @@ export interface ClientRow {
   taxDocNumber: string | null;
   ivaCondition: IvaCondition;
   legalName: string | null;
+  /** Old overdue debt shown updated by IPC (admin and portal). */
+  ipcEnabled: boolean;
   archivedAt: string | null;
   createdAt: string;
   archived: boolean;
@@ -799,7 +801,7 @@ export interface PortalSummary {
   overdueInvoiceCount: number;
   /** `ipcCents`: what the month grows when updated by IPC (reference only, 0 while not overdue). */
   months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number; ipcCents: number }[];
-  ipc: { throughMonth: IsoMonth | null; totalCents: number; updatedOwedCents: number };
+  ipc: { enabled: boolean; throughMonth: IsoMonth | null; totalCents: number; updatedOwedCents: number };
   nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
   lastVisitDate: IsoDate | null;
   certificate: PortalCertificate | null;
