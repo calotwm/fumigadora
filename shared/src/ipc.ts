@@ -1,6 +1,9 @@
-import { monthOf } from './dates.js';
+import { addMonths, monthOf } from './dates.js';
 import type { DebtByMonth, DebtMonth } from './debtMonths.js';
 import type { IsoDate, IsoMonth } from './types.js';
+
+/** Debt is updated by IPC only once it has been overdue for more than this many months. */
+export const IPC_MIN_OVERDUE_MONTHS = 2;
 
 /** Monthly IPC (INDEC, nivel general) variation; `percentBp` in basis points (1.9% = 190). */
 export interface IpcRate {
@@ -20,7 +23,7 @@ export function ipcInterestCents(owedCents: number, dueOn: IsoDate, rates: IpcRa
 }
 
 export interface DebtMonthWithIpc extends DebtMonth {
-  /** IPC update of `owedCents` (0 while not overdue). */
+  /** IPC update of `owedCents` (0 until it is overdue for more than `IPC_MIN_OVERDUE_MONTHS`). */
   ipcCents: number;
 }
 
@@ -37,12 +40,14 @@ export interface DebtByMonthWithIpc extends Omit<DebtByMonth, 'months'> {
 
 /**
  * Debt by month updated to the last published IPC. Each month runs from its latest due date (the conservative
- * choice when it groups several invoices); months not overdue on `today` are not updated.
+ * choice when it groups several invoices); only months overdue for more than `IPC_MIN_OVERDUE_MONTHS` on `today`
+ * are updated, and then from their due date.
  */
 export function withIpcUpdate(debt: DebtByMonth, rates: IpcRate[], today: IsoDate): DebtByMonthWithIpc {
+  const lateBefore = addMonths(today, -IPC_MIN_OVERDUE_MONTHS);
   const months = debt.months.map((m) => {
     const dueOn = m.invoices.reduce((latest, i) => (i.dueOn > latest ? i.dueOn : latest), '');
-    return { ...m, ipcCents: dueOn && dueOn < today ? ipcInterestCents(m.owedCents, dueOn, rates) : 0 };
+    return { ...m, ipcCents: dueOn && dueOn < lateBefore ? ipcInterestCents(m.owedCents, dueOn, rates) : 0 };
   });
   const totalCents = months.reduce((s, m) => s + m.ipcCents, 0);
   const throughMonth = rates.reduce<IsoMonth | null>((last, r) => (last === null || r.month > last ? r.month : last), null);

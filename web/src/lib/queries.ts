@@ -125,7 +125,7 @@ export function useStatement(id: number | null) {
 export function useClientMonths(id: number | null) {
   return useQuery({
     queryKey: ['client-months', id],
-    queryFn: () => api<DebtByMonthWithIpc>(`/clients/${id}/months`),
+    queryFn: () => api<DebtByMonthWithIpc & { ipc: { enabled: boolean } }>(`/clients/${id}/months`),
     enabled: id !== null,
   });
 }
@@ -225,6 +225,16 @@ export function useSaveClient() {
       id === undefined
         ? api<ClientRow>('/clients', { body: input })
         : api<ClientRow>(`/clients/${id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => invalidateData(queryClient),
+  });
+}
+
+/** Turns the IPC update of one client's old debt on or off. */
+export function useSetClientIpc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ipcEnabled }: { id: number; ipcEnabled: boolean }) =>
+      api<ClientRow>(`/clients/${id}`, { method: 'PATCH', body: { ipcEnabled } }),
     onSuccess: () => invalidateData(queryClient),
   });
 }

@@ -1,7 +1,8 @@
 import { asc, desc, sql } from 'drizzle-orm';
-import type { IpcRate } from '@fumigadora/shared';
+import { withIpcUpdate, type IpcRate, type IsoDate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { ipcMonths } from '../db/schema.js';
+import { clientDebtMonths } from './accounts.js';
 
 /** Argly: free community API that republishes INDEC's monthly IPC (`valor` = monthly % variation). */
 export const ARGLY_IPC_URL = 'https://api.argly.com.ar/v1/ipc?historico=true';
@@ -50,4 +51,14 @@ export async function latestIpc(db: Db): Promise<{ month: string; percent: numbe
 
 export async function listIpcRates(db: Db): Promise<IpcRate[]> {
   return db.select({ month: ipcMonths.month, percentBp: ipcMonths.percentBp }).from(ipcMonths).orderBy(asc(ipcMonths.month));
+}
+
+/**
+ * A client's debt by month with the IPC update when the client has it enabled (`ipc.enabled`); otherwise every
+ * `ipcCents` is 0. Shared by the admin client page and the client portal so both show the same figures.
+ */
+export async function clientDebtWithIpc(db: Db, today: IsoDate, client: { id: number; ipcEnabled: boolean }) {
+  const [debt, rates] = await Promise.all([clientDebtMonths(db, client.id), client.ipcEnabled ? listIpcRates(db) : []]);
+  const updated = withIpcUpdate(debt, rates, today);
+  return { ...updated, ipc: { enabled: client.ipcEnabled, ...updated.ipc } };
 }

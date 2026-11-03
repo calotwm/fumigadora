@@ -162,6 +162,13 @@
       "when": 1793641575171,
       "tag": "0022_ipc_months",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793727936132,
+      "tag": "0023_client_ipc_enabled",
+      "breakpoints": true
     }
   ]
 }

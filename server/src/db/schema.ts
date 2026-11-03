@@ -121,6 +121,8 @@ export const clients = pgTable(
     longitude: doublePrecision('longitude'),
     /** Unguessable token of the public link `/c/<token>` (QR placard). Regenerating it kills the old link. */
     publicToken: text('public_token'),
+    /** Show this client's old overdue debt updated by IPC (admin and portal); off by default. */
+    ipcEnabled: boolean('ipc_enabled').notNull().default(false),
     legacyId: legacyId(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
