@@ -7,6 +7,12 @@ import { deleteStoredFile, writeStoredFile } from './files.js';
 import type { Upload } from './uploads.js';
 
 export const stationListQuery = z.object({ clientId: zId });
+/** What the employee sends: the client comes from their visit. */
+export const myStationInput = z.object({
+  code: z.string().trim().min(1, 'Indicá el número o código').max(40),
+  reference: z.string().trim().max(500).default(''),
+});
+
 export const stationInput = z.object({
   clientId: zId,
   code: z.string().trim().min(1, 'Indicá el número o código').max(40),
@@ -160,6 +166,24 @@ export async function myVisitStations(db: Db, userId: number, visitId: number) {
     .where(eq(baitStations.clientId, visit.clientId))
     .orderBy(asc(baitStations.id));
   return { clientId: visit.clientId, clientName: visit.clientName, stations: stations.sort(byCode) };
+}
+
+/**
+ * Adds a station at the client of one of the caller's visits (same 404 as `myVisitStations` for foreign visits).
+ * The photo is checked by the caller before this runs, so a bad photo never leaves a station behind.
+ */
+export async function addMyVisitStation(
+  db: Db,
+  filesDir: string,
+  userId: number,
+  visitId: number,
+  input: z.infer<typeof myStationInput>,
+  photo: Upload | null,
+) {
+  const [visit] = await db.select({ clientId: visits.clientId, assignedUserId: visits.assignedUserId }).from(visits).where(eq(visits.id, visitId));
+  if (!visit || visit.assignedUserId !== userId) throw notFound('Visita');
+  const station = await createStation(db, { ...input, clientId: visit.clientId });
+  return photo ? setStationPhoto(db, filesDir, station.id, photo) : station;
 }
 
 /** True when the caller has (or had) a visit assigned at that client: the only way they may see its station photos. */

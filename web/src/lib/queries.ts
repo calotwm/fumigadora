@@ -938,3 +938,18 @@ export function useMyVisitStations(visitId: number) {
     queryFn: () => api<MyVisitStations>(`/me/visits/${visitId}/bait-stations`),
   });
 }
+
+/** Employee app: a new bait station at the client of the visit (multipart, photo optional). */
+export function useAddMyVisitStation(visitId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, reference, photo }: { code: string; reference: string; photo: File | null }) => {
+      const body = new FormData();
+      body.set('code', code);
+      body.set('reference', reference);
+      if (photo) body.set('photo', photo);
+      return api<BaitStation>(`/me/visits/${visitId}/bait-stations`, { body });
+    },
+    onSuccess: () => invalidateData(queryClient),
+  });
+}

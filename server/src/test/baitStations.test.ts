@@ -125,6 +125,37 @@ describe('bait stations and client documents (S6)', () => {
     expect((await send(t, juan, 'GET', `/api/client-documents/1/file`)).status).toBe(403);
   });
 
+  it('lets the employee add a station at the client of their visit, with or without photo', async () => {
+    const url = `/api/me/visits/${visitId}/bait-stations`;
+    const plain = await send(t, juan, 'POST', url, form({ code: 'E9', reference: 'Fondo, junto al tanque' }));
+    expect(plain.status).toBe(201);
+    expect(plain.body).toEqual({ id: expect.any(Number), clientId, code: 'E9', reference: 'Fondo, junto al tanque', hasPhoto: false });
+
+    const withPhoto = await send(t, juan, 'POST', url, form({ code: 'E10', photo: { bytes: PNG, type: 'image/png', name: 'e10.png' } }));
+    expect(withPhoto.status).toBe(201);
+    expect(withPhoto.body).toMatchObject({ code: 'E10', reference: '', hasPhoto: true });
+    expect(await exists(join(filesDir, 'bait-stations', `${withPhoto.body.id}.png`))).toBe(true);
+
+    const codes = (await send(t, juan, 'GET', url)).body.stations.map((s: { code: string }) => s.code);
+    expect(codes).toEqual(expect.arrayContaining(['E9', 'E10']));
+
+    // Validation: empty code, repeated code, a non-image photo (no station is created then).
+    expect((await send(t, juan, 'POST', url, form({ code: '' }))).status).toBe(400);
+    expect((await send(t, juan, 'POST', url, form({ code: 'E9' }))).status).toBe(409);
+    expect((await send(t, juan, 'POST', url, form({ code: 'E11', photo: { bytes: PDF, type: 'image/png', name: 'x.png' } }))).status).toBe(400);
+    const after = (await send(t, juan, 'GET', url)).body.stations.map((s: { code: string }) => s.code);
+    expect(after).not.toContain('E11');
+
+    // Visits of someone else: same 404 as an unknown visit, nothing created.
+    const foreign = (await t.post('/api/visits', { clientId: otherClientId, serviceTypeId: 1, date: '2025-06-15' })).body.id;
+    expect((await send(t, juan, 'POST', `/api/me/visits/${foreign}/bait-stations`, form({ code: 'Z1' }))).status).toBe(404);
+    expect((await send(t, juan, 'POST', '/api/me/visits/999999/bait-stations', form({ code: 'Z1' }))).status).toBe(404);
+    const otherCodes = (await t.get(`/api/bait-stations?clientId=${otherClientId}`)).body.stations.map((s: { code: string }) => s.code);
+    expect(otherCodes).not.toContain('Z1');
+
+    for (const id of [plain.body.id, withPhoto.body.id]) await t.del(`/api/bait-stations/${id}`);
+  });
+
   it('deletes a station with its photo', async () => {
     expect((await t.del(`/api/bait-stations/${stationId}`)).body).toEqual({ ok: true });
     expect(await exists(join(filesDir, 'bait-stations', `${stationId}.jpg`))).toBe(false);
