@@ -391,13 +391,13 @@ describe('portal rate limit and configuration', () => {
     await rm(f.filesDir, { recursive: true, force: true });
   });
 
-  it('limits requests per IP across emails', async () => {
+  it('limits requests per IP across emails, keyed on X-Real-IP so a spoofed X-Forwarded-For cannot bypass it', async () => {
     const f = await fixture({}, { portalLimits: { perEmail: 100, perIp: 3 } });
     const statuses = [];
     for (let i = 0; i < 5; i++) {
       const res = await f.t.app.request('/api/portal/login', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.9' },
+        headers: { 'content-type': 'application/json', 'x-real-ip': '203.0.113.9', 'x-forwarded-for': `10.0.0.${i}` },
         body: JSON.stringify({ email: `u${i}@x.test` }),
       });
       statuses.push(res.status);
@@ -405,7 +405,7 @@ describe('portal rate limit and configuration', () => {
     expect(statuses).toEqual([200, 200, 200, 429, 429]);
     const other = await f.t.app.request('/api/portal/login', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.10' },
+      headers: { 'content-type': 'application/json', 'x-real-ip': '203.0.113.10' },
       body: JSON.stringify({ email: 'u9@x.test' }),
     });
     expect(other.status).toBe(200);

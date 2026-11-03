@@ -52,6 +52,34 @@ describe('auth', () => {
   });
 });
 
+describe('login throttle', () => {
+  let t: TestApp;
+  beforeAll(async () => {
+    t = await makeTestApp();
+  });
+  afterAll(() => t.close());
+
+  const attempt = (headers: Record<string, string>, password = 'nope') =>
+    t.app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ password }),
+    });
+
+  it('keys failures on X-Real-IP so a spoofed X-Forwarded-For cannot bypass it', async () => {
+    for (let i = 0; i < 8; i++) {
+      expect((await attempt({ 'x-real-ip': '203.0.113.7', 'x-forwarded-for': `10.0.0.${i}` })).status).toBe(401);
+    }
+    const blocked = await attempt({ 'x-real-ip': '203.0.113.7', 'x-forwarded-for': '10.0.0.99' }, TEST_PASSWORD);
+    expect(blocked.status).toBe(429);
+    expect(((await blocked.json()) as { error: { code: string } }).error.code).toBe('rate_limited');
+  });
+
+  it('does not block a different client', async () => {
+    expect((await attempt({ 'x-real-ip': '198.51.100.1' }, TEST_PASSWORD)).status).toBe(200);
+  });
+});
+
 describe('invoice -> payment -> status flow', () => {
   let t: TestApp;
   beforeAll(async () => {

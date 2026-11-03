@@ -44,7 +44,8 @@ export function portalRoutes(deps: Deps) {
       // Always the same answer: whether the email belongs to a client must not be observable, neither in the body nor in the
       // time it takes, so the lookup and the mail run after the response.
       .post('/login', v('json', loginBody), async (c) => {
-        const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+        // Railway's edge sets X-Real-IP to the client address; X-Forwarded-For is client-controlled.
+        const ip = c.req.header('x-real-ip')?.trim() || 'local';
         const { email } = c.req.valid('json');
         const ipOk = perIp.hit(ip);
         const emailOk = perEmail.hit(email);
