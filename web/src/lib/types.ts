@@ -9,7 +9,12 @@ import type {
   InvoiceStatus,
   IsoDate,
   IsoMonth,
+  EmployeePayKind,
   PaymentMethod,
+  ProductUnit,
+  StockMovementKind,
+  PriceRounding,
+  PriceScope,
   VisitStatus,
 } from '@fumigadora/shared';
 
@@ -32,6 +37,8 @@ export interface ClientRow {
   email: string | null;
   address: string | null;
   area: string | null;
+  latitude: number | null;
+  longitude: number | null;
   notes: string | null;
   taxId: string | null;
   monthlyFeeCents: number | null;
@@ -41,6 +48,8 @@ export interface ClientRow {
   taxDocNumber: string | null;
   ivaCondition: IvaCondition;
   legalName: string | null;
+  /** Old overdue debt shown updated by IPC (admin and portal). */
+  ipcEnabled: boolean;
   archivedAt: string | null;
   createdAt: string;
   archived: boolean;
@@ -70,6 +79,26 @@ export interface ClientDetail extends ClientRow {
   summary: ClientSummary;
 }
 
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  amountCents: number;
+}
+
+export interface Extra {
+  id: number;
+  name: string;
+  priceCents: number;
+  active: boolean;
+}
+
+/** One extra picked on a visit: `extraId` -> quantity. */
+export interface ExtraSelection {
+  extraId: number;
+  quantity: number;
+}
+
 export interface Invoice {
   id: number;
   clientId: number;
@@ -94,6 +123,8 @@ export interface Invoice {
   caeDueOn: IsoDate | null;
   arcaObservations: { observations: { code: number; msg: string }[]; errors: { code: number; msg: string }[]; message?: string } | null;
   arcaAttemptedAt: string | null;
+  /** Always at least one line; invoices without stored lines come as a single line from description and amount. */
+  items: InvoiceItem[];
 }
 
 export interface Visit {
@@ -106,10 +137,13 @@ export interface Visit {
   frequency: Frequency;
   notes: string | null;
   completedAt: string | null;
+  cancelReason: string | null;
   priceCents: number | null;
   clientName: string;
   clientAddress: string | null;
   clientPhone: string | null;
+  clientLatitude: number | null;
+  clientLongitude: number | null;
   serviceTypeName: string;
   issuesCertificate: boolean;
   assignedUserId: number | null;
@@ -129,6 +163,8 @@ export interface Certificate {
   serviceTypeId: number | null;
   serviceTypeName: string | null;
   superseded: boolean;
+  /** A PDF is stored and available at `/api/certificates/:id/file`. */
+  hasFile: boolean;
 }
 
 export interface Allocation {
@@ -243,6 +279,7 @@ export interface CompleteVisitBody {
   nextDate?: IsoDate;
   nextTime?: string | null;
   notes?: string;
+  extras?: ExtraSelection[];
 }
 
 export interface CompleteVisitResult {
@@ -260,6 +297,8 @@ export interface ClientInput {
   email: string;
   address: string;
   area: string;
+  latitude: number | null;
+  longitude: number | null;
   notes: string;
   taxId: string;
   monthlyFeeCents: number | null;
@@ -275,6 +314,11 @@ export interface Debtor extends BalanceFields {
   clientId: number;
   name: string;
   phone: string | null;
+  /** Due date of the oldest overdue invoice; null when nothing is overdue. */
+  overdueSince: IsoDate | null;
+  /** Oldest month that still has debt (credit netted); null when none. */
+  oldestOwedMonth: IsoMonth | null;
+  owedMonthCount: number;
 }
 
 export interface Receivables {
@@ -329,6 +373,11 @@ export interface Movement {
   clientName: string | null;
   categoryId: number | null;
   categoryName: string | null;
+  /** Employee the expense belongs to (payment to them, or fuel they loaded). */
+  employeeId: number | null;
+  employeeName: string | null;
+  /** A receipt photo is stored: `GET /api/cash-entries/:id/receipt`. */
+  hasReceipt: boolean;
 }
 
 export type TrackingStatus = 'pending' | 'scheduled' | 'complete';
@@ -378,8 +427,10 @@ export interface ScheduleTrackingBody {
 
 export interface AuthUser {
   authenticated: true;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'employee' | 'client';
   userId?: number;
+  /** Client the portal session is bound to (role `client`). */
+  clientId?: number;
   name: string;
 }
 
@@ -388,7 +439,10 @@ export interface UserRow {
   name: string;
   phone: string | null;
   username: string;
+  email: string | null;
   role: 'admin' | 'employee';
+  /** Can be picked as the assignee of a visit. */
+  assignable: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -398,15 +452,144 @@ export interface UserInput {
   phone?: string;
   username: string;
   password: string;
+  /** Empty string = none. */
+  email?: string;
+  role: 'admin' | 'employee';
+  assignable: boolean;
+}
+
+export type NotificationKind =
+  | 'day_summary'
+  | 'visits_overdue'
+  | 'client_email_failed'
+  | 'visits_today'
+  | 'visits_reminder'
+  | 'visit_done'
+  | 'cash_collected'
+  | 'extras_added';
+
+export interface NotificationItem {
+  id: number;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** In-app route to open on click. */
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationList {
+  unreadCount: number;
+  items: NotificationItem[];
 }
 
 export interface MyVisit extends Visit {
-  clientBalanceCents: number;
+  /** Service price extras are priced on (each one costs a share of it). */
+  extraBaseCents: number;
+  /** Everything the employee registered as paid at this visit (any method). */
+  paidCents: number;
+  /** The cash part of it: the one that is "a rendir". */
   cashCollectedCents: number;
+}
+
+export interface PostponeResult {
+  visit: Visit;
+  previous: { date: IsoDate; time: string | null };
+}
+
+export interface CancelResult {
+  visit: Visit;
+  nextVisit: Visit | null;
+}
+
+export type PaymentStatus = 'full' | 'partial' | 'none';
+export type FieldPaymentMethod = 'cash' | 'transfer' | 'mercadopago';
+
+export interface MyDoneBody {
+  paymentStatus: PaymentStatus;
+  method?: FieldPaymentMethod;
+  /** Amount received when the payment is partial. */
+  amountCents?: number;
+  extras?: ExtraSelection[];
+  /** Product used at the visit (optional). */
+  products?: ProductUse[];
+  notes?: string;
+}
+
+export interface ProductUse {
+  productId: number;
+  quantity: number;
+}
+
+/** What the employee app gets to pick a product: no stock figures. */
+export interface ProductOption {
+  id: number;
+  name: string;
+  unit: ProductUnit;
+}
+
+export interface Product extends ProductOption {
+  minQuantity: number | null;
+  active: boolean;
+  stock: number;
+  belowMin: boolean;
+}
+
+export interface StockMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  unit: ProductUnit;
+  kind: StockMovementKind;
+  date: IsoDate;
+  /** Signed: purchases positive, uses negative. */
+  quantity: number;
+  visitId: number | null;
+  clientName: string | null;
+  userId: number | null;
+  userName: string | null;
+  note: string | null;
+}
+
+export interface StockUsage {
+  month: IsoMonth;
+  products: { productId: number; name: string; unit: ProductUnit; used: number }[];
+  days: { date: IsoDate; items: { productId: number; used: number }[] }[];
+}
+
+export interface BaitStation {
+  id: number;
+  clientId: number;
+  code: string;
+  reference: string;
+  hasPhoto: boolean;
+}
+
+export interface ClientDocument {
+  id: number;
+  clientId: number;
+  name: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface ClientBaitStations {
+  stations: BaitStation[];
+  documents: ClientDocument[];
+}
+
+/** Employee app: stations of the client of a visit (read-only). */
+export interface MyVisitStations {
+  clientId: number;
+  clientName: string;
+  stations: Omit<BaitStation, 'clientId'>[];
 }
 
 export interface MyVisits {
   date: IsoDate;
+  /** Company location where the day route starts; null when not configured. */
+  base: { latitude: number; longitude: number } | null;
   visits: MyVisit[];
   cashPending: { cents: number; count: number };
 }
@@ -427,13 +610,39 @@ export interface CashHandover {
   recent: (HandoverItem & { userId: number; userName: string; handedOverAt: string })[];
 }
 
+export interface EmployeePayItem {
+  id: number;
+  date: IsoDate;
+  userId: number;
+  userName: string;
+  amountCents: number;
+  kind: EmployeePayKind;
+  note: string | null;
+  method: PaymentMethod;
+}
+
+export interface EmployeePayMonth {
+  month: IsoMonth;
+  totalPaidCents: number;
+  employees: {
+    userId: number;
+    name: string;
+    paidCents: number;
+    byKind: Record<EmployeePayKind, number>;
+    cashCollectedCents: number;
+    cashHandedOverCents: number;
+    cashPendingCents: number;
+  }[];
+  payments: EmployeePayItem[];
+}
+
 // Emails, route planner and reminders --------------------------------------
 
-export type EmailKind = 'service_notice' | 'debt_reminder' | 'test';
+export type EmailKind = 'service_notice' | 'debt_reminder' | 'test' | 'owner_notification' | 'portal_login';
 export type EmailLogStatus = 'sent' | 'simulated' | 'failed';
 
 export interface EmailStatus {
-  mode: 'resend' | 'simulated';
+  mode: 'resend' | 'smtp' | 'simulated';
   from: string;
 }
 
@@ -470,6 +679,12 @@ export interface AppSettings {
   noticeMode: NoticeMode;
   noticeDaysBefore: number;
   arcaAutoEmit: boolean;
+  companyAddress: string | null;
+  companyLatitude: number | null;
+  companyLongitude: number | null;
+  companyPhone: string | null;
+  ipcWarningEnabled: boolean;
+  ipcWarningGraceDays: number;
 }
 
 export interface ArcaStatusInfo {
@@ -495,6 +710,8 @@ export interface RouteItem {
   hasEmail: boolean;
   email: string | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   date: IsoDate;
   time: string | null;
   serviceTypeId: number;
@@ -537,4 +754,175 @@ export interface ReminderPreview {
   minDaysOverdue: number;
   recipients: { clientId: number; name: string; email: string; overdueCents: number; daysOverdue: number; overdueInvoiceCount: number; lastReminderOn: IsoDate | null }[];
   skipped: Record<'disabled' | 'no_email' | 'not_overdue' | 'not_late_enough' | 'too_recent', number>;
+}
+
+// Public link and client portal ----------------------------------------------
+
+/** What the public page `/c/:token` shows: no amounts, no tax id, no client contact data. */
+export interface PublicClientView {
+  name: string;
+  nextVisit: { date: IsoDate; time: string | null; serviceTypeName: string } | null;
+  lastVisitDate: IsoDate | null;
+  certificate: { number: string; issuedOn: IsoDate; expiresOn: IsoDate; valid: boolean; daysLeft: number } | null;
+  company: { name: string; phone: string | null };
+}
+
+export interface PublicLink {
+  token: string;
+  url: string;
+}
+
+export interface PortalVisit {
+  id: number;
+  date: IsoDate;
+  time: string | null;
+  status: VisitStatus;
+  serviceTypeName: string;
+}
+
+export interface PortalCertificate {
+  id: number;
+  number: string;
+  issuedOn: IsoDate;
+  expiresOn: IsoDate;
+  serviceTypeName: string | null;
+  hasFile: boolean;
+  valid: boolean;
+  daysLeft: number;
+  superseded: boolean;
+}
+
+export interface PortalSummary {
+  balanceCents: number;
+  openCents: number;
+  overdueCents: number;
+  creditCents: number;
+  daysOverdue: number;
+  overdueInvoiceCount: number;
+  /** `ipcCents`: what the month grows when updated by IPC (reference only, 0 while not overdue). */
+  months: { month: IsoMonth; billedCents: number; paidCents: number; owedCents: number; ipcCents: number }[];
+  ipc: { enabled: boolean; throughMonth: IsoMonth | null; totalCents: number; updatedOwedCents: number };
+  nextVisits: { id: number; date: IsoDate; time: string | null; serviceTypeName: string }[];
+  lastVisitDate: IsoDate | null;
+  certificate: PortalCertificate | null;
+}
+
+export interface PortalInvoice {
+  id: number;
+  number: string;
+  issuedOn: IsoDate;
+  dueOn: IsoDate;
+  description: string;
+  amountCents: number;
+  paidCents: number;
+  balanceCents: number;
+  status: InvoiceStatus;
+  daysOverdue: number;
+  items: InvoiceItem[];
+}
+
+export interface PortalPayment {
+  id: number;
+  paidOn: IsoDate;
+  amountCents: number;
+  method: PaymentMethod;
+  allocations: { invoiceNumber: string; amountCents: number }[];
+}
+
+export interface PortalClient {
+  id: number;
+  name: string;
+}
+
+export type PortalVerifyResult = { status: 'ok'; client: PortalClient } | { status: 'choose'; clients: PortalClient[] };
+
+export interface PlacardItem {
+  id: number;
+  name: string;
+  address: string | null;
+  area: string | null;
+  token: string;
+  url: string;
+}
+
+export interface PlacardList {
+  /** Zones with at least one active client. */
+  zones: string[];
+  items: PlacardItem[];
+}
+
+export interface DayVisitCounts {
+  done: number;
+  pending: number;
+  postponed: number;
+  cancelled: number;
+}
+
+/** `GET /day-close`: "Cierre del día" of one date. `userId` null = unassigned visits / payments registered by the office. */
+export interface DaySummary {
+  date: IsoDate;
+  visits: {
+    totals: DayVisitCounts;
+    byEmployee: ({ userId: number | null; name: string } & DayVisitCounts)[];
+  };
+  collections: {
+    totalCents: number;
+    count: number;
+    byMethod: { method: PaymentMethod; cents: number; count: number }[];
+    byEmployee: { userId: number | null; name: string; cents: number; count: number; cashCents: number; toHandOverCents: number }[];
+    cashToHandOver: { dayCents: number; dayCount: number; totalCents: number; totalCount: number };
+  };
+  invoices: { count: number; totalCents: number; items: { id: number; number: string; clientId: number; clientName: string; amountCents: number }[] };
+  newOverdue: {
+    count: number;
+    totalCents: number;
+    items: { invoiceId: number; number: string; clientId: number; clientName: string; balanceCents: number; dueOn: IsoDate }[];
+  };
+  expenses: {
+    count: number;
+    totalCents: number;
+    items: { id: number; amountCents: number; categoryName: string | null; description: string; method: PaymentMethod }[];
+  };
+}
+
+export interface PriceChange {
+  scope: PriceScope;
+  id: number;
+  name: string;
+  /** Service of a scheduled visit. */
+  detail: string | null;
+  /** Date of a scheduled visit. */
+  date: IsoDate | null;
+  oldCents: number;
+  newCents: number;
+}
+
+export interface PriceAdjustmentBody {
+  percent: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+}
+
+export interface PriceAdjustmentPreview {
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  itemCount: number;
+  items: PriceChange[];
+}
+
+export interface PriceAdjustmentRecord {
+  id: number;
+  createdAt: string;
+  percent: number;
+  percentBasisPoints: number;
+  rounding: PriceRounding;
+  scopes: PriceScope[];
+  userName: string;
+  itemCount: number;
+}
+
+export interface PriceAdjustmentResult extends PriceAdjustmentPreview {
+  adjustment: PriceAdjustmentRecord;
 }

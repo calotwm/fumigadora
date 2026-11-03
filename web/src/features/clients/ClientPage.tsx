@@ -1,23 +1,29 @@
+import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import { useClient, useStatement, useUnarchiveClient } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
 import { KIND_LABELS, money, overdueLabel } from '../../lib/format';
-import { debtReminderText, mapsLink, whatsappLink } from '../../lib/whatsapp';
-import { AnchorButton, Button } from '../../ui/Button';
+import { mapsLink, normalizePhone } from '../../lib/whatsapp';
+import { Button, LinkButton } from '../../ui/Button';
 import { ErrorNote, Loading, Stat, Tabs } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
 import type { ClientDetail, Statement } from '../../lib/types';
 import { BUCKET_LABELS } from './balance';
 import { EmailLogList } from '../mail/EmailLogList';
+import { PublicLinkSheet } from './PublicLinkSheet';
+import { WhatsAppSheet } from './WhatsAppSheet';
+import { DebtMonths } from './DebtMonths';
 import { AccountTab, CertificatesTab, DataTab, InvoicesTab, VisitsTab } from './ClientTabs';
+import { BaitStationsTab } from './BaitStationsTab';
 
 const TABS = [
   { id: 'cuenta', label: 'Cuenta corriente' },
   { id: 'visitas', label: 'Visitas' },
   { id: 'facturas', label: 'Facturas' },
   { id: 'obleas', label: 'Obleas' },
+  { id: 'cebaderos', label: 'Cebaderos' },
   { id: 'mails', label: 'Mails' },
   { id: 'datos', label: 'Datos' },
 ] as const;
@@ -56,6 +62,8 @@ function ClientView({
   const { open } = useActions();
   const toast = useToast();
   const unarchive = useUnarchiveClient();
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const tab: TabId = TABS.find((t) => t.id === requested)?.id ?? 'cuenta';
@@ -63,8 +71,7 @@ function ClientView({
   const owes = summary.balanceCents > 0;
   const overdue = summary.overdueCents > 0 && summary.daysOverdue > 0;
 
-  const greeting = `Hola ${client.contactName || client.name}, le escribimos de Plagamix.`;
-  const wa = whatsappLink(client.phone, owes ? debtReminderText(client.name, summary.balanceCents) : greeting);
+  const hasWhatsApp = normalizePhone(client.phone) !== null;
 
   return (
     <div>
@@ -144,11 +151,17 @@ function ClientView({
           <Button variant="outline" onClick={() => open({ type: 'visit', clientId: client.id })}>
             Agendar visita
           </Button>
-          {wa ? (
-            <AnchorButton variant="outline" href={wa} target="_blank" rel="noreferrer" icon={<MessageCircle size={16} aria-hidden />}>
+          {hasWhatsApp ? (
+            <Button variant="outline" icon={<MessageCircle size={16} aria-hidden />} onClick={() => setWaOpen(true)}>
               WhatsApp
-            </AnchorButton>
+            </Button>
           ) : null}
+          <Button variant="outline" onClick={() => setLinkOpen(true)}>
+            Link público
+          </Button>
+          <LinkButton variant="outline" to={`/clientes/${client.id}/cartel`}>
+            Imprimir QR
+          </LinkButton>
           <Button variant="outline" onClick={() => open({ type: 'clientEdit', clientId: client.id })}>
             Editar
           </Button>
@@ -175,6 +188,8 @@ function ClientView({
         <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pt-6">
           {tab === 'datos' ? (
             <DataTab client={client} />
+          ) : tab === 'cebaderos' ? (
+            <BaitStationsTab clientId={client.id} />
           ) : tab === 'mails' ? (
             <EmailLogList clientId={client.id} showFilter={false} />
           ) : statementError ? (
@@ -182,7 +197,10 @@ function ClientView({
           ) : !statement ? (
             <Loading />
           ) : tab === 'cuenta' ? (
-            <AccountTab statement={statement} />
+            <>
+              <DebtMonths clientId={client.id} />
+              <AccountTab statement={statement} />
+            </>
           ) : tab === 'visitas' ? (
             <VisitsTab statement={statement} />
           ) : tab === 'facturas' ? (
@@ -192,6 +210,8 @@ function ClientView({
           )}
         </div>
       </div>
+      {linkOpen ? <PublicLinkSheet clientId={client.id} onClose={() => setLinkOpen(false)} /> : null}
+      {waOpen ? <WhatsAppSheet client={client} statement={statement} onClose={() => setWaOpen(false)} /> : null}
     </div>
   );
 }

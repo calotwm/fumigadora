@@ -9,6 +9,7 @@ import { Chips } from '../../ui/form';
 import { EmptyState, ErrorNote, Loading, Table, Tag, type Column } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
 import { useActions } from '../actions/ActionsProvider';
+import { InvoiceLines } from './InvoiceLines';
 import { ArcaState, EmitButton } from './Arca';
 import type { InvoiceWithClient } from '../../lib/types';
 
@@ -40,6 +41,7 @@ export function InvoicesTab() {
           <Link to={`/clientes/${i.clientId}`} className="block truncate text-sm hover:underline">
             {i.clientName}
           </Link>
+          <InvoiceLines invoice={i} />
         </div>
       ),
     },

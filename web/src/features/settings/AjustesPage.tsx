@@ -17,7 +17,10 @@ import { errorMessage } from '../../lib/api';
 import { money } from '../../lib/format';
 import type { ExpenseCategory, ServiceType } from '../../lib/types';
 import { ArcaSection } from './ArcaSection';
+import { CompanyBaseSection } from './CompanyBaseSection';
 import { EmployeesSection } from './EmployeesSection';
+import { ExtrasSection } from './ExtrasSection';
+import { IpcSection } from './IpcSection';
 import { MailSection } from './MailSection';
 import { RemindersSection } from './RemindersSection';
 
@@ -27,8 +30,11 @@ export function AjustesPage() {
       <PageHeader eyebrow="Ajustes" title="Catálogos" />
       <div className="grid gap-12 lg:grid-cols-2">
         <ServiceTypes />
+        <ExtrasSection />
+        <IpcSection />
         <Categories />
         <EmployeesSection />
+        <CompanyBaseSection />
         <MailSection />
         <RemindersSection />
         <ArcaSection />

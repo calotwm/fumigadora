@@ -36,6 +36,139 @@
       "when": 1792085488137,
       "tag": "0004_arca",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793290145561,
+      "tag": "0005_legacy_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793291234720,
+      "tag": "0006_certificate_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793295177297,
+      "tag": "0007_users_email_assignable",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793295447250,
+      "tag": "0008_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793295657079,
+      "tag": "0009_owner_notification_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793296186340,
+      "tag": "0010_push_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793296501052,
+      "tag": "0011_live_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793298927814,
+      "tag": "0012_employee_extras",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793299281315,
+      "tag": "0013_extras_alert_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793299591679,
+      "tag": "0014_visit_cancel_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793333438421,
+      "tag": "0015_client_public_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793333802589,
+      "tag": "0016_client_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793367320784,
+      "tag": "0017_price_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793387777510,
+      "tag": "0018_employee_pay",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793389164025,
+      "tag": "0019_fuel_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793390068988,
+      "tag": "0020_stock",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793390877337,
+      "tag": "0021_bait_stations",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793641575171,
+      "tag": "0022_ipc_months",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793727936132,
+      "tag": "0023_client_ipc_enabled",
+      "breakpoints": true
     }
   ]
 }

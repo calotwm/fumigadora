@@ -20,13 +20,13 @@ export interface AllocationResult {
 
 /**
  * FIFO allocation: oldest due invoice first (dueOn, issuedOn, id).
- * When `targetInvoiceId` is given, that invoice is paid first (up to its balance) and any
- * remainder continues FIFO over the other open invoices before becoming credit.
+ * `target` puts invoices first: one id (the employee's visit invoice) or the ids the owner selected
+ * (paid in chronological order). Any remainder continues FIFO over the other open invoices before becoming credit.
  */
 export function allocatePayment(
   amountCents: number,
   openInvoices: OpenInvoiceForAllocation[],
-  targetInvoiceId?: number | null,
+  target?: number | readonly number[] | null,
 ): AllocationResult {
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
     throw new RangeError('amountCents must be a positive integer');
@@ -36,10 +36,12 @@ export function allocatePayment(
     .sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.issuedOn.localeCompare(b.issuedOn) || a.id - b.id);
 
   let ordered = fifo;
-  if (targetInvoiceId != null) {
-    const target = fifo.find((i) => i.id === targetInvoiceId);
-    if (!target) throw new RangeError('Target invoice is not open');
-    ordered = [target, ...fifo.filter((i) => i.id !== targetInvoiceId)];
+  if (target != null) {
+    const first = new Set(typeof target === 'number' ? [target] : target);
+    for (const id of first) {
+      if (!fifo.some((i) => i.id === id)) throw new RangeError('Target invoice is not open');
+    }
+    if (first.size > 0) ordered = [...fifo.filter((i) => first.has(i.id)), ...fifo.filter((i) => !first.has(i.id))];
   }
 
   let remaining = amountCents;

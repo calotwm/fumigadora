@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { today as realToday } from '@fumigadora/shared';
-import { runSeed } from '../seed-data.js';
+import { runSeed, SEED_ADMIN_PASSWORD } from '../seed-data.js';
 import { makeTestApp, type TestApp } from './helpers.js';
 
 describe('seed', () => {
@@ -32,6 +32,14 @@ describe('seed', () => {
     expect(dash.body.receivables.owedCents).toBeGreaterThan(0);
     expect(dash.body.expiringCertificates.length).toBeGreaterThan(0);
     expect(dash.body.cashPendingCents).toBeGreaterThan(0);
+    const users = await t.get('/api/users');
+    expect(users.body.find((u: { username: string }) => u.username === 'lucas')).toMatchObject({ role: 'admin', assignable: false });
+    const lucas = await t.app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'lucas', password: SEED_ADMIN_PASSWORD }),
+    });
+    expect(lucas.status).toBe(200);
     const handover = await t.get('/api/cash-handover');
     expect(handover.body.employees.length).toBeGreaterThan(0);
     expect(handover.body.recent.length).toBeGreaterThan(0);

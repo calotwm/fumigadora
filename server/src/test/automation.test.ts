@@ -45,7 +45,7 @@ describe('month route planner and service notices', () => {
     t = await makeTestApp('2025-06-15', mail);
     service = (await t.post('/api/service-types', { name: 'Desinsectación' })).body.id;
     employee = (await t.post('/api/users', { name: 'Juan', username: 'juan', password: 'secret1' })).body.id;
-    await client('a1', { name: 'A1 Con mail', area: 'Norte', email: 'a1@example.com' });
+    await client('a1', { name: 'A1 Con mail', area: 'Norte', email: 'a1@example.com', latitude: -34.55, longitude: -58.46 });
     await client('a2', { name: 'A2 Sin mail', area: 'Norte' });
     await client('b1', { name: 'B1 Con mail', area: 'Sur', email: 'b1@example.com' });
     await client('w', { name: 'W Semanal', area: 'Sur', serviceFrequency: 'weekly', email: 'w@example.com' });
@@ -81,6 +81,9 @@ describe('month route planner and service notices', () => {
     }
     expect(res.body.totals).toMatchObject({ visits: 7, clients: 4, withEmail: 3, withoutEmail: 1 });
     expect(res.body.zones.map((z: { zone: string }) => z.zone)).toEqual(['Norte', 'Sur']);
+    // Each item carries the client's coordinates for the route map.
+    expect(items.find((i) => i.clientId === ids.a1)).toMatchObject({ latitude: -34.55, longitude: -58.46 });
+    expect(items.find((i) => i.clientId === ids.a2)).toMatchObject({ latitude: null, longitude: null });
   });
 
   it('regenerating a draft replaces its items; edits are validated', async () => {
@@ -214,6 +217,8 @@ describe('debt reminders and the daily job', () => {
     await debtor('Sin mail', {}, '2025-05-10');
     await debtor('Reciente', { email: 'reciente@example.com' }, '2025-06-10'); // 5 days overdue
     await debtor('Al dia', { email: 'aldia@example.com' }, '2025-07-10'); // not due yet
+    // The IPC warning is on by default; these reminders start without it and a later test switches it on.
+    await t.call('PUT', '/api/settings', { ipcWarningEnabled: false });
   });
   afterAll(() => t.close());
 
@@ -241,6 +246,8 @@ describe('debt reminders and the daily job', () => {
     const html = (await t.get(`/api/email/log/${log.items[0].id}`)).body.html as string;
     expect(html).toContain('2025-');
     expect(html).toContain('desestime este mensaje');
+    // Without the IPC warning switched on, the reminder says nothing about interest.
+    expect(html).not.toContain('IPC');
   });
 
   it('waits the configured days before the next reminder and includes newly eligible clients', async () => {
@@ -258,6 +265,20 @@ describe('debt reminders and the daily job', () => {
     expect((await t.post('/api/jobs/run-daily')).body.reminders.simulated).toBe(0);
     const manual = await t.post('/api/reminders/send');
     expect(manual.body.simulated).toBe(3); // Moroso, Reciente and the now-overdue "Al dia"
+  });
+
+  it('warns that IPC interest will start after the grace days when the warning is on', async () => {
+    const put = await t.call('PUT', '/api/settings', { ipcWarningEnabled: true, ipcWarningGraceDays: 10 });
+    expect(put.body).toMatchObject({ ipcWarningEnabled: true, ipcWarningGraceDays: 10 });
+    t.setToday('2025-09-20');
+    const owedBefore = (await t.get('/api/receivables')).body.owedCents;
+    expect((await t.post('/api/reminders/send')).body.simulated).toBe(3);
+    const latest = (await reminders()).items[0];
+    const html = (await t.get(`/api/email/log/${latest.id}`)).body.html as string;
+    expect(html).toContain('30/09/2025'); // 2025-09-20 + 10 days
+    expect(html).toContain('Índice de Precios al Consumidor (IPC)');
+    // Debts are not changed by the warning.
+    expect((await t.get('/api/receivables')).body.owedCents).toBe(owedBefore);
   });
 });
 

@@ -10,6 +10,15 @@ export interface MailConfig {
   /** Sender, e.g. `Plagamix <avisos@dominio.com>`. */
   from: string | undefined;
   replyTo: string | undefined;
+  /** SMTP account (e.g. Gmail with an app password); used when Resend is not configured. */
+  smtp?: SmtpConfig;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
 }
 
 export type ArcaEnv = 'homologacion' | 'produccion';
@@ -30,18 +39,39 @@ export interface ArcaConfig {
   configured: boolean;
 }
 
+/** Web Push (VAPID). Active only when all three values are set. */
+export interface PushConfig {
+  publicKey: string | undefined;
+  privateKey: string | undefined;
+  /** `mailto:` or https URL that identifies the sender to the push services. */
+  subject: string | undefined;
+  enabled: boolean;
+}
+
+export function loadPushConfig(env: NodeJS.ProcessEnv = process.env): PushConfig {
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim() || undefined;
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim() || undefined;
+  const subject = env.VAPID_SUBJECT?.trim() || undefined;
+  return { publicKey, privateKey, subject, enabled: Boolean(publicKey && privateKey && subject) };
+}
+
 export interface Config {
   isProduction: boolean;
   port: number;
   databaseUrl: string | undefined;
   /** Directory for the embedded PGlite database when no DATABASE_URL is set. */
   pgliteDir: string;
+  /** Directory for stored files (certificate PDFs). In production, the mount path of a persistent volume. */
+  filesDir: string;
   adminPassword: string;
   sessionSecret: string;
   /** Session lifetime in seconds. */
   sessionTtlSeconds: number;
+  /** Public origin of the site (`https://app.example.com`), used for QR links and magic-link emails. Falls back to the request origin. */
+  publicBaseUrl: string | undefined;
   mail: MailConfig;
   arca: ArcaConfig;
+  push: PushConfig;
 }
 
 /** Accepts PEM text (real or backslash-n escaped newlines) or the base64 of a PEM file. */
@@ -86,6 +116,18 @@ export function loadArcaConfig(env: NodeJS.ProcessEnv = process.env): ArcaConfig
   return { ...values, missing, configured: missing.length === 0 };
 }
 
+/** Origin without trailing slash, or undefined when unset or not an http(s) URL. */
+export function parseBaseUrl(value: string | undefined): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const prod = env.NODE_ENV === 'production' || isProduction;
   let adminPassword = env.ADMIN_PASSWORD;
@@ -107,14 +149,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: Number(env.PORT ?? 3000),
     databaseUrl: env.DATABASE_URL || undefined,
     pgliteDir: env.PGLITE_DIR ?? './.data/pglite',
+    filesDir: env.FILES_DIR?.trim() || './.data/files',
     adminPassword,
     sessionSecret,
     sessionTtlSeconds: 60 * 60 * 24 * 30,
+    publicBaseUrl: parseBaseUrl(env.PUBLIC_BASE_URL),
     mail: {
       resendApiKey: env.RESEND_API_KEY?.trim() || undefined,
       from: env.MAIL_FROM?.trim() || undefined,
       replyTo: env.MAIL_REPLY_TO?.trim() || undefined,
+      smtp: loadSmtpConfig(env),
     },
     arca: loadArcaConfig(env),
+    push: loadPushConfig(env),
   };
+}
+
+/** `SMTP_USER` + `SMTP_PASS` turn SMTP on; host and port default to Gmail (smtp.gmail.com:465, TLS). */
+function loadSmtpConfig(env: Record<string, string | undefined>): SmtpConfig | undefined {
+  const user = env.SMTP_USER?.trim();
+  const pass = env.SMTP_PASS?.trim();
+  if (!user || !pass) return undefined;
+  return { host: env.SMTP_HOST?.trim() || 'smtp.gmail.com', port: Number(env.SMTP_PORT?.trim() || 465), user, pass };
 }

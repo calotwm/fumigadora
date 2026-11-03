@@ -16,7 +16,7 @@ export function AssigneeSelect({
   emptyLabel?: string;
 }) {
   const users = useUsers();
-  const list = (users.data ?? []).filter((u) => u.active || u.id === value);
+  const list = (users.data ?? []).filter((u) => (u.active && u.assignable) || u.id === value);
   return (
     <Select
       label={label}

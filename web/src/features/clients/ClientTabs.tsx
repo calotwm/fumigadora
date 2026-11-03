@@ -6,6 +6,7 @@ import { useServiceTypes } from '../../lib/queries';
 import { EmptyState, Table, Tag, type Column } from '../../ui/display';
 import { useActions } from '../actions/ActionsProvider';
 import { ArcaState, EmitButton } from '../receivables/Arca';
+import { InvoiceLines } from '../receivables/InvoiceLines';
 import type { Certificate, ClientDetail, Invoice, LedgerEntry, Statement, Visit } from '../../lib/types';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -171,7 +172,7 @@ export function InvoicesTab({ statement }: { statement: Statement }) {
       cell: (i) => (
         <div>
           <p className="num font-bold">{i.number}</p>
-          {i.description ? <p className="truncate text-xs text-muted">{i.description}</p> : null}
+          <InvoiceLines invoice={i} />
         </div>
       ),
     },
@@ -261,6 +262,18 @@ export function CertificatesTab({ statement }: { statement: Statement }) {
           <span className={`text-sm ${c.daysLeft <= 15 ? 'font-bold underline decoration-yellow decoration-4 underline-offset-4' : ''}`}>{daysLeftLabel(c.daysLeft)}</span>
         ),
     },
+    {
+      key: 'file',
+      header: 'Archivo',
+      cell: (c) =>
+        c.hasFile ? (
+          <a href={`/api/certificates/${c.id}/file`} target="_blank" rel="noreferrer" className="text-sm font-semibold hover:underline">
+            Ver PDF
+          </a>
+        ) : (
+          <span className="text-sm text-muted">Sin archivo</span>
+        ),
+    },
   ];
   if (statement.certificates.length === 0) return <EmptyState title="Sin obleas emitidas." />;
   return (
@@ -269,7 +282,7 @@ export function CertificatesTab({ statement }: { statement: Statement }) {
       columns={columns}
       rows={statement.certificates}
       rowKey={(c) => c.id}
-      gridClass="md:grid-cols-[minmax(0,2fr)_1fr_1fr_1.4fr]"
+      gridClass="md:grid-cols-[minmax(0,2fr)_1fr_1fr_1.4fr_1fr]"
     />
   );
 }

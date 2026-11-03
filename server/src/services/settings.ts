@@ -1,3 +1,4 @@
+import { inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { DEFAULT_REMINDER_RULES, NOTICE_MODES, type NoticeMode, type ReminderRules } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
@@ -11,6 +12,15 @@ export interface AppSettings {
   noticeDaysBefore: number;
   /** Emit new invoices in ARCA automatically (only when ARCA is configured). */
   arcaAutoEmit: boolean;
+  /** Where the day route starts: the company's address and coordinates (no geocoding, the owner types them). */
+  companyAddress: string | null;
+  companyLatitude: number | null;
+  companyLongitude: number | null;
+  /** Shown on the public client page so residents can reach the company. */
+  companyPhone: string | null;
+  /** Debt reminders also warn that IPC interest will start if the debt is not paid within `ipcWarningGraceDays`. */
+  ipcWarningEnabled: boolean;
+  ipcWarningGraceDays: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,6 +30,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   noticeMode: 'on_approve',
   noticeDaysBefore: 7,
   arcaAutoEmit: false,
+  companyAddress: null,
+  companyLatitude: null,
+  companyLongitude: null,
+  companyPhone: null,
+  ipcWarningEnabled: true,
+  ipcWarningGraceDays: 10,
 };
 
 export const settingsPatch = z
@@ -30,6 +46,12 @@ export const settingsPatch = z
     noticeMode: z.enum(NOTICE_MODES),
     noticeDaysBefore: z.number().int().min(1, 'Debe ser al menos 1 día').max(60),
     arcaAutoEmit: z.boolean(),
+    companyAddress: z.string().trim().max(300).nullable(),
+    companyLatitude: z.number().min(-90, 'Latitud inválida').max(90, 'Latitud inválida').nullable(),
+    companyLongitude: z.number().min(-180, 'Longitud inválida').max(180, 'Longitud inválida').nullable(),
+    companyPhone: z.string().trim().max(60).nullable(),
+    ipcWarningEnabled: z.boolean(),
+    ipcWarningGraceDays: z.number().int().min(1, 'Debe ser al menos 1 día').max(90, 'Como máximo 90 días'),
   })
   .partial();
 
@@ -41,8 +63,13 @@ export async function getSettings(db: Db): Promise<AppSettings> {
 }
 
 export async function updateSettings(db: Db, patch: z.infer<typeof settingsPatch>): Promise<AppSettings> {
+  // `null` (or an empty text) clears the setting: the row is removed and the default applies again.
+  const cleared = Object.entries(patch)
+    .filter(([, value]) => value === null || value === '')
+    .map(([key]) => key);
+  if (cleared.length > 0) await db.delete(settings).where(inArray(settings.key, cleared));
   for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
+    if (value === undefined || value === null || value === '') continue;
     await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   }
   return getSettings(db);

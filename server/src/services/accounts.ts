@@ -1,7 +1,9 @@
 import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   clientBalance,
+  debtByMonth,
   type ArcaStatus,
+  type DebtByMonth,
   invoiceState,
   type ClientBalance,
   type InvoiceStatus,
@@ -9,7 +11,7 @@ import {
   type OpenInvoiceForAllocation,
 } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
-import { allocations, invoices, payments } from '../db/schema.js';
+import { allocations, invoiceItems, invoices, payments } from '../db/schema.js';
 
 export interface InvoiceRow {
   id: number;
@@ -77,6 +79,41 @@ export interface InvoiceView {
   arcaAttemptedAt: Date | null;
 }
 
+export interface InvoiceItemView {
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  amountCents: number;
+}
+
+/**
+ * Adds the invoice lines to views. Invoices without stored lines (legacy import, manual, monthly fee, voided history)
+ * render as one line built from their description and amount, so every consumer can rely on `items`.
+ */
+export async function withInvoiceItems<T extends { id: number; description: string; amountCents: number }>(
+  db: Db,
+  views: T[],
+): Promise<(T & { items: InvoiceItemView[] })[]> {
+  if (views.length === 0) return [];
+  const rows = await db
+    .select()
+    .from(invoiceItems)
+    .where(inArray(invoiceItems.invoiceId, views.map((v) => v.id)))
+    .orderBy(invoiceItems.invoiceId, invoiceItems.position);
+  const byInvoice = new Map<number, InvoiceItemView[]>();
+  for (const r of rows) {
+    const list = byInvoice.get(r.invoiceId) ?? [];
+    list.push({ description: r.description, quantity: r.quantity, unitPriceCents: r.unitPriceCents, amountCents: r.amountCents });
+    byInvoice.set(r.invoiceId, list);
+  }
+  return views.map((v) => ({
+    ...v,
+    items: byInvoice.get(v.id) ?? [
+      { description: v.description || 'Servicio', quantity: 1, unitPriceCents: v.amountCents, amountCents: v.amountCents },
+    ],
+  }));
+}
+
 const paidSum = sql<number>`coalesce(sum(${allocations.amountCents}), 0)`.mapWith(Number);
 
 /** Invoices with the sum of their allocations (SQL aggregation). */
@@ -121,6 +158,12 @@ export async function openInvoicesForAllocation(db: Db, clientId: number): Promi
     dueOn: r.dueOn,
     issuedOn: r.issuedOn,
   }));
+}
+
+/** Debt broken down by month (open invoices grouped by period or issue month, credit netted oldest first). */
+export async function clientDebtMonths(db: Db, clientId: number): Promise<DebtByMonth> {
+  const [open, credits] = await Promise.all([openInvoiceRows(db, clientId), clientCredits(db, clientId)]);
+  return debtByMonth(open, credits.get(clientId) ?? 0);
 }
 
 /** Unallocated payment remainder per client (payments - allocations). */

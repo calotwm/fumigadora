@@ -7,20 +7,28 @@ import type { Db } from './db/client.js';
 import { AppError, errorBody, type Deps } from './http.js';
 import { createMailProvider, type MailProvider } from './mail/provider.js';
 import { arcaRoutes } from './routes/arca.js';
+import { baitStationRoutes, clientDocumentRoutes } from './routes/baitStations.js';
 import { emailRoutes } from './routes/email.js';
 import { jobRoutes, reminderRoutes } from './routes/automation.js';
 import { routePlanRoutes } from './routes/routePlans.js';
 import { settingsRoutes } from './routes/settings.js';
 import { expenseCategoryRoutes, serviceTypeRoutes } from './routes/catalog.js';
+import { extraRoutes } from './routes/extras.js';
+import { employeePayRoutes } from './routes/employeePay.js';
 import { handoverRoutes } from './routes/handover.js';
 import { meRoutes } from './routes/me.js';
 import { userRoutes } from './routes/users.js';
 import { clientRoutes } from './routes/clients.js';
 import { cashRoutes, financeRoutes } from './routes/finance.js';
 import { invoiceRoutes, paymentRoutes, receivablesRoutes } from './routes/billing.js';
-import { certificateRoutes, dashboardRoutes, searchRoutes } from './routes/overview.js';
+import { certificateRoutes, dashboardRoutes, dayCloseRoutes, searchRoutes } from './routes/overview.js';
+import { portalRoutes } from './routes/portal.js';
+import { priceAdjustmentRoutes } from './routes/priceAdjust.js';
+import { publicRoutes } from './routes/public.js';
+import { productRoutes, stockRoutes } from './routes/stock.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { agendaRoutes, visitRoutes } from './routes/visits.js';
+import { createPushService, registerPush, type PushSender } from './services/push.js';
 import { mountStatic } from './static.js';
 
 export interface AppOptions {
@@ -34,6 +42,11 @@ export interface AppOptions {
   serveWeb?: boolean;
   /** HTTP client for ARCA calls (tests inject a mock). */
   fetch?: typeof fetch;
+  /** Web Push transport. Defaults to `web-push` with the configured VAPID keys; only used when push is configured. */
+  push?: PushSender;
+  now?: () => Date;
+  alertWindowMs?: number;
+  portalLimits?: { perEmail: number; perIp: number };
 }
 
 export function createApp(options: AppOptions) {
@@ -43,20 +56,35 @@ export function createApp(options: AppOptions) {
     mail: options.mail ?? createMailProvider(options.config.mail),
     today: options.today ?? (() => businessToday()),
     ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.alertWindowMs !== undefined ? { alertWindowMs: options.alertWindowMs } : {}),
+    ...(options.portalLimits ? { portalLimits: options.portalLimits } : {}),
   };
+  // Every notification created through this db is also pushed to the user's devices.
+  registerPush(options.db, createPushService(options.config.push, options.push));
 
   const api = new Hono<AuthEnv>();
   api.get('/health', (c) => c.json({ ok: true }));
   api.route('/auth', authRoutes(deps.config, deps.db));
+  // Unauthenticated: everything mounted before `requireSession` below.
+  api.route('/public', publicRoutes(deps));
+  api.route('/portal', portalRoutes(deps));
   api.use('*', requireSession(deps.config, deps.db));
   // Employee routes sit before the admin guard; everything below is owner-only.
   api.route('/me', meRoutes(deps));
   api.use('*', requireAdmin);
   api.route('/users', userRoutes(deps));
   api.route('/cash-handover', handoverRoutes(deps));
+  api.route('/employee-pay', employeePayRoutes(deps));
   api.route('/clients', clientRoutes(deps));
+  api.route('/bait-stations', baitStationRoutes(deps));
+  api.route('/client-documents', clientDocumentRoutes(deps));
   api.route('/service-types', serviceTypeRoutes(deps));
   api.route('/expense-categories', expenseCategoryRoutes(deps));
+  api.route('/extras', extraRoutes(deps));
+  api.route('/price-adjustments', priceAdjustmentRoutes(deps));
+  api.route('/products', productRoutes(deps));
+  api.route('/stock', stockRoutes(deps));
   api.route('/visits', visitRoutes(deps));
   api.route('/agenda', agendaRoutes(deps));
   api.route('/tracking', trackingRoutes(deps));
@@ -73,6 +101,7 @@ export function createApp(options: AppOptions) {
   api.route('/receivables', receivablesRoutes(deps));
   api.route('/certificates', certificateRoutes(deps));
   api.route('/dashboard', dashboardRoutes(deps));
+  api.route('/day-close', dayCloseRoutes(deps));
   api.route('/search', searchRoutes(deps));
   api.notFound((c) => c.json(errorBody('not_found', 'Recurso no encontrado'), 404));
 

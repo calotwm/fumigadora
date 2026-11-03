@@ -80,6 +80,20 @@ export async function createCategory(db: Db, input: z.infer<typeof categoryInput
   return row!;
 }
 
+/**
+ * Id of the first category whose name matches one of `names` (case-insensitive, in that order of preference);
+ * creates one named `names[0]` when none exists. Used by expenses the system files on its own (salaries, fuel).
+ */
+export async function ensureCategory(db: Db, names: [string, ...string[]]): Promise<number> {
+  const rows = await db.select().from(expenseCategories).orderBy(asc(expenseCategories.id));
+  for (const name of names) {
+    const found = rows.find((r) => r.name.trim().toLowerCase() === name.toLowerCase());
+    if (found) return found.id;
+  }
+  const [row] = await db.insert(expenseCategories).values({ name: names[0] }).returning({ id: expenseCategories.id });
+  return row!.id;
+}
+
 export async function updateCategory(db: Db, id: number, input: z.infer<typeof categoryInput>) {
   const [row] = await db.update(expenseCategories).set(input).where(eq(expenseCategories.id, id)).returning();
   if (!row) throw notFound('Categoría');
