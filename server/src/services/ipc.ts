@@ -1,4 +1,4 @@
-import { asc, sql } from 'drizzle-orm';
+import { asc, desc, sql } from 'drizzle-orm';
 import type { IpcRate } from '@fumigadora/shared';
 import type { Db } from '../db/client.js';
 import { ipcMonths } from '../db/schema.js';
@@ -40,6 +40,12 @@ export async function syncIpc(db: Db, fetchFn: typeof fetch): Promise<{ months: 
     .values(rates)
     .onConflictDoUpdate({ target: ipcMonths.month, set: { percentBp: sql`excluded.percent_bp`, updatedAt: sql`now()` } });
   return { months: rates.length, latest: rates.reduce((a, r) => (r.month > a ? r.month : a), '') };
+}
+
+/** Last published month, as a percent (1.9 = 1.9 %); null until the IPC was synced. */
+export async function latestIpc(db: Db): Promise<{ month: string; percent: number } | null> {
+  const [row] = await db.select().from(ipcMonths).orderBy(desc(ipcMonths.month)).limit(1);
+  return row ? { month: row.month, percent: row.percentBp / 100 } : null;
 }
 
 export async function listIpcRates(db: Db): Promise<IpcRate[]> {

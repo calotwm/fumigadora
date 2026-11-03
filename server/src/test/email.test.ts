@@ -124,7 +124,7 @@ describe('email and settings API', () => {
       companyLatitude: null,
       companyLongitude: null,
       companyPhone: null,
-      ipcWarningEnabled: false,
+      ipcWarningEnabled: true,
       ipcWarningGraceDays: 10,
     });
     const put = await t.call('PUT', '/api/settings', { debtRemindersEnabled: true, debtReminderEveryDays: 20, noticeMode: 'days_before' });
