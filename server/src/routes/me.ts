@@ -8,7 +8,8 @@ import { alertVisitChanged, alertVisitDone } from '../services/adminAlerts.js';
 import { listExtras } from '../services/extras.js';
 import { createFuelLoad, fuelInput } from '../services/cash.js';
 import { activeProductsForPicking } from '../services/stock.js';
-import { hasVisitAtClient, myVisitStations, stationPhotoInfo } from '../services/baitStations.js';
+import { addMyVisitStation, hasVisitAtClient, myStationInput, myVisitStations, stationPhotoInfo } from '../services/baitStations.js';
+import { PHOTO_MESSAGES } from './baitStations.js';
 import { readStoredFile } from '../services/files.js';
 import { checkUpload, fileResponse, IMAGE_TYPES, parseFields, readForm, uploadLimit } from '../services/uploads.js';
 import {
@@ -54,6 +55,14 @@ export function meRoutes(deps: Deps) {
     .get('/visits/:id/bait-stations', v('param', idParam), v('query', myVisitsQuery), async (c) => {
       const userId = actingUser(c.get('session'), c.req.valid('query').userId);
       return c.json(await myVisitStations(db, userId, c.req.valid('param').id));
+    })
+    // New station at the client of one of the caller's visits: multipart `code`, `reference?`, `photo?`.
+    .post('/visits/:id/bait-stations', uploadLimit(), v('param', idParam), v('query', myVisitsQuery), async (c) => {
+      const userId = actingUser(c.get('session'), c.req.valid('query').userId);
+      const { fields, files } = await readForm(c);
+      const input = parseFields(myStationInput, fields);
+      const photo = files.photo && files.photo.size > 0 ? await checkUpload(files.photo, IMAGE_TYPES, PHOTO_MESSAGES) : null;
+      return c.json(await addMyVisitStation(db, deps.config.filesDir, userId, c.req.valid('param').id, input, photo), 201);
     })
     // A station photo, only for a client where the caller has a visit assigned.
     .get('/bait-stations/:id/photo', v('param', idParam), v('query', myVisitsQuery), async (c) => {
