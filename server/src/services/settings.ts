@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyLatitude: null,
   companyLongitude: null,
   companyPhone: null,
-  ipcWarningEnabled: false,
+  ipcWarningEnabled: true,
   ipcWarningGraceDays: 10,
 };
 

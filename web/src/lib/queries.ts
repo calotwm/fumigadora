@@ -725,6 +725,11 @@ export function usePriceAdjustments() {
   return useQuery({ queryKey: ['price-adjustments'], queryFn: () => api<PriceAdjustmentRecord[]>('/price-adjustments') });
 }
 
+/** Last IPC synced from Argly, suggested as the percent of the next price update; null until the first sync. */
+export function useLatestIpc() {
+  return useQuery({ queryKey: ['ipc-latest'], queryFn: () => api<{ month: string; percent: number } | null>('/price-adjustments/ipc-latest') });
+}
+
 export function usePreviewPriceAdjustment() {
   return useMutation({
     mutationFn: (body: PriceAdjustmentBody) => api<PriceAdjustmentPreview>('/price-adjustments/preview', { body }),

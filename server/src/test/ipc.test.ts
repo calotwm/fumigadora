@@ -70,6 +70,12 @@ describe('IPC debt update', () => {
     answer = () => Response.json({ data: [...ARGLY_BODY.data, { mes: 6, anio: 2025, valor: 1.6 }] });
     expect(await maybeSyncIpc(deps)).toEqual({ months: 4, latest: '2025-06' });
   });
+
+  it('suggests the last published IPC for the price update', async () => {
+    const res = await t.get('/api/price-adjustments/ipc-latest');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ month: '2025-06', percent: 1.6 });
+  });
 });
 
 describe('parseArglyIpc', () => {

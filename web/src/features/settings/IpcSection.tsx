@@ -5,9 +5,9 @@ import { Confirm } from '../../ui/Confirm';
 import { Checkbox, Chips, Input } from '../../ui/form';
 import { EmptyState, ErrorNote, Loading, SectionHead, Table, type Column } from '../../ui/display';
 import { useToast } from '../../ui/Toast';
-import { useApplyPriceAdjustment, usePreviewPriceAdjustment, usePriceAdjustments } from '../../lib/queries';
+import { useApplyPriceAdjustment, useLatestIpc, usePreviewPriceAdjustment, usePriceAdjustments } from '../../lib/queries';
 import { errorMessage } from '../../lib/api';
-import { fullDate, money } from '../../lib/format';
+import { fullDate, money, monthLabel } from '../../lib/format';
 import type { PriceAdjustmentBody, PriceAdjustmentPreview, PriceChange } from '../../lib/types';
 
 const ROUNDING_LABELS: Record<PriceRounding, string> = { none: 'Sin redondeo', '100': 'A $ 100', '1000': 'A $ 1.000' };
@@ -40,6 +40,7 @@ const percentLabel = (p: number) => `${String(p).replace('.', ',')} %`;
 export function IpcSection() {
   const toast = useToast();
   const history = usePriceAdjustments();
+  const latestIpc = useLatestIpc().data ?? null;
   const previewMutation = usePreviewPriceAdjustment();
   const apply = useApplyPriceAdjustment();
   const [percentText, setPercentText] = useState('');
@@ -109,8 +110,27 @@ export function IpcSection() {
               reset();
             }}
             error={error}
-            hint="Porcentaje del IPC del período (INDEC), ingresado a mano."
+            hint="Porcentaje del IPC del período (INDEC)."
           />
+          {latestIpc ? (
+            <p className="-mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="text-muted">
+                Último IPC publicado: <span className="num font-semibold text-ink">{percentLabel(latestIpc.percent)}</span> (
+                {monthLabel(latestIpc.month).toLowerCase()})
+              </span>
+              <button
+                type="button"
+                className="font-semibold underline underline-offset-2"
+                onClick={() => {
+                  setPercentText(String(latestIpc.percent).replace('.', ','));
+                  setError(null);
+                  reset();
+                }}
+              >
+                Usar este
+              </button>
+            </p>
+          ) : null}
           <Chips
             label="Redondeo"
             value={rounding}

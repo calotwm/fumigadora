@@ -217,6 +217,8 @@ describe('debt reminders and the daily job', () => {
     await debtor('Sin mail', {}, '2025-05-10');
     await debtor('Reciente', { email: 'reciente@example.com' }, '2025-06-10'); // 5 days overdue
     await debtor('Al dia', { email: 'aldia@example.com' }, '2025-07-10'); // not due yet
+    // The IPC warning is on by default; these reminders start without it and a later test switches it on.
+    await t.call('PUT', '/api/settings', { ipcWarningEnabled: false });
   });
   afterAll(() => t.close());
 
